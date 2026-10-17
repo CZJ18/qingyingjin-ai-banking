@@ -1,0 +1,3 @@
+services:
+  banking-web:
+    image: qingrongjin-banking-web:renewal-reminders

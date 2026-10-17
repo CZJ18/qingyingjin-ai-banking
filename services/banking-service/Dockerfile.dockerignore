@@ -1,0 +1,15 @@
+**
+!backend/
+!backend/go.mod
+!backend/go.sum
+!backend/domain/
+!backend/domain/banking/
+!backend/domain/banking/**
+!backend/infra/
+!backend/infra/idgen/
+!backend/infra/idgen/idgen.go
+!services/
+!services/banking-service/
+!services/banking-service/**
+services/banking-service/.env*
+services/banking-service/**/*.exe

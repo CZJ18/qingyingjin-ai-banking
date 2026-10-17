@@ -1,0 +1,97 @@
+.p6-preparation {
+  border: 1px solid #eadbbd;
+  border-radius: 10px;
+  padding: 20px;
+  background: #fffbf2;
+  color: #6d531d;
+}
+.p6-preparation h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+.p6-preparation p {
+  line-height: 1.8;
+  font-size: 14px;
+}
+.p6-preparation .checkbox-label {
+  flex-direction: row;
+  align-items: flex-start;
+  margin: 16px 0;
+  gap: 10px;
+}
+.p6-preparation input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  margin-top: 4px;
+  flex: none;
+}
+.p6-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.p6-task-tabs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+.p6-task-tabs button {
+  background: #fff;
+  color: #64748b;
+  border: 1px solid #e7edf3;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.p6-task-tabs button.active {
+  border-color: #0d9488;
+  color: #0d766e;
+  background: #f2faf8;
+}
+.p6-task-bindings {
+  padding: 12px 16px;
+  background: #f7f9fb;
+  border: 1px solid #e7edf3;
+  border-radius: 8px;
+  margin: 0 0 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  font-size: 12px;
+  color: #64748b;
+}
+.p6-task-bindings b {
+  color: #142d4e;
+  font-weight: 500;
+}
+.p6-outcome-note {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.8;
+}
+.p6-history-list {
+  display: grid;
+  gap: 8px;
+}
+.intent-status {
+  font-size: 15px !important;
+}
+.p6-transfer-form form {
+  padding: 0 22px 22px;
+}
+.p6-transfer-form .result-note {
+  padding: 0 22px;
+  color: #64748b;
+}
+@media (max-width: 600px) {
+  .p6-actions > button {
+    width: 100%;
+  }
+  .p6-task-bindings {
+    display: grid;
+  }
+}

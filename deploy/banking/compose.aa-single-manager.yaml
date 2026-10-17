@@ -1,0 +1,6 @@
+# Last overlay; no SQL schema change, forward-compatible AA JSON extension.
+services:
+  banking-service:
+    image: qingyingjin-banking-service:aa-single-manager
+  banking-migrate:
+    image: qingyingjin-banking-service:aa-single-manager

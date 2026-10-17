@@ -1,0 +1,117 @@
+name: qingrongjin-agent
+
+x-agent-runtime: &agent-runtime
+  image: ${BANKING_AGENT_IMAGE:-qingrongjin-banking-agent-service:p5}
+  build:
+    context: ../../services/banking-agent-service
+    dockerfile: Dockerfile
+  user: '10001:10001'
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=32m,mode=1777
+
+services:
+  banking-agent-postgres:
+    image: postgres:17.6
+    user: postgres:postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: qingrongjin_agent
+      POSTGRES_PASSWORD: ${BANKING_AGENT_POSTGRES_ADMIN_PASSWORD:?run Setup-Local.ps1}
+      POSTGRES_APP_PASSWORD: ${BANKING_AGENT_POSTGRES_APP_PASSWORD:?run Setup-Local.ps1}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    volumes:
+      - banking-agent-postgres-data:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/001-agent-role.sh:ro
+    networks: [agent-internal]
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'PGPASSWORD="$$POSTGRES_PASSWORD" psql --no-psqlrc --host=127.0.0.1 --username="$$POSTGRES_USER" --dbname="$$POSTGRES_DB" --quiet --tuples-only --no-align --command="SELECT 1" | grep -q "^1$$"'
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /var/run/postgresql:rw,noexec,nosuid,size=16m,mode=1777
+      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
+    restart: unless-stopped
+
+  banking-agent-redis:
+    image: redis:8.0.2-alpine
+    user: redis:redis
+    environment:
+      BANKING_AGENT_REDIS_PASSWORD: ${BANKING_AGENT_REDIS_PASSWORD:?run Setup-Local.ps1}
+    command:
+      - sh
+      - -c
+      - 'exec redis-server --appendonly yes --requirepass "$$BANKING_AGENT_REDIS_PASSWORD"'
+    volumes:
+      - banking-agent-redis-data:/data
+    networks: [agent-internal]
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$BANKING_AGENT_REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
+    restart: unless-stopped
+
+  banking-agent-migrate:
+    <<: *agent-runtime
+    entrypoint: [python, -m, banking_agent.migrate]
+    environment:
+      BANKING_AGENT_MIGRATION_URL: ${BANKING_AGENT_MIGRATION_URL:?run Setup-Local.ps1}
+    networks: [agent-internal]
+    depends_on:
+      banking-agent-postgres: {condition: service_healthy}
+    restart: 'no'
+
+  banking-agent-service:
+    <<: *agent-runtime
+    environment:
+      BANKING_AGENT_DATABASE_URL: ${BANKING_AGENT_DATABASE_URL:?run Setup-Local.ps1}
+      BANKING_AGENT_REDIS_URL: ${BANKING_AGENT_REDIS_URL:?run Setup-Local.ps1}
+      BANKING_AGENT_BANKING_URL: ${BANKING_AGENT_BANKING_URL:-http://banking-service:8090}
+      BANKING_AGENT_SERVICE_KEY: ${BANKING_AGENT_SERVICE_KEY:?run Setup-P5.ps1}
+      # Request credentials remain in runtime context; disable hosted tracing.
+      LANGSMITH_TRACING: 'false'
+      LANGCHAIN_TRACING_V2: 'false'
+    ports:
+      - '127.0.0.1:8091:8091'
+    networks: [agent-internal, banking-private]
+    depends_on:
+      banking-agent-postgres: {condition: service_healthy}
+      banking-agent-redis: {condition: service_healthy}
+      banking-agent-migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - 'import urllib.request; response = urllib.request.urlopen("http://127.0.0.1:8091/healthz", timeout=3); raise SystemExit(0 if response.status == 200 else 1)'
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+networks:
+  agent-internal:
+    internal: true
+  banking-private:
+    external: true
+    name: qingyingjin_banking-egress
+
+volumes:
+  banking-agent-postgres-data:
+  banking-agent-redis-data:

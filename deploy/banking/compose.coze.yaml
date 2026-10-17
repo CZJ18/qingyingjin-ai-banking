@@ -1,0 +1,15 @@
+# Merge AFTER docker/docker-compose.yml and deploy/banking/compose.yaml.
+# Compose resolves paths relative to the FIRST file (docker/).
+services:
+  banking-service:
+    build:
+      context: ..
+      dockerfile: services/banking-service/Dockerfile
+    networks:
+      - banking-internal
+      - coze-network
+    environment:
+      BANKING_COZE_BASE_URL: ${BANKING_COZE_BASE_URL:-}
+      BANKING_COZE_PAT: ${BANKING_COZE_PAT:-}
+networks:
+  coze-network: {}

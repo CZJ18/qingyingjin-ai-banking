@@ -1,0 +1,17 @@
+**/node_modules
+**/.venv
+**/__pycache__
+**/dist
+**/output
+**/test-results
+**/.pytest_cache
+**/.ruff_cache
+.git
+.tmp
+**/.env
+**/.env.*
+!**/.env.example
+**/*.env.local
+**/*.log
+**/*.exe
+**/*.dump

@@ -1,0 +1,27 @@
+name: qingrongjin-android
+services:
+  mobile-entry:
+    # Reuse the exact local nginx runtime; no backend rebuild or database change.
+    image: qingrongjin-banking-web:recipient-transfers
+    user: '101:101'
+    ports:
+      - '${ANDROID_BIND_IP:?Set your private LAN IPv4 address}:${ANDROID_PORT:-8089}:8080'
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../../output/android/delivery:/opt/apk:ro
+    networks: [banking-private]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
+    healthcheck:
+      test: [CMD, wget, --quiet, --tries=1, --spider, 'http://127.0.0.1:8080/web-healthz']
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+networks:
+  banking-private:
+    external: true
+    name: qingyingjin_banking-egress

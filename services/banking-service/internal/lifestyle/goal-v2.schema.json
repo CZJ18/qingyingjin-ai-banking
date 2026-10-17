@@ -1,0 +1,97 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "2.0"
+      ]
+    },
+    "currency": {
+      "type": "string",
+      "enum": [
+        "CNY"
+      ]
+    },
+    "period_months": {
+      "type": "integer",
+      "format": "int64",
+      "minimum": 1,
+      "maximum": 120
+    },
+    "expense_reduction_monthly_minor": {
+      "type": "integer",
+      "format": "int64",
+      "minimum": 0,
+      "maximum": 1000000000000
+    },
+    "savings_monthly_minor": {
+      "type": "integer",
+      "format": "int64",
+      "minimum": 0,
+      "maximum": 1000000000000
+    },
+    "health_background": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "adjustable_categories": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "maxItems": 32,
+      "uniqueItems": true
+    },
+    "protected_categories": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "maxItems": 32,
+      "uniqueItems": true
+    },
+    "prohibited_operations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "transfer",
+          "cancel_subscription",
+          "reduce_essential_expenses",
+          "all_financial_operations",
+          "weight_based_incentives"
+        ]
+      },
+      "maxItems": 32,
+      "uniqueItems": true
+    },
+    "evidence": {
+      "type": "object",
+      "maxProperties": 100,
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 10000
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "currency",
+    "period_months",
+    "expense_reduction_monthly_minor",
+    "savings_monthly_minor",
+    "health_background",
+    "adjustable_categories",
+    "protected_categories",
+    "prohibited_operations",
+    "evidence"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:qingrongjin:goal:v2"
+}

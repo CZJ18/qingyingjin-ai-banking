@@ -1,0 +1,650 @@
+{
+  "type": "object",
+  "properties": {
+    "report_id": {
+      "type": "string"
+    },
+    "user_id": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "tool": {
+      "enum": [
+        "get_transactions",
+        "get_account_summary",
+        "analyze_spending",
+        "compare_budget",
+        "detect_anomalies",
+        "generate_billing_report"
+      ]
+    },
+    "analysis_period": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "timezone": {
+          "enum": [
+            "UTC",
+            "Asia/Shanghai"
+          ]
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "timezone"
+      ],
+      "additionalProperties": false
+    },
+    "currency": {
+      "const": "CNY"
+    },
+    "total_income": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9223372036854775807
+    },
+    "total_expense": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9223372036854775807
+    },
+    "category_breakdown": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "expense_minor": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9223372036854775807
+          },
+          "transaction_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            }
+          }
+        },
+        "required": [
+          "category",
+          "expense_minor",
+          "transaction_ids"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "budget_status": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "budget_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "month": {
+            "type": "string"
+          },
+          "scope": {
+            "const": "all_user_accounts_full_UTC_month"
+          },
+          "total_minor": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9223372036854775807
+          },
+          "spent_minor": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9223372036854775807
+          },
+          "remaining_minor": {
+            "type": "integer",
+            "minimum": -9223372036854775808,
+            "maximum": 9223372036854775807
+          },
+          "essential_reserve_remaining_minor": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9223372036854775807
+          },
+          "available_after_reserve_minor": {
+            "type": "integer",
+            "minimum": -9223372036854775808,
+            "maximum": 9223372036854775807
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "category": {
+                  "type": "string"
+                },
+                "allocated_minor": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9223372036854775807
+                },
+                "spent_minor": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9223372036854775807
+                },
+                "remaining_minor": {
+                  "type": "integer",
+                  "minimum": -9223372036854775808,
+                  "maximum": 9223372036854775807
+                },
+                "essential_reserve_remaining_minor": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9223372036854775807
+                }
+              },
+              "required": [
+                "category",
+                "allocated_minor",
+                "spent_minor",
+                "remaining_minor",
+                "essential_reserve_remaining_minor"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "transaction_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            }
+          }
+        },
+        "required": [
+          "budget_id",
+          "month",
+          "scope",
+          "total_minor",
+          "spent_minor",
+          "remaining_minor",
+          "essential_reserve_remaining_minor",
+          "available_after_reserve_minor",
+          "categories",
+          "transaction_ids"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "anomalies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "enum": [
+              "possible_duplicate",
+              "category_unknown",
+              "large_amount_review",
+              "unusual_amount"
+            ]
+          },
+          "rule": {
+            "type": "string"
+          },
+          "review_required": {
+            "const": true
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "transaction_id": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$"
+                },
+                "account_id": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$"
+                },
+                "occurred_at": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9223372036854775807
+                },
+                "amount_minor": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9223372036854775807
+                },
+                "direction": {
+                  "enum": [
+                    "income",
+                    "expense"
+                  ]
+                },
+                "original_category": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string"
+                },
+                "merchant": {
+                  "type": "string"
+                },
+                "effect_mode": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "transaction_id",
+                "account_id",
+                "occurred_at",
+                "amount_minor",
+                "direction",
+                "original_category",
+                "category",
+                "merchant",
+                "effect_mode"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1
+          },
+          "confirmed_loss": {
+            "const": false
+          }
+        },
+        "required": [
+          "type",
+          "rule",
+          "review_required",
+          "evidence",
+          "confirmed_loss"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "potential_savings": {
+      "type": "object",
+      "properties": {
+        "confirmed_minor": {
+          "const": 0
+        },
+        "review_candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "duplicate_review"
+              },
+              "candidate_amount_minor": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9223372036854775807
+              },
+              "transaction_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$"
+                }
+              },
+              "requires_confirmation": {
+                "const": true
+              }
+            },
+            "required": [
+              "kind",
+              "candidate_amount_minor",
+              "transaction_ids",
+              "requires_confirmation"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "confirmed_minor",
+        "review_candidates"
+      ],
+      "additionalProperties": false
+    },
+    "evidence_transaction_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[1-9][0-9]*$"
+      }
+    },
+    "daily": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "income_minor": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9223372036854775807
+          },
+          "expense_minor": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9223372036854775807
+          },
+          "transaction_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            }
+          }
+        },
+        "required": [
+          "label",
+          "income_minor",
+          "expense_minor",
+          "transaction_ids"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "weekly": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "income_minor": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9223372036854775807
+          },
+          "expense_minor": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9223372036854775807
+          },
+          "transaction_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            }
+          }
+        },
+        "required": [
+          "label",
+          "income_minor",
+          "expense_minor",
+          "transaction_ids"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "monthly": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "income_minor": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9223372036854775807
+          },
+          "expense_minor": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9223372036854775807
+          },
+          "transaction_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            }
+          }
+        },
+        "required": [
+          "label",
+          "income_minor",
+          "expense_minor",
+          "transaction_ids"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "trend": {
+      "type": "object",
+      "properties": {
+        "previous_period": {
+          "type": "object",
+          "properties": {
+            "from": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            },
+            "timezone": {
+              "enum": [
+                "UTC",
+                "Asia/Shanghai"
+              ]
+            }
+          },
+          "required": [
+            "from",
+            "to",
+            "timezone"
+          ],
+          "additionalProperties": false
+        },
+        "previous_expense_minor": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9223372036854775807
+        },
+        "current_expense_minor": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9223372036854775807
+        },
+        "delta_minor": {
+          "type": "integer",
+          "minimum": -9223372036854775808,
+          "maximum": 9223372036854775807
+        },
+        "change_basis_points": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "previous_transaction_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          }
+        },
+        "status": {
+          "enum": [
+            "insufficient_baseline",
+            "observed_change"
+          ]
+        }
+      },
+      "required": [
+        "previous_period",
+        "previous_expense_minor",
+        "current_expense_minor",
+        "delta_minor",
+        "change_basis_points",
+        "previous_transaction_ids",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "transactions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "transaction_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "account_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "occurred_at": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9223372036854775807
+          },
+          "amount_minor": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9223372036854775807
+          },
+          "direction": {
+            "enum": [
+              "income",
+              "expense"
+            ]
+          },
+          "original_category": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "merchant": {
+            "type": "string"
+          },
+          "effect_mode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "transaction_id",
+          "account_id",
+          "occurred_at",
+          "amount_minor",
+          "direction",
+          "original_category",
+          "category",
+          "merchant",
+          "effect_mode"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "transaction_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9223372036854775807
+    },
+    "accounts": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "finding_id": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "transaction_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            }
+          }
+        },
+        "required": [
+          "finding_id",
+          "description",
+          "transaction_ids"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "financial_execution_enabled": {
+      "const": false
+    },
+    "snapshot_at": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9223372036854775807
+    },
+    "audit_id": {
+      "type": "string"
+    },
+    "trace_id": {
+      "type": "string"
+    },
+    "task_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "report_id",
+    "user_id",
+    "tool",
+    "analysis_period",
+    "currency",
+    "total_income",
+    "total_expense",
+    "category_breakdown",
+    "budget_status",
+    "anomalies",
+    "potential_savings",
+    "evidence_transaction_ids",
+    "daily",
+    "weekly",
+    "monthly",
+    "trend",
+    "transactions",
+    "transaction_count",
+    "accounts",
+    "findings",
+    "financial_execution_enabled",
+    "snapshot_at",
+    "audit_id",
+    "trace_id",
+    "task_id"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:qingyingjin:billing-report:1"
+}

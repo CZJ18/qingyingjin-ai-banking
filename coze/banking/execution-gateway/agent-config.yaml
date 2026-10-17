@@ -1,0 +1,18 @@
+version: 0.8.0
+purpose: native_coze_manual_configuration_reference
+published: false
+model_id: null
+workflow_id: null
+system_prompt_file: system-prompt.md
+plugin_openapi_url: http://banking-service:8090/coze-plugin.openapi.yaml
+credential_header: X-Banking-Tool-Key
+credential_source: operator_configured_plugin_secret
+allowed_execution_tools:
+  - prepare_operation
+  - get_operation
+permissions:
+  - READ
+  - PREPARE
+human_authorization_channel: authenticated_user_api
+financial_execution_by_model: false
+external_bank_connection: false

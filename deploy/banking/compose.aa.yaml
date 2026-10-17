@@ -1,0 +1,6 @@
+# Last overlay, after compose.renewals.yaml. Apply migration 016 first.
+services:
+  banking-service:
+    image: qingyingjin-banking-service:aa-bills
+  banking-migrate:
+    image: qingyingjin-banking-service:aa-bills

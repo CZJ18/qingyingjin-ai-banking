@@ -1,0 +1,38 @@
+status: local_model_workflows_published_native_plugin_wrappers_remain_references
+name: Qingyingjin Supervisor
+native_capabilities: [Agent, Workflow, Plugin]
+prompt: system-prompt.md
+platform: Coze Studio native Agent
+model: choose_actual_installed_model
+plugins:
+  openapi_file: services/banking-service/api/coze-plugin.openapi.yaml
+  server_url: http://banking-service:8090
+  auth:
+    location: header
+    name: X-Banking-Tool-Key
+    value: configure_in_native_plugin_secret_settings
+  allowed_tools: [get_orchestration, get_orchestration_result]
+agent_roles:
+  supervisor: understanding_dependency_coordination
+  billing: deterministic_banking_api_analysis
+  subscription: evidence_based_local_subscription_analysis
+  savings: deterministic_advisory_planning
+  lifestyle: evidence_backed_normal_living_budget_v2
+tools: [get_orchestration, get_orchestration_result]
+credentials: operator_managed_plugin_header_auth
+identity: server_bound_tool_owner
+financial_execution_enabled: false
+trusted_gateway: module8_required_for_sensitive_proposals
+workflow:
+  instruction: native_start_llm_end_with_actual_model_id
+  explanation: native_start_llm_end_with_actual_model_id
+  observation: native_start_plugin_end_with_actual_plugin_api_ids
+handoff: structured_task_result_and_dependency_graph
+notes:
+  - No invented Agent-to-Agent public API is required.
+  - Go owns durable operational job state and calls existing native Workflow runs.
+  - User confirmation and financial execution never appear in plugin permissions.
+
+skill_contract_version: 1
+skill_registry: protected_GET_api_v1_skills
+skill_binding_validation: server_submission_and_execution

@@ -1,0 +1,39 @@
+[project]
+name = "qingrongjin-banking-agent-service"
+version = "0.5.0"
+description = "Authenticated product API and evidence-backed Banking projections"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "fastapi>=0.143.0",
+    "httpx>=0.28.1",
+    "langgraph>=1.2.15",
+    "psycopg-pool>=3.3.3",
+    "psycopg[binary]>=3.3.6",
+    "redis>=8.1.0",
+    "tzdata>=2026.5",
+    "uvicorn>=0.54.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+pythonpath = ["src"]
+markers = ["integration: requires actual PostgreSQL and Redis"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.17.0",
+]

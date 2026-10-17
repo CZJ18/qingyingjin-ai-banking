@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "user_id": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "created_at": {
+      "type": "integer"
+    },
+    "updated_at": {
+      "type": "integer"
+    },
+    "subscription_id": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "subscription_version": {
+      "type": "integer"
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "cancel"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending_approval",
+        "executed",
+        "rejected",
+        "failed",
+        "expired"
+      ]
+    },
+    "confirmation_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "expires_at": {
+      "type": "integer"
+    },
+    "executed_at": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "failure_code": {
+      "type": "string"
+    },
+    "trace_id": {
+      "type": "string"
+    },
+    "task_id": {
+      "type": "string"
+    },
+    "audit_id": {
+      "type": "string",
+      "format": "uuid"
+    }
+  },
+  "required": [
+    "id",
+    "user_id",
+    "created_at",
+    "updated_at",
+    "subscription_id",
+    "subscription_version",
+    "action",
+    "status",
+    "confirmation_hash",
+    "expires_at",
+    "failure_code",
+    "trace_id",
+    "task_id",
+    "audit_id"
+  ]
+}

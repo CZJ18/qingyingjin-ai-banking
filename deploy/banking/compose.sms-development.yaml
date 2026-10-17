@@ -1,0 +1,10 @@
+# Local simulated SMS workflow only. No cloud SMS API or network transmission.
+# Last overlay after phone-auth; never use this profile for public production.
+services:
+  banking-service:
+    image: ${BANKING_SMS_IMAGE:-qingyingjin-banking-service:sms-auth}
+    env_file: [./sms.env.local]
+    environment:
+      BANKING_AUTH_COOKIE_SECURE: 'false'
+  banking-migrate:
+    image: ${BANKING_SMS_IMAGE:-qingyingjin-banking-service:sms-auth}

@@ -1,0 +1,8 @@
+# Optional local integration ports; bound to loopback only.
+services:
+  banking-mysql:
+    ports: ['127.0.0.1:13306:3306']
+    networks: [banking-internal, banking-egress]
+  banking-redis:
+    ports: ['127.0.0.1:16379:6379']
+    networks: [banking-internal, banking-egress]

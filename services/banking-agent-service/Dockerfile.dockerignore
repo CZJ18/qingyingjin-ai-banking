@@ -1,0 +1,12 @@
+**
+!pyproject.toml
+!uv.lock
+!src/
+!src/**
+!migrations/
+!migrations/**
+src/**/__pycache__/
+src/**/*.pyc
+src/**/*.pyo
+src/**/.env*
+migrations/**/.env*

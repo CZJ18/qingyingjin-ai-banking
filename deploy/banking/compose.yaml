@@ -1,0 +1,113 @@
+name: qingyingjin
+services:
+  banking-mysql:
+    image: mysql:8.4.5
+    # Trusted, schema-scoped simulation outbox triggers with ROW binary logging.
+    command: [mysqld, --log-bin-trust-function-creators=1]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${BANKING_MYSQL_ROOT_PASSWORD:?set Banking root password}
+      MYSQL_DATABASE: ${BANKING_MYSQL_DATABASE:-qingyingjin}
+      MYSQL_USER: ${BANKING_MYSQL_USER:-banking}
+      MYSQL_PASSWORD: ${BANKING_MYSQL_PASSWORD:?set Banking MySQL password}
+    volumes:
+      - banking-mysql-data:/var/lib/mysql
+    networks: [banking-internal]
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql --protocol=TCP -h 127.0.0.1 -u "$$MYSQL_USER" "$$MYSQL_DATABASE" -Nse "SELECT 1"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+  banking-redis:
+    image: redis:8.0.2-alpine
+    environment:
+      BANKING_REDIS_PASSWORD: ${BANKING_REDIS_PASSWORD:?set Banking Redis password}
+    command: [sh, -c, 'exec redis-server --appendonly yes --requirepass "$$BANKING_REDIS_PASSWORD"']
+    volumes:
+      - banking-redis-data:/data
+    networks: [banking-internal]
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$BANKING_REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+  banking-service:
+    image: ${BANKING_IMAGE:-qingyingjin-banking-service:module13}
+    build:
+      context: ../..
+      dockerfile: services/banking-service/Dockerfile
+    environment: &banking-environment
+      BANKING_HTTP_ADDR: 0.0.0.0:8090
+      BANKING_LOG_LEVEL: ${BANKING_LOG_LEVEL:-info}
+      BANKING_CHECK_TIMEOUT: ${BANKING_CHECK_TIMEOUT:-2s}
+      BANKING_AUTH_COOKIE_SECURE: ${BANKING_AUTH_COOKIE_SECURE:-true}
+      BANKING_MYSQL_HOST: banking-mysql
+      BANKING_MYSQL_PORT: '3306'
+      BANKING_MYSQL_USER: ${BANKING_MYSQL_USER:-banking}
+      BANKING_MYSQL_PASSWORD: ${BANKING_MYSQL_PASSWORD:?set Banking MySQL password}
+      BANKING_MYSQL_DATABASE: ${BANKING_MYSQL_DATABASE:-qingyingjin}
+      BANKING_MYSQL_TLS: ${BANKING_MYSQL_TLS:-false}
+      BANKING_REDIS_ADDR: banking-redis:6379
+      BANKING_REDIS_PASSWORD: ${BANKING_REDIS_PASSWORD:?set Banking Redis password}
+      BANKING_REDIS_DB: ${BANKING_REDIS_DB:-0}
+      BANKING_USER_JWT_SECRET: ${BANKING_USER_JWT_SECRET:?set user JWT secret}
+      BANKING_LANGGRAPH_SERVICE_TOKEN: ${BANKING_LANGGRAPH_SERVICE_TOKEN:-}
+      BANKING_TOOL_TOKEN: ${BANKING_TOOL_TOKEN:?set tool credential}
+      BANKING_TOOL_USER_ID: ${BANKING_TOOL_USER_ID:?set tool user binding}
+      BANKING_TOOL_COZE_USER_ID: ${BANKING_TOOL_COZE_USER_ID:-}
+      BANKING_JWT_ISSUER: ${BANKING_JWT_ISSUER:-qingyingjin}
+      BANKING_JWT_AUDIENCE: ${BANKING_JWT_AUDIENCE:-banking-service}
+      BANKING_COZE_BASE_URL: ${BANKING_COZE_BASE_URL:-}
+      BANKING_COZE_PAT: ${BANKING_COZE_PAT:-}
+      BANKING_COZE_TIMEOUT: ${BANKING_COZE_TIMEOUT:-30s}
+      BANKING_MODEL_DAILY_CALLS: ${BANKING_MODEL_DAILY_CALLS:-20}
+      BANKING_MODEL_DAILY_TOKENS: ${BANKING_MODEL_DAILY_TOKENS:-327680}
+      BANKING_MODEL_RESERVATION_TOKENS: ${BANKING_MODEL_RESERVATION_TOKENS:-16384}
+      BANKING_ORCHESTRATOR_API_BASE_URL: ${BANKING_ORCHESTRATOR_API_BASE_URL:-http://127.0.0.1:8090}
+      BANKING_SUPERVISOR_WORKFLOW_ID: ${BANKING_SUPERVISOR_WORKFLOW_ID:-}
+      BANKING_BILLING_AGENT_WORKFLOW_ID: ${BANKING_BILLING_AGENT_WORKFLOW_ID:-}
+      BANKING_SUBSCRIPTION_AGENT_WORKFLOW_ID: ${BANKING_SUBSCRIPTION_AGENT_WORKFLOW_ID:-}
+      BANKING_SAVINGS_AGENT_WORKFLOW_ID: ${BANKING_SAVINGS_AGENT_WORKFLOW_ID:-}
+      COZE_LIFESTYLE_GOAL_WORKFLOW_ID: ${COZE_LIFESTYLE_GOAL_WORKFLOW_ID:-}
+      BANKING_LIFESTYLE_AGENT_WORKFLOW_ID: ${BANKING_LIFESTYLE_AGENT_WORKFLOW_ID:-}
+      BANKING_GOAL_WORKFLOW_ID: ${BANKING_GOAL_WORKFLOW_ID:-}
+      BANKING_BILLING_WORKFLOW_ID: ${BANKING_BILLING_WORKFLOW_ID:-}
+    ports:
+      - '127.0.0.1:8090:8090'
+    networks: [banking-internal, banking-egress]
+    depends_on:
+      banking-mysql: {condition: service_healthy}
+      banking-redis: {condition: service_healthy}
+      banking-migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, /banking-service, -probe, 'http://127.0.0.1:8090/readyz']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+  banking-migrate:
+    image: ${BANKING_IMAGE:-qingyingjin-banking-service:module13}
+    build:
+      context: ../..
+      dockerfile: services/banking-service/Dockerfile
+    entrypoint: [/banking-migrate]
+    environment: *banking-environment
+    networks: [banking-internal]
+    depends_on:
+      banking-mysql: {condition: service_healthy}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: 'no'
+networks:
+  banking-internal:
+    internal: true
+  banking-egress: {}
+volumes:
+  banking-mysql-data:
+  banking-redis-data:

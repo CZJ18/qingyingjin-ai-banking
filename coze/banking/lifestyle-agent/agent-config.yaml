@@ -1,0 +1,37 @@
+name: Qingrongjin Lifestyle Goal Agent
+status: explanation_workflow_published_native_plugin_wrapper_remains_reference
+role: lifestyle
+skill: {id: lifestyle_planning, version: 1, rule_version: lifestyle-1}
+tools: [get_lifestyle_goal, get_lifestyle_plan, compile_lifestyle_plan]
+permissions: [READ, PLAN]
+execution: prohibited
+transport:
+  openapi: services/banking-service/api/coze-plugin.openapi.yaml
+  user_identity: server_bound_tool_credential_or_signed_task_identity
+  model_must_not_receive_credentials: true
+output:
+  fields: [task_id, agent_type, status, result, evidence, errors, next_actions]
+  source: authoritative_Banking_API_result
+workflows:
+  generator: generate_tool_canvas.py
+  verified_source_example: backend/domain/workflow/internal/canvas/examples/code_plugin.json
+  verified_adapter: backend/domain/workflow/internal/nodes/plugin/plugin.go
+  node_types: ['1', '4', '2']
+  retry_times: 0
+  require: [actual_plugin_id, actual_api_id, actual_plugin_name, actual_plugin_version]
+  publish: configure_and_publish_in_native_Coze_Studio
+model_explanation:
+  generator: coze/banking/supervisor-agent/generate_canvas.py
+  role: lifestyle
+  workflow_id_env: BANKING_LIFESTYLE_AGENT_WORKFLOW_ID
+  local_published_id: '7696050871041261568'
+  shape: [task_id, agent_type, finding_ids]
+  rendered_by_Go: [explanation, explanation_evidence_ids, explanation_finding_ids]
+  banking_result: independently_validated_Go_API_result
+  credentials_to_model: prohibited
+goal_parser:
+  generator: generate_goal_canvas.py
+  workflow_id_env: COZE_LIFESTYLE_GOAL_WORKFLOW_ID
+  local_published_id: '7696050872391827456'
+  source_amount_normalization: Go_integer_cents_and_original_evidence
+  failure: MODEL_OUTPUT_INVALID_or_COZE_UNAVAILABLE_no_fixture_fallback

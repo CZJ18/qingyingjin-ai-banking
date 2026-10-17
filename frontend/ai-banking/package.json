@@ -1,0 +1,41 @@
+{
+  "name": "qingyingjin-ai-banking",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "api:generate": "openapi-typescript ../../services/banking-service/api/openapi.yaml -o src/api/schema.d.ts && npm run api:generate:agent",
+    "api:generate:agent": "openapi-typescript ../../services/banking-agent-service/api/openapi.json -o src/api/agent-schema.d.ts",
+    "test": "vitest run",
+    "test:browser": "node scripts/inspect.mjs && node scripts/verify-business.mjs",
+    "test:live": "node scripts/verify-live.mjs"
+  },
+  "dependencies": {
+    "@tanstack/vue-query": "^5.0.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "echarts": "^6.0.0",
+    "lucide-vue-next": "^0.468.0",
+    "pinia": "^3.0.0",
+    "reka-ui": "^2.0.0",
+    "tailwind-merge": "^3.0.0",
+    "vue": "^3.5.0",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/node": "^24.0.0",
+    "@vitejs/plugin-vue": "^6.0.0",
+    "openapi-typescript": "^7.0.0",
+    "prettier": "^3.9.9",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.0.0",
+    "vitest": "^4.1.11",
+    "vue-tsc": "^3.0.0"
+  }
+}

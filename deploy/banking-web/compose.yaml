@@ -1,0 +1,32 @@
+name: qingrongjin-web
+
+services:
+  banking-web:
+    image: ${BANKING_WEB_IMAGE:-qingrongjin-banking-web:p6}
+    build:
+      context: ../..
+      dockerfile: deploy/banking-web/Dockerfile
+      args:
+        NODE_BUILD_IMAGE: ${BANKING_WEB_NODE_IMAGE:-node:22-alpine}
+        NGINX_RUNTIME_IMAGE: ${BANKING_WEB_NGINX_IMAGE:-nginx:1.28-alpine}
+    user: '101:101'
+    ports:
+      - '127.0.0.1:${BANKING_WEB_PORT:-8088}:8080'
+    networks: [banking-private]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m,mode=1777
+    healthcheck:
+      test: [CMD, wget, --quiet, --tries=1, --spider, 'http://127.0.0.1:8080/web-healthz']
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+networks:
+  banking-private:
+    external: true
+    name: qingyingjin_banking-egress

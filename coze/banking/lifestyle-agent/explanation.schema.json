@@ -1,0 +1,10 @@
+{
+ "$schema":"https://json-schema.org/draft/2020-12/schema",
+ "type":"object","additionalProperties":false,
+ "required":["task_id","agent_type","finding_ids"],
+ "properties":{
+  "task_id":{"type":"string","minLength":1},
+  "agent_type":{"const":"lifestyle"},
+  "finding_ids":{"type":"array","minItems":1,"maxItems":3,"uniqueItems":true,"items":{"type":"string","minLength":1}}
+ }
+}

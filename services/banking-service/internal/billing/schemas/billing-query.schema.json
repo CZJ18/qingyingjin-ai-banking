@@ -1,0 +1,53 @@
+{
+  "type": "object",
+  "properties": {
+    "tool": {
+      "enum": [
+        "get_transactions",
+        "get_account_summary",
+        "analyze_spending",
+        "compare_budget",
+        "detect_anomalies",
+        "generate_billing_report"
+      ]
+    },
+    "from": {
+      "type": "string"
+    },
+    "to": {
+      "type": "string"
+    },
+    "timezone": {
+      "enum": [
+        "UTC",
+        "Asia/Shanghai"
+      ]
+    },
+    "missing_information": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 300
+      },
+      "uniqueItems": true,
+      "maxItems": 20
+    },
+    "question_evidence": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000
+    }
+  },
+  "required": [
+    "tool",
+    "from",
+    "to",
+    "timezone",
+    "missing_information",
+    "question_evidence"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:qingyingjin:billing-query:1"
+}

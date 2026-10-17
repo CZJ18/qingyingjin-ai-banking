@@ -1,0 +1,6 @@
+# Last overlay. No SQL migration beyond 017; AA JSON adds optional fields/states.
+services:
+  banking-service:
+    image: qingyingjin-banking-service:wechat-aa
+  banking-migrate:
+    image: qingyingjin-banking-service:wechat-aa

@@ -1,0 +1,30 @@
+# Opt-in finance database overlay. Keep the existing MySQL volume for rollback.
+# Use the private finance.compose.env.local with deploy/banking/compose.yaml.
+services:
+  banking-service:
+    image: ${BANKING_IMAGE:-qingyingjin-banking-service:p7}
+    environment:
+      BANKING_DATABASE_DRIVER: postgres
+      BANKING_POSTGRES_HOST: banking-agent-postgres
+      BANKING_POSTGRES_PORT: '5432'
+      BANKING_POSTGRES_USER: banking_finance_app
+      BANKING_POSTGRES_PASSWORD: ${BANKING_POSTGRES_PASSWORD:?run banking-postgres Setup-Local.ps1}
+      BANKING_POSTGRES_DATABASE: qingrongjin_finance
+      BANKING_POSTGRES_SSLMODE: disable
+      BANKING_MYSQL_PASSWORD: ''
+    depends_on: !override
+      banking-redis: {condition: service_healthy}
+      banking-migrate: {condition: service_completed_successfully}
+  banking-migrate:
+    image: ${BANKING_IMAGE:-qingyingjin-banking-service:p7}
+    environment:
+      BANKING_DATABASE_DRIVER: postgres
+      BANKING_POSTGRES_HOST: banking-agent-postgres
+      BANKING_POSTGRES_PORT: '5432'
+      BANKING_POSTGRES_USER: banking_finance_migrator
+      BANKING_POSTGRES_PASSWORD: ${BANKING_FINANCE_MIGRATOR_PASSWORD:?run banking-postgres Setup-Local.ps1}
+      BANKING_POSTGRES_DATABASE: qingrongjin_finance
+      BANKING_POSTGRES_SSLMODE: disable
+      BANKING_MYSQL_PASSWORD: ''
+    networks: [banking-internal, banking-egress]
+    depends_on: !reset []

@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "user_id": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "created_at": {
+      "type": "integer"
+    },
+    "updated_at": {
+      "type": "integer"
+    },
+    "bank_account_id": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "merchant_name": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "billing_interval": {
+      "type": "string",
+      "enum": [
+        "weekly",
+        "monthly",
+        "quarterly",
+        "annual"
+      ]
+    },
+    "amount_minor": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000000000
+    },
+    "currency": {
+      "type": "string",
+      "enum": [
+        "CNY"
+      ]
+    },
+    "next_billing_at": {
+      "type": "integer"
+    },
+    "confidence_bps": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10000
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "candidate",
+        "active",
+        "cancelled"
+      ]
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "is_simulated": {
+      "type": "boolean",
+      "const": true
+    },
+    "last_used_at": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "cancelled_at": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "user_id",
+    "created_at",
+    "updated_at",
+    "bank_account_id",
+    "merchant_name",
+    "category",
+    "billing_interval",
+    "amount_minor",
+    "currency",
+    "next_billing_at",
+    "confidence_bps",
+    "status",
+    "version",
+    "is_simulated"
+  ]
+}

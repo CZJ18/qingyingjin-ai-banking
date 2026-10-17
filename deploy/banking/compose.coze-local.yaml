@@ -1,0 +1,18 @@
+# Existing local Coze backend: coze-server-local on coze-studio-debug_coze-network.
+# Merge after compose.yaml. Preserve the independent Banking database/network.
+services:
+  coze-local-web:
+    image: cozedev/coze-studio-web@sha256:207102379ac2e04e0037a71e00bfa656946e405f119d3d288eb08746cd5cf4f4
+    profiles: [coze-local-ui]
+    ports: ['127.0.0.1:8889:80']
+    volumes: ['./nginx-coze-local.conf:/etc/nginx/conf.d/default.conf:ro']
+    networks: [coze-local]
+  banking-service:
+    networks:
+      - banking-internal
+      - banking-egress
+      - coze-local
+networks:
+  coze-local:
+    external: true
+    name: coze-studio-debug_coze-network

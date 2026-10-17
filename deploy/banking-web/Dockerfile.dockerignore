@@ -1,0 +1,16 @@
+# This Dockerfile uses the repository as build context. Docker prefers this
+# file over the repository's .dockerignore, keeping credentials out of build.
+**
+!frontend/
+!frontend/ai-banking/
+!frontend/ai-banking/**
+!deploy/
+!deploy/banking-web/
+!deploy/banking-web/Dockerfile
+!deploy/banking-web/nginx.conf
+frontend/ai-banking/node_modules/
+frontend/ai-banking/dist/
+frontend/ai-banking/test-results/
+frontend/ai-banking/playwright-report/
+frontend/ai-banking/.env*
+frontend/ai-banking/**/*.log

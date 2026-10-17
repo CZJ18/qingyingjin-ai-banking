@@ -1,0 +1,31 @@
+name: Qingrongjin Lifestyle Goal v2 Parser
+status: locally_published_real_model_banking_acceptance_recorded_in_MODULE11
+generator: coze/banking/lifestyle-agent/generate_goal_canvas.py
+local_published_workflow_id: '7696050872391827456'
+amount_validation: Go_source_evidence_integer_conversion_then_JSON_Schema_and_semantic_checks
+clarification_output: {status: needs_information, missing_information: [period_months]}
+malformed_model_output: reject_with_MODEL_OUTPUT_INVALID
+reuse_reference: coze/banking/goal-compiler/workflow-config.yaml
+verified_source_canvas: backend/domain/workflow/internal/canvas/examples/llm_node_with_skills/llm_node_with_workflow_tool.json
+nodes:
+  - {id: '100001', type: '1', required_input: input_string}
+  - id: '159950'
+    type: '3'
+    model: choose_actual_installed_model
+    system_prompt_file: goal-v2-prompt.md
+    json_schema_file: services/banking-service/internal/lifestyle/goal-v2.schema.json
+    input: {from_node: '100001', from_output: input_string}
+    responseFormat: 2
+    temperature: 0
+    chat_history: false
+    function_calling_tools: []
+    output: {name: output, type: string}
+    retries: 0
+  - id: '900001'
+    type: '2'
+    terminatePlan: returnVariables
+    output: {name: output, type: string, from_node: '159950', from_output: output}
+edges:
+  - {sourceNodeID: '100001', targetNodeID: '159950'}
+  - {sourceNodeID: '159950', targetNodeID: '900001'}
+publish: native_Coze_Studio_then_configure_COZE_LIFESTYLE_GOAL_WORKFLOW_ID

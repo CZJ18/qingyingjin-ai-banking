@@ -1,0 +1,39 @@
+name: Qingyingjin Subscription Agent
+status: reference_requires_native_configuration_and_publishing
+platform: Coze Studio native Agent
+system_prompt_file: system-prompt.md
+model: choose_actual_installed_model
+plugins:
+  openapi_file: services/banking-service/api/coze-plugin.openapi.yaml
+  server_url: http://banking-service:8090
+  auth:
+    type: service_api_token
+    location: header
+    name: X-Banking-Tool-Key
+    value: configure_in_native_plugin_secret_settings
+    identity: operator_bound_Banking_user_only
+  allowed_tools:
+    - detect_subscriptions
+    - get_subscription_details
+    - analyze_subscription_cost
+    - suggest_subscription_actions
+    - create_cancel_intent
+    - get_subscription_status
+user_confirmation_tool: none
+merchant_execution: local_simulation_only
+financial_execution_enabled: false
+collaboration:
+  supervisor: invoke_native_agent_or_published_tool_wrapper
+  savings_agent: read_structured_report_for_same_authorized_user
+  schema: services/banking-service/internal/subscription/schemas/subscription-report.schema.json
+  preserve: [id, user_id, audit_id, trace_id, task_id, evidence_transaction_ids]
+  available_balance_increase_minor: 0
+workflows:
+  generator: generate_tool_canvas.py
+  verified_source_example: backend/domain/workflow/internal/canvas/examples/code_plugin.json
+  verified_adapter: backend/domain/workflow/internal/nodes/plugin/plugin.go
+  node_types: ['1', '4', '2']
+  nodes: [Start_parameters, Plugin_selected_banking_tool, End_structured_result]
+  retry_times: 0
+  require: [actual_plugin_id, actual_api_id, actual_plugin_name, selected_tool_name]
+  publish: configure_and_publish_in_native_Coze_Studio

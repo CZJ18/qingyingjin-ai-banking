@@ -1,0 +1,144 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "goal_type": {
+      "enum": [
+        "healthy_lifestyle",
+        "savings",
+        "other",
+        "unclear"
+      ]
+    },
+    "period_months": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 120
+    },
+    "savings_monthly_minor": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 1000000000000
+    },
+    "monthly_income_minor": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 1000000000000
+    },
+    "spending_budget_minor": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 1000000000000
+    },
+    "essential_expenses_minor": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 1000000000000
+    },
+    "currency": {
+      "const": "CNY"
+    },
+    "prohibited_operations": {
+      "type": "array",
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "transfer",
+          "cancel_subscription",
+          "reduce_essential_expenses",
+          "all_financial_operations",
+          "weight_based_incentives"
+        ]
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "mandatory",
+              "preference",
+              "adjustable",
+              "safety"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1
+          },
+          "evidence": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "kind",
+          "description",
+          "evidence"
+        ]
+      }
+    },
+    "missing_information": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 2000
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "maxProperties": 16,
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 2000
+      }
+    },
+    "savings_target_minor": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 1000000000000
+    }
+  },
+  "required": [
+    "goal_type",
+    "period_months",
+    "savings_monthly_minor",
+    "monthly_income_minor",
+    "spending_budget_minor",
+    "essential_expenses_minor",
+    "currency",
+    "prohibited_operations",
+    "constraints",
+    "missing_information",
+    "evidence",
+    "savings_target_minor"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:qingyingjin:goal-parse:1"
+}

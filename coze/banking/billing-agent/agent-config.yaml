@@ -1,0 +1,40 @@
+name: Qingyingjin Billing Agent
+status: reference_requires_native_configuration_and_publishing
+platform: Coze Studio native Agent
+system_prompt_file: system-prompt.md
+model: choose_actual_installed_model
+plugins:
+  openapi_file: services/banking-service/api/coze-plugin.openapi.yaml
+  server_url: http://banking-service:8090
+  auth:
+    type: service_api_token
+    location: header
+    name: X-Banking-Tool-Key
+    value: configure_in_native_plugin_secret_settings
+    identity: operator_bound_Banking_user_only
+  allowed_tools:
+    - get_transactions
+    - get_account_summary
+    - analyze_spending
+    - compare_budget
+    - detect_anomalies
+    - generate_billing_report
+    - get_billing_report
+financial_execution_enabled: false
+collaboration:
+  supervisor: invoke_native_Billing_Agent_or_published_query_workflow
+  savings_agent: read_stored_report_using_same_authorized_user_context
+  output_schema: services/banking-service/internal/billing/schemas/billing-report.schema.json
+  preserve: [report_id, user_id, analysis_period, audit_id, trace_id, task_id, evidence_transaction_ids]
+query_workflow:
+  name: Qingyingjin Billing Query Router
+  nodes: [Start_input_string, LLM_query_prompt_and_schema, End_output_string]
+  node_types: ['1','3','2']
+  temperature: 0
+  responseFormat: 2
+  chat_history: false
+  tools: []
+  retries: 0
+  system_prompt_file: query-prompt.md
+  schema_file: services/banking-service/internal/billing/schemas/billing-query.schema.json
+  environment_variable: BANKING_BILLING_WORKFLOW_ID

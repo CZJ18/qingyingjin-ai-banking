@@ -1,0 +1,53 @@
+/*
+ * Copyright 2025 coze-dev Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package entity
+
+type HealthBudgetStatus string
+
+const (
+	HealthBudgetStatusActive    HealthBudgetStatus = "active"
+	HealthBudgetStatusExhausted HealthBudgetStatus = "exhausted"
+	HealthBudgetStatusClosed    HealthBudgetStatus = "closed"
+)
+
+type HealthBudget struct {
+	ID                  int64
+	UserID              int64
+	PeriodStart         int64
+	PeriodEnd           int64
+	TotalAllocatedMinor int64
+	FoodAllocatedMinor  int64
+	SpentMinor          int64
+	Currency            string
+	Status              HealthBudgetStatus
+	Version             int64
+	CreatedAt           int64
+	UpdatedAt           int64
+}
+
+func (b HealthBudget) AvailableMinor() int64 {
+	if b.FoodAllocatedMinor <= 0 {
+		return 0
+	}
+	if b.SpentMinor <= 0 {
+		return b.FoodAllocatedMinor
+	}
+	if b.SpentMinor >= b.FoodAllocatedMinor {
+		return 0
+	}
+	return b.FoodAllocatedMinor - b.SpentMinor
+}

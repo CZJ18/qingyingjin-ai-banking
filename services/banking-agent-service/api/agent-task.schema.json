@@ -1,0 +1,121 @@
+{
+  "$defs": {
+    "AgentTaskSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+          "title": "Key",
+          "type": "string"
+        },
+        "agent_type": {
+          "title": "Agent Type",
+          "type": "string"
+        },
+        "tool": {
+          "title": "Tool",
+          "type": "string"
+        },
+        "skill_id": {
+          "title": "Skill Id",
+          "type": "string"
+        },
+        "skill_version": {
+          "minimum": 1,
+          "title": "Skill Version",
+          "type": "integer"
+        },
+        "execution_mode": {
+          "title": "Execution Mode",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "title": "Parameters",
+          "type": "object"
+        },
+        "dependencies": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Dependencies",
+          "type": "array"
+        },
+        "priority": {
+          "default": 100,
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Priority",
+          "type": "integer"
+        },
+        "use_coze": {
+          "default": false,
+          "title": "Use Coze",
+          "type": "boolean"
+        },
+        "blocked": {
+          "default": false,
+          "title": "Blocked",
+          "type": "boolean"
+        },
+        "required_permissions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Permissions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "agent_type",
+        "tool",
+        "skill_id",
+        "skill_version",
+        "execution_mode",
+        "parameters"
+      ],
+      "title": "AgentTaskSpec",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "tasks": {
+      "items": {
+        "$ref": "#/$defs/AgentTaskSpec"
+      },
+      "maxItems": 32,
+      "title": "Tasks",
+      "type": "array"
+    },
+    "instruction": {
+      "default": "",
+      "maxLength": 8192,
+      "title": "Instruction",
+      "type": "string"
+    },
+    "bindings": {
+      "additionalProperties": true,
+      "title": "Bindings",
+      "type": "object"
+    },
+    "max_attempts": {
+      "default": 2,
+      "maximum": 3,
+      "minimum": 1,
+      "title": "Max Attempts",
+      "type": "integer"
+    },
+    "timeout_ms": {
+      "default": 90000,
+      "maximum": 180000,
+      "minimum": 100,
+      "title": "Timeout Ms",
+      "type": "integer"
+    }
+  },
+  "title": "AgentSubmit",
+  "type": "object"
+}

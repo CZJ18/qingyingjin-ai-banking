@@ -1,0 +1,9 @@
+# Add after the PostgreSQL overlay. Historical P7 configuration stays reproducible.
+# This profile is for loopback HTTP; production must use HTTPS and Secure cookies.
+services:
+  banking-service:
+    image: ${BANKING_AUTH_IMAGE:-qingyingjin-banking-service:phone-auth}
+    environment:
+      BANKING_AUTH_COOKIE_SECURE: 'false'
+  banking-migrate:
+    image: ${BANKING_AUTH_IMAGE:-qingyingjin-banking-service:phone-auth}

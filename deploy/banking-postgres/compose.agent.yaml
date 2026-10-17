@@ -1,0 +1,7 @@
+# P7 source-only readiness compatibility patch; keep the P5 product database,
+# worker/checkpoint ownership and native Coze integration unchanged.
+services:
+  banking-agent-service:
+    image: ${BANKING_AGENT_P7_IMAGE:-qingrongjin-banking-agent-service:p7}
+  banking-agent-migrate:
+    image: ${BANKING_AGENT_P7_IMAGE:-qingrongjin-banking-agent-service:p7}

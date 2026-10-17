@@ -1,0 +1,320 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "subscription": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "user_id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "created_at": {
+          "type": "integer"
+        },
+        "updated_at": {
+          "type": "integer"
+        },
+        "bank_account_id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "merchant_name": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "billing_interval": {
+          "type": "string",
+          "enum": [
+            "weekly",
+            "monthly",
+            "quarterly",
+            "annual"
+          ]
+        },
+        "amount_minor": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000000000
+        },
+        "currency": {
+          "type": "string",
+          "enum": [
+            "CNY"
+          ]
+        },
+        "next_billing_at": {
+          "type": "integer"
+        },
+        "confidence_bps": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "candidate",
+            "active",
+            "cancelled"
+          ]
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "is_simulated": {
+          "type": "boolean",
+          "const": true
+        },
+        "last_used_at": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "cancelled_at": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "user_id",
+        "created_at",
+        "updated_at",
+        "bank_account_id",
+        "merchant_name",
+        "category",
+        "billing_interval",
+        "amount_minor",
+        "currency",
+        "next_billing_at",
+        "confidence_bps",
+        "status",
+        "version",
+        "is_simulated"
+      ]
+    },
+    "payments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "user_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "created_at": {
+            "type": "integer"
+          },
+          "updated_at": {
+            "type": "integer"
+          },
+          "subscription_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "transaction_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "amount_minor": {
+            "type": "integer"
+          },
+          "occurred_at": {
+            "type": "integer"
+          },
+          "is_possible_duplicate": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "user_id",
+          "created_at",
+          "updated_at",
+          "subscription_id",
+          "transaction_id",
+          "amount_minor",
+          "occurred_at",
+          "is_possible_duplicate"
+        ]
+      }
+    },
+    "operation_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "user_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "created_at": {
+            "type": "integer"
+          },
+          "updated_at": {
+            "type": "integer"
+          },
+          "subscription_id": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "subscription_version": {
+            "type": "integer"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "cancel"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending_approval",
+              "executed",
+              "rejected",
+              "failed",
+              "expired"
+            ]
+          },
+          "confirmation_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "expires_at": {
+            "type": "integer"
+          },
+          "executed_at": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "failure_code": {
+            "type": "string"
+          },
+          "trace_id": {
+            "type": "string"
+          },
+          "task_id": {
+            "type": "string"
+          },
+          "audit_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "id",
+          "user_id",
+          "created_at",
+          "updated_at",
+          "subscription_id",
+          "subscription_version",
+          "action",
+          "status",
+          "confirmation_hash",
+          "expires_at",
+          "failure_code",
+          "trace_id",
+          "task_id",
+          "audit_id"
+        ]
+      }
+    },
+    "forecast": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "monthly_minor": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "three_month_minor": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "annual_minor": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "available_balance_increase_minor": {
+          "type": "integer",
+          "const": 0
+        },
+        "kind": {
+          "type": "string"
+        },
+        "rounding": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "monthly_minor",
+        "three_month_minor",
+        "annual_minor",
+        "available_balance_increase_minor",
+        "kind",
+        "rounding"
+      ]
+    },
+    "usage_status": {
+      "type": "string",
+      "enum": [
+        "unknown",
+        "user_reported"
+      ]
+    },
+    "possibly_idle": {
+      "type": "boolean"
+    },
+    "usage_evidence": {
+      "type": "string"
+    },
+    "price_changed": {
+      "type": "boolean"
+    },
+    "next_charge_status": {
+      "type": "string",
+      "enum": [
+        "estimated_not_guaranteed",
+        "overdue_prediction_needs_user_review",
+        "locally_cancelled_no_merchant_guarantee"
+      ]
+    }
+  },
+  "required": [
+    "subscription",
+    "payments",
+    "operation_history",
+    "forecast",
+    "usage_status",
+    "possibly_idle",
+    "usage_evidence",
+    "price_changed",
+    "next_charge_status"
+  ]
+}

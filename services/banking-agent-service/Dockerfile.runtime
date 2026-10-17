@@ -1,0 +1,6 @@
+# Dependency-preserving rebuild for a source-only patch. Use the full Dockerfile
+# when pyproject.toml or uv.lock changes; the supplied base must match that lock.
+ARG BANKING_AGENT_RUNTIME_BASE=qingrongjin-banking-agent-service:p5
+FROM ${BANKING_AGENT_RUNTIME_BASE}
+COPY --chown=10001:10001 src /app/src
+COPY --chown=10001:10001 migrations /app/migrations

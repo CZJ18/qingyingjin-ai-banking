@@ -1,0 +1,5 @@
+# Merge after banking-agent/compose.yaml AND compose.test.yaml. This preserves
+# the original product networks and loopback test ports when reapplied.
+services:
+  banking-agent-postgres:
+    networks: [agent-internal, agent-test, banking-private]

@@ -1,0 +1,412 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "status": {
+      "enum": [
+        "awaiting_clarification",
+        "conflict",
+        "pending_confirmation"
+      ]
+    },
+    "financial_execution_enabled": {
+      "const": false
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "task_type": {
+            "enum": [
+              "query_accounts",
+              "analyze_bills",
+              "check_subscriptions",
+              "calculate_budget",
+              "generate_savings_plan",
+              "propose_financial_operation"
+            ]
+          },
+          "dependencies": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "maxLength": 2000
+            }
+          },
+          "parameters": {
+            "type": "object"
+          },
+          "required_permissions": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "accounts:read",
+                "transactions:read",
+                "subscriptions:read",
+                "budgets:read",
+                "savings:plan",
+                "operations:propose"
+              ]
+            }
+          },
+          "execution_mode": {
+            "enum": [
+              "read_only",
+              "analysis",
+              "proposal"
+            ]
+          },
+          "status": {
+            "enum": [
+              "planned",
+              "blocked"
+            ]
+          }
+        },
+        "required": [
+          "task_id",
+          "task_type",
+          "dependencies",
+          "parameters",
+          "required_permissions",
+          "execution_mode",
+          "status"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "task_type": {
+                  "const": "query_accounts"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "parameters": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {},
+                  "required": []
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "task_type": {
+                  "const": "analyze_bills"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "parameters": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {},
+                  "required": []
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "task_type": {
+                  "const": "check_subscriptions"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "parameters": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {},
+                  "required": []
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "task_type": {
+                  "const": "calculate_budget"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "parameters": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {},
+                  "required": []
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "task_type": {
+                  "const": "generate_savings_plan"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "parameters": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "monthly_minor": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 1000000000000
+                    },
+                    "period_months": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "minimum": 1,
+                      "maximum": 120
+                    },
+                    "currency": {
+                      "const": "CNY"
+                    },
+                    "target_minor": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 1000000000000
+                    }
+                  },
+                  "required": [
+                    "monthly_minor",
+                    "period_months",
+                    "currency",
+                    "target_minor"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "task_type": {
+                  "const": "propose_financial_operation"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "parameters": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "requires_confirmation": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "requires_confirmation"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "missing_information": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 2000
+      }
+    },
+    "conflicts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "alternatives": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "description": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "monthly_savings_minor": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "maximum": 1000000000000
+                },
+                "requires_confirmation": {
+                  "const": true
+                }
+              },
+              "required": [
+                "description",
+                "monthly_savings_minor",
+                "requires_confirmation"
+              ]
+            }
+          },
+          "requires_confirmation": {
+            "const": true
+          }
+        },
+        "required": [
+          "code",
+          "reason",
+          "alternatives",
+          "requires_confirmation"
+        ]
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "mandatory",
+              "preference",
+              "adjustable",
+              "safety"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1
+          },
+          "evidence": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "kind",
+          "description",
+          "evidence"
+        ]
+      }
+    },
+    "confirmations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "maxLength": 2000
+      }
+    },
+    "financial_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "monthly_income_minor": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1000000000000
+        },
+        "spending_budget_minor": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1000000000000
+        },
+        "essential_expenses_minor": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1000000000000
+        },
+        "budget_id": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        }
+      },
+      "required": [
+        "monthly_income_minor",
+        "spending_budget_minor",
+        "essential_expenses_minor"
+      ]
+    },
+    "budget_snapshot": {
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "status",
+    "financial_execution_enabled",
+    "tasks",
+    "missing_information",
+    "conflicts",
+    "constraints",
+    "confirmations",
+    "financial_context",
+    "budget_snapshot"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:qingyingjin:task-plan:1"
+}

@@ -1,0 +1,6 @@
+# Last overlay, after compose.aa.yaml. Apply migration 017 first.
+services:
+  banking-service:
+    image: qingyingjin-banking-service:recipient-transfers
+  banking-migrate:
+    image: qingyingjin-banking-service:recipient-transfers

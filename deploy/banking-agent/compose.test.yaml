@@ -1,0 +1,12 @@
+# Optional real integration endpoints. Persistent volumes are shared with compose.yaml.
+# A non-internal network permits loopback published ports on Docker Desktop.
+services:
+  banking-agent-postgres:
+    ports: ['127.0.0.1:15432:5432']
+    networks: [agent-internal, agent-test]
+  banking-agent-redis:
+    ports: ['127.0.0.1:16380:6379']
+    networks: [agent-internal, agent-test]
+
+networks:
+  agent-test: {}

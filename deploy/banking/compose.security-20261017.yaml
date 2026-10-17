@@ -1,0 +1,6 @@
+# Append to the current full local deployment overlay list.
+services:
+  banking-service:
+    image: qingyingjin-banking-service:security-20261017
+  banking-migrate:
+    image: qingyingjin-banking-service:security-20261017

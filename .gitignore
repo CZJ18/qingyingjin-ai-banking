@@ -1,0 +1,29 @@
+# Credentials and local runtime state
+.env
+.env.*
+!.env.example
+*.env.local
+*.local.json
+*.pem
+*.key
+*.pfx
+*.p12
+# Dependencies, caches and build output
+node_modules/
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.gocache/
+.tmp/
+dist/
+output/
+test-results/
+playwright-report/
+*.log
+*.exe
+*.dll
+*.sqlite*
+# Private backups and evidence
+*.sql.gz
+*.dump

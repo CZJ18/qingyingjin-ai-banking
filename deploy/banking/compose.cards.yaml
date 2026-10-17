@@ -1,0 +1,6 @@
+# Last overlay, after phone-auth and sms-development. No credentials in this file.
+services:
+  banking-service:
+    image: qingyingjin-banking-service:card-management
+  banking-migrate:
+    image: qingyingjin-banking-service:card-management

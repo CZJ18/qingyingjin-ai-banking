@@ -1,0 +1,7 @@
+# Repository build uses the matching Dockerfile.dockerignore. These exclusions
+# also apply if this deployment directory is inspected as a separate context.
+.env
+.env.*
+!.env.example
+output/
+*.log

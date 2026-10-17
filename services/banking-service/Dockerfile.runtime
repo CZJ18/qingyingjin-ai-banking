@@ -1,0 +1,11 @@
+# Optional locally compiled deployment: identical source and Go dependency
+# versions, avoiding a remote Go builder image when Docker Hub is unavailable.
+ARG BANKING_RUNTIME_BASE=gcr.io/distroless/static-debian12:nonroot
+FROM ${BANKING_RUNTIME_BASE}
+COPY banking-service /banking-service
+COPY banking-migrate /banking-migrate
+COPY banking-seed /banking-seed
+COPY banking-storage-migrate /banking-storage-migrate
+COPY banking-storage-control /banking-storage-control
+EXPOSE 8090
+ENTRYPOINT ["/banking-service"]

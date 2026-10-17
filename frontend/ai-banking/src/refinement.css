@@ -1,0 +1,1568 @@
+/* Presentation layer: proportions, reading rhythm and responsive workspaces. */
+:root {
+  font-synthesis: none;
+}
+body {
+  color: #111827;
+}
+.workspace {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+  min-width: 0;
+}
+.workspace > main {
+  flex: 1;
+  min-width: 0;
+}
+.page {
+  padding: 32px;
+  max-width: 1520px;
+}
+.page-heading {
+  margin-bottom: 24px;
+  gap: 24px;
+  align-items: center;
+}
+.page-heading h1 {
+  font-size: 28px;
+  line-height: 1.45;
+  letter-spacing: -0.6px;
+}
+.page-heading p {
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.8;
+  margin-top: 8px;
+}
+.heading-meta {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+.sidebar nav a {
+  min-height: 46px;
+  font-size: 14px;
+}
+.sidebar nav a.active {
+  color: #087f77;
+  font-weight: 600;
+}
+.breadcrumb,
+.connection-state,
+.sidebar-section,
+.sidebar-footer {
+  font-size: 12px;
+}
+.topbar {
+  gap: 16px;
+}
+.toolbar-actions select {
+  max-width: 224px;
+}
+.workspace-footer {
+  font-size: 12px;
+  color: #64748b;
+  padding: 0 32px 24px;
+  gap: 16px;
+}
+.trust-note p,
+.trust-note a,
+.collapse-button {
+  font-size: 12px;
+}
+.panel {
+  padding: 24px;
+  border-radius: 14px;
+  box-shadow: 0 2px 4px #142d4e02;
+  min-width: 0;
+}
+.section-heading {
+  gap: 16px;
+  margin-bottom: 20px;
+}
+h2,
+.section-heading h2 {
+  font-size: 18px;
+  line-height: 1.5;
+  font-weight: 650;
+}
+h3 {
+  font-size: 15px;
+  line-height: 1.6;
+}
+.section-heading p,
+.small-muted {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #64748b;
+}
+.text-link {
+  font-size: 13px;
+}
+strong,
+.amount,
+.balance-amount,
+.metric-strip strong {
+  font-variant-numeric: tabular-nums;
+}
+.metric-strip {
+  padding: 24px 0;
+  margin-bottom: 24px;
+}
+.metric-strip > div {
+  padding: 0 24px;
+}
+.metric-strip span {
+  font-size: 13px;
+  color: #64748b;
+}
+.metric-strip strong {
+  font-size: 30px;
+  line-height: 1.3;
+  letter-spacing: -0.7px;
+  margin: 12px 0 8px;
+}
+.metric-strip small {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.7;
+}
+.status {
+  font-size: 12px;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+.status.pending_authorization,
+.status.awaiting_confirmation,
+.status.pending_approval,
+.status.prepared {
+  color: #946219;
+  background: #fcf3e5;
+}
+/* Short, contextual placeholders keep empty dashboards useful and compact. */
+.empty-state {
+  min-height: 112px;
+  padding: 24px 16px;
+  gap: 16px;
+  flex-direction: row;
+  text-align: left;
+  justify-content: flex-start;
+  background: #f8fafc;
+  border-radius: 10px;
+}
+.empty-state > svg {
+  flex-shrink: 0;
+  color: #8a9bae;
+}
+.empty-state strong {
+  font-size: 14px;
+  color: #334155;
+  line-height: 1.6;
+}
+.empty-state p {
+  font-size: 13px;
+  line-height: 1.8;
+  color: #64748b;
+  max-width: none;
+  margin-top: 4px;
+}
+.empty-state.compact {
+  min-height: 96px;
+}
+.error-state {
+  flex-wrap: wrap;
+  border: 1px solid #f4d7d7;
+  background: #fffafa;
+}
+.error-state > svg {
+  color: #dc2626;
+}
+.error-state > p {
+  width: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.error-state > small {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.skeleton-group {
+  min-height: 112px;
+  padding: 16px 0;
+  display: grid;
+  gap: 12px;
+  align-content: center;
+}
+.skeleton-group .skeleton {
+  height: 12px;
+  border-radius: 6px;
+}
+.skeleton-group .skeleton-title {
+  width: 30%;
+}
+.skeleton-group .skeleton-value {
+  width: 52%;
+  height: 28px;
+}
+.skeleton-group .skeleton-line {
+  width: 78%;
+}
+/* Overview: primary balance, quiet insight, independent lower modules. */
+.overview-top {
+  grid-template-columns: 7fr 5fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+.balance-panel {
+  padding: 28px;
+  border-radius: 16px;
+}
+.balance-panel::after,
+.balance-panel::before {
+  display: none;
+}
+.panel-top,
+.subtle-tag,
+.balance-panel > p,
+.balance-bottom {
+  font-size: 12px;
+}
+.balance-amount {
+  font-size: 48px;
+  line-height: 1.2;
+  letter-spacing: -1.6px;
+  margin: 20px 0 8px;
+}
+.balance-amount small {
+  font-size: 12px;
+  letter-spacing: 0;
+}
+.balance-bottom {
+  margin-top: 20px;
+  padding-top: 16px;
+}
+.insight-panel {
+  padding: 24px;
+  background: #edf6f4;
+}
+.insight-panel h2 {
+  font-size: 20px;
+  line-height: 1.65;
+  margin: 16px 0 8px;
+}
+.insight-panel p {
+  font-size: 14px;
+  line-height: 1.85;
+  color: #527770;
+}
+.eyeline {
+  gap: 12px;
+}
+.eyeline > b {
+  font-size: 14px;
+}
+.eyeline .small-muted {
+  font-size: 12px;
+}
+.overview-middle {
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: 24px;
+  align-items: start;
+}
+.overview-bottom {
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: 24px;
+  align-items: start;
+}
+.overview-middle .empty-state,
+.overview-bottom .empty-state {
+  min-height: 112px;
+}
+.goal-row {
+  padding: 16px 0;
+}
+.goal-row b {
+  font-size: 14px;
+}
+.goal-row small,
+.goal-create,
+.agent-footnote {
+  font-size: 12px;
+}
+.goal-create {
+  padding: 12px;
+  margin-top: 16px;
+}
+.transaction-row {
+  padding: 16px 0;
+  gap: 12px;
+}
+.transaction-row > div {
+  min-width: 0;
+}
+.transaction-row b {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.transaction-row small,
+.job-row small {
+  font-size: 12px;
+  color: #64748b;
+}
+.transaction-row strong {
+  font-size: 15px;
+  white-space: nowrap;
+}
+.job-row b {
+  font-size: 14px;
+}
+.job-row {
+  padding: 16px 0;
+}
+.agent-footnote {
+  color: #64748b;
+  line-height: 1.8;
+}
+/* Shared chart, form and table typography. Tables scroll inside their panel. */
+.chart {
+  height: 288px;
+  min-width: 0;
+}
+label {
+  font-size: 14px;
+  color: #334155;
+  line-height: 1.65;
+}
+input,
+select,
+textarea {
+  font-size: 14px;
+  color: #142d4e;
+  border-color: #dce4ed;
+  border-radius: 8px;
+  min-height: 40px;
+}
+input::placeholder,
+textarea::placeholder {
+  color: #8996a7;
+  opacity: 1;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: #0d9488;
+  box-shadow: 0 0 0 3px #0d948812;
+}
+.filter-bar {
+  padding: 16px 0;
+  gap: 12px;
+  margin-bottom: 16px;
+  align-items: flex-end;
+}
+.filter-bar > label {
+  margin: 0;
+}
+.filter-bar > .search-field {
+  margin: 0;
+}
+.search-field input {
+  min-height: 40px;
+}
+.form-hint,
+.form-error,
+.warning-note,
+.review-note {
+  font-size: 13px;
+  line-height: 1.8;
+}
+.form-hint {
+  color: #64748b;
+}
+.warning-note {
+  color: #946219;
+}
+.warning-note svg {
+  flex-shrink: 0;
+}
+.form-columns {
+  gap: 16px;
+}
+.table-scroll {
+  border: 1px solid #e5eaf0;
+  border-radius: 10px;
+  overflow-x: auto;
+}
+table {
+  font-size: 14px;
+}
+th {
+  font-size: 12px;
+  color: #64748b;
+  background: #f8fafc;
+  font-weight: 600;
+  padding: 14px 16px;
+}
+td {
+  padding: 16px;
+  color: #526174;
+}
+td b {
+  font-size: 14px;
+  color: #24364e;
+}
+td small {
+  font-size: 12px;
+  color: #64748b;
+}
+td.amount {
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+tbody tr:hover {
+  background: #f6faf9;
+}
+.pagination {
+  font-size: 13px;
+  color: #64748b;
+  padding-top: 16px;
+}
+.detail-grid {
+  font-size: 14px;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: 16px;
+}
+.detail-grid dt {
+  color: #64748b;
+}
+.json-details summary {
+  font-size: 13px;
+  color: #4d647d;
+}
+.json-details pre {
+  font-size: 12px;
+}
+.billing-charts {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+}
+.insight-ribbon {
+  border-left: 3px solid #0d9488;
+}
+.insight-ribbon b {
+  font-size: 14px;
+}
+.insight-ribbon p,
+.budget-category {
+  font-size: 13px;
+}
+/* AI workspace: reading column with persistent, dark task context. */
+.assistant-layout {
+  grid-template-columns: 176px minmax(0, 1fr) 248px;
+  min-height: 0;
+}
+.conversation-sidebar {
+  display: block;
+  padding: 20px 12px;
+}
+.history-toggle {
+  display: none;
+}
+.conversation-item {
+  padding: 12px 8px;
+  font-size: 13px;
+}
+.conversation-item small {
+  font-size: 12px;
+}
+.shortcut-item {
+  font-size: 13px;
+  line-height: 1.85;
+  padding: 12px 4px;
+}
+.conversation-sidebar .sidebar-section {
+  font-size: 12px;
+  color: #64748b;
+}
+.chat-scroll {
+  padding: 24px;
+  min-height: 420px;
+  max-height: 580px;
+  scrollbar-gutter: stable;
+}
+.chat-workspace .chat-scroll {
+  flex-shrink: 0;
+}
+.assistant-intro {
+  padding-top: 8px;
+  text-align: left;
+}
+.large-spark {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+}
+.assistant-intro h2 {
+  font-size: 24px;
+  line-height: 1.6;
+  margin: 20px 0 12px;
+  letter-spacing: -0.5px;
+}
+.assistant-intro p {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.85;
+}
+.suggestion-grid {
+  margin: 24px 0 0;
+  max-width: none;
+  gap: 8px;
+}
+.suggestion-grid button {
+  padding: 14px;
+}
+.suggestion-grid button b {
+  font-size: 14px;
+  color: #334155;
+}
+.suggestion-grid button span {
+  font-size: 12px;
+}
+.composer {
+  margin: 0 20px 20px;
+  padding: 16px;
+  background: white;
+}
+.composer:focus-within {
+  border-color: #0d9488;
+  box-shadow: 0 0 0 3px #0d948812;
+}
+.composer textarea {
+  font-size: 14px;
+  min-height: 72px;
+  box-shadow: none;
+}
+.composer-bottom > span {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #64748b;
+}
+.task-inspector {
+  display: block;
+  padding: 24px 20px;
+  background: #142d4e;
+  color: #d9e5ef;
+  border: 0;
+}
+.task-inspector h3 {
+  color: #f5f8fc;
+}
+.task-inspector .section-heading {
+  color: #8ab8b6;
+}
+.context-balance {
+  background: #ffffff08;
+  border: 1px solid #ffffff24;
+  padding: 16px;
+  margin: 20px 0 24px;
+}
+.context-balance small {
+  font-size: 12px;
+  color: #b4c6d9;
+}
+.context-balance strong {
+  color: white;
+  font-size: 26px;
+  letter-spacing: -0.6px;
+}
+.agent-context {
+  color: #6bc2b7;
+  margin: 18px 0;
+  align-items: flex-start;
+}
+.agent-context b {
+  font-size: 13px;
+  color: #d9e5ef;
+}
+.agent-context .status {
+  margin-top: 6px;
+}
+.task-inspector .inspector-note {
+  border-color: #ffffff24;
+  margin: 20px 0 12px;
+  padding-top: 20px;
+}
+.task-inspector .inspector-note b {
+  color: #d9e5ef;
+  font-size: 13px;
+}
+.task-inspector .inspector-note p {
+  color: #b4c6d9;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.task-inspector .text-link {
+  color: #65d0c0;
+}
+.task-message p {
+  font-size: 12px;
+}
+.agent-message {
+  padding: 20px;
+  border-color: #e0e8ef;
+}
+.agent-message p {
+  font-size: 13px;
+  line-height: 1.85;
+  color: #64748b;
+}
+.agent-report .chart {
+  height: 232px;
+}
+.report-metrics small {
+  font-size: 12px;
+  color: #527770;
+}
+.report-evidence {
+  color: #64748b;
+  font-size: 12px;
+}
+.stream-line {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+/* Collaboration: dedicated execution canvas, readable audit timeline. */
+.agent-role-overview {
+  padding: 28px;
+  margin: 8px 0 24px;
+  border-radius: 14px;
+  background: #142d4e;
+  color: #e5eef7;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+.agent-role-overview svg {
+  color: #65d0c0;
+}
+.agent-role-overview h2 {
+  color: white;
+  margin: 12px 0 8px;
+}
+.agent-role-overview p {
+  color: #b4c6d9;
+  font-size: 14px;
+  line-height: 1.85;
+}
+.agent-role-overview ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-content: center;
+}
+.agent-role-overview li b {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+.agent-role-overview li span {
+  font-size: 13px;
+  color: #b4c6d9;
+}
+.execution-toolbar {
+  padding: 16px;
+  background: #eef2f6;
+  border: 1px solid #e0e7ee;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+.execution-toolbar span {
+  font-size: 12px;
+  color: #526174;
+}
+.agents-grid {
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr) 296px;
+}
+.flow-panel {
+  padding: 0;
+  overflow: hidden;
+  background: white;
+  background-image: none;
+}
+.agent-canvas {
+  padding: 24px;
+  background: #142d4e;
+  color: #b4c6d9;
+}
+.agent-canvas .section-heading {
+  background: transparent;
+  color: #8fc5c0;
+}
+.agent-canvas h2 {
+  color: white;
+}
+.supervisor-node {
+  margin-top: 20px;
+  padding: 20px;
+  background: #ffffff08;
+  color: #7dd3c8;
+  border-color: #508581;
+}
+.supervisor-node small {
+  font-size: 12px;
+  color: #b4c6d9;
+}
+.flow-line {
+  background: #508581;
+}
+.flow-nodes {
+  border-color: #508581;
+  gap: 12px;
+  padding-top: 20px;
+}
+.flow-node {
+  min-width: 136px;
+  padding: 20px 12px;
+  color: #7dd3c8;
+  background: #203b5b;
+  border-color: #ffffff24;
+}
+.flow-node b {
+  color: #f2f6fb;
+  font-size: 14px;
+}
+.flow-node small,
+.node-key {
+  font-size: 12px;
+  color: #b4c6d9;
+}
+.flow-node:hover {
+  background: #2a4768;
+  transform: translateY(-2px);
+}
+.flow-node.selected {
+  border-color: #5fd6c4;
+  box-shadow: inset 0 0 0 1px #5fd6c4;
+}
+.dependency-list {
+  font-size: 12px;
+  padding: 20px 0 0;
+  color: #b4c6d9;
+}
+.flow-panel .timeline-title {
+  margin: 0;
+  padding: 24px 24px 16px;
+}
+.flow-panel > .timeline,
+.flow-panel > .form-error {
+  margin: 0 24px 24px;
+}
+.timeline-event small {
+  font-size: 12px;
+  color: #64748b;
+}
+.timeline-event b {
+  font-size: 14px;
+}
+.timeline-event p {
+  font-size: 14px;
+  line-height: 1.8;
+}
+.node-details h3 {
+  margin-top: 20px;
+  text-transform: capitalize;
+}
+.node-details .detail-grid {
+  grid-template-columns: 88px minmax(0, 1fr);
+}
+.execution-record small {
+  font-size: 12px;
+  color: #64748b;
+}
+/* Subscription and goal pages favour content over stretched blank panels. */
+.subscription-layout {
+  grid-template-columns: minmax(0, 1fr) 280px;
+  align-items: start;
+}
+.subscription-side {
+  display: block;
+  background: #f0f5f8;
+}
+.subscription-side > svg {
+  float: right;
+  margin: 0;
+}
+.subscription-side .empty-state {
+  background: #ffffff80;
+  margin-top: 20px;
+}
+.subscription-row {
+  padding: 20px 0;
+  gap: 12px;
+}
+.subscription-row .grow {
+  min-width: 0;
+}
+.subscription-row .plain-button {
+  font-size: 14px;
+  text-align: left;
+}
+.subscription-row small {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.8;
+}
+.subscription-price strong {
+  font-size: 20px;
+  letter-spacing: -0.3px;
+}
+.subscription-monogram {
+  flex-shrink: 0;
+}
+.upcoming-row {
+  font-size: 14px;
+  padding: 18px 0;
+}
+.upcoming-row small,
+.subscription-side .inspector-note p {
+  font-size: 12px;
+  color: #64748b;
+}
+.goal-feature {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  padding: 24px;
+  gap: 24px;
+}
+.goal-feature-copy {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+.goal-feature-copy .large-spark {
+  flex-shrink: 0;
+}
+.goal-feature h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+}
+.goal-feature p {
+  font-size: 14px;
+  line-height: 1.85;
+  max-width: none;
+  color: #527770;
+}
+.goal-principle {
+  padding: 0 0 0 24px;
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 8px 12px;
+}
+.goal-principle svg {
+  grid-row: span 2;
+}
+.goal-principle b {
+  margin: 0;
+  font-size: 14px;
+}
+.goal-principle p {
+  font-size: 13px;
+}
+.goals-layout {
+  align-items: start;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+}
+.goals-layout .row-between {
+  gap: 16px;
+  align-items: center;
+}
+.goals-layout .row-between > small {
+  font-size: 12px;
+  color: #64748b;
+}
+.fund-grid {
+  gap: 16px;
+}
+.fund-card {
+  background: white;
+  padding: 24px;
+}
+.fund-card h3 {
+  font-size: 15px;
+}
+.fund-card > strong {
+  font-size: 32px;
+  letter-spacing: -0.8px;
+}
+.fund-card > small,
+.fund-card .row-between {
+  font-size: 12px;
+  color: #64748b;
+}
+/* Planning puts comparison and change explanations ahead of decoration. */
+.planning-form .form-columns {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.planning-goal-selection {
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 10px;
+}
+.planning-form .row-between > small {
+  font-size: 12px;
+  color: #64748b;
+}
+.planning-options {
+  gap: 16px;
+}
+.plan-option {
+  padding: 24px;
+}
+.plan-option.selected {
+  background: #142d4e;
+  border-color: #142d4e;
+  box-shadow: none;
+  color: #c9d9e7;
+}
+.plan-option.selected h2,
+.plan-option.selected strong,
+.plan-option.selected b {
+  color: white;
+}
+.plan-option.selected > small {
+  color: #b4c6d9;
+}
+.plan-option.selected .plan-retain {
+  border-color: #ffffff24;
+}
+.plan-option > strong {
+  font-size: 34px;
+  letter-spacing: -0.8px;
+  margin: 12px 0;
+}
+.plan-option > small,
+.plan-option .row-between > span,
+.plan-retain {
+  font-size: 12px;
+}
+.plan-option p {
+  font-size: 14px;
+  min-height: 52px;
+  line-height: 1.85;
+}
+.planning-history {
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  align-items: start;
+}
+.version-change {
+  font-size: 13px;
+  padding: 12px;
+}
+.live-tag {
+  font-size: 12px;
+}
+/* Safety UI: compact principles, clear inputs and a deliberate confirmation. */
+.security-principles {
+  padding: 20px 16px;
+}
+.security-principles > div {
+  padding: 0 16px;
+}
+.security-principles b {
+  font-size: 14px;
+}
+.security-principles p,
+.risk-row {
+  font-size: 13px;
+  line-height: 1.8;
+}
+.risk-rule small {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.8;
+}
+.security-layout {
+  align-items: start;
+}
+.security-page .empty-state {
+  min-height: 100px;
+}
+.security-page > .panel {
+  margin-bottom: 24px;
+}
+.security-page .transfer-accounts {
+  margin-top: 0;
+}
+.dialog-content {
+  padding: 28px;
+  border-radius: 16px;
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100svh - 48px);
+}
+.dialog-content [id^='reka-dialog-title'],
+.dialog-content h2 {
+  font-size: 22px;
+  line-height: 1.5;
+}
+.dialog-content [id^='reka-dialog-description'] {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.8;
+  margin: 12px 0 24px;
+}
+.dialog-x {
+  top: 20px;
+  right: 20px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dialog-x:hover {
+  background: #f0f4f8;
+}
+.operation-header {
+  padding: 12px 16px;
+  background: #f3f6f9;
+  margin-top: 24px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+.confirmation-amount {
+  padding: 20px 0;
+  border-bottom: 1px solid #e5eaf0;
+}
+.confirmation-amount span {
+  font-size: 12px;
+  color: #64748b;
+}
+.confirmation-amount strong {
+  display: block;
+  font-size: 36px;
+  letter-spacing: -1px;
+  line-height: 1.3;
+  margin-top: 8px;
+  color: #142d4e;
+}
+.confirmation-risk[data-risk='high'],
+.confirmation-risk[data-risk='critical'] {
+  color: #b91c1c;
+  font-weight: 600;
+}
+.confirmation-risk[data-risk='medium'] {
+  color: #a16207;
+  font-weight: 600;
+}
+.execution-dialog .detail-grid {
+  gap: 14px 16px;
+  margin: 20px 0;
+}
+.checkbox-label {
+  font-size: 13px;
+  line-height: 1.8;
+  gap: 10px;
+  align-items: flex-start;
+}
+.checkbox-label input {
+  min-height: 0;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 4px;
+  accent-color: #0d9488;
+}
+.execution-dialog > .checkbox-label {
+  padding: 16px;
+  border: 1px solid #dce8e4;
+  background: #f4f9f7;
+  border-radius: 10px;
+  margin-top: 16px;
+}
+.dialog-actions {
+  gap: 12px;
+}
+.execution-dialog > .dialog-actions {
+  position: sticky;
+  bottom: -28px;
+  margin: 16px -28px -28px;
+  padding: 16px 28px 24px;
+  background: white;
+  border-top: 1px solid #e5eaf0;
+  box-shadow: 0 -8px 16px #142d4e04;
+  z-index: 1;
+}
+button,
+a,
+input,
+select,
+textarea {
+  transition:
+    background-color 180ms,
+    color 180ms,
+    border-color 180ms,
+    box-shadow 180ms,
+    transform 180ms;
+}
+.fund-card:hover,
+.plan-option:hover {
+  transform: translateY(-2px);
+}
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+  outline: 2px solid #0d9488;
+  outline-offset: 3px;
+}
+@media (max-width: 1200px) {
+  .page {
+    padding: 24px;
+  }
+  .assistant-layout {
+    grid-template-columns: 160px minmax(0, 1fr);
+  }
+  .task-inspector {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 24px;
+    padding: 20px 24px;
+  }
+  .task-inspector .section-heading,
+  .task-inspector > h3 {
+    margin: 0;
+    align-self: center;
+  }
+  .context-balance {
+    margin: 0;
+    grid-column: 1;
+    grid-row: 2 / 4;
+    align-self: start;
+  }
+  .agent-context {
+    margin: 0;
+    grid-column: 2;
+  }
+  .task-inspector .inspector-note {
+    margin: 0;
+    grid-column: 1;
+    grid-row: 4 / 7;
+  }
+  .task-inspector > .text-link {
+    grid-column: 1 / -1;
+    margin-top: 8px;
+  }
+  .metric-strip > div {
+    padding: 0 16px;
+  }
+  .metric-strip strong {
+    font-size: 26px;
+  }
+  .agents-grid {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 16px;
+  }
+  .agent-canvas {
+    padding: 20px;
+  }
+  .flow-node {
+    min-width: 128px;
+  }
+  .subscription-layout {
+    grid-template-columns: minmax(0, 1fr) 248px;
+    gap: 16px;
+  }
+  .goal-feature {
+    grid-template-columns: 3fr 2fr;
+    gap: 20px;
+  }
+  .goals-layout {
+    grid-template-columns: 3fr 2fr;
+    gap: 16px;
+  }
+}
+@media (max-width: 1000px) {
+  .page-heading h1 {
+    font-size: 26px;
+  }
+  .overview-top,
+  .overview-middle,
+  .overview-bottom {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 16px;
+  }
+  .balance-panel {
+    padding: 24px;
+  }
+  .balance-amount {
+    font-size: 40px;
+  }
+  .insight-panel h2 {
+    font-size: 18px;
+  }
+  .eyeline {
+    flex-wrap: wrap;
+  }
+  .eyeline .small-muted {
+    display: none;
+  }
+  .agents-grid,
+  .subscription-layout,
+  .goals-layout,
+  .planning-history {
+    grid-template-columns: 1fr;
+  }
+  .subscription-side {
+    display: block;
+  }
+  .subscription-side .upcoming-row {
+    grid-template-columns: 1fr auto;
+  }
+  .goal-feature {
+    grid-template-columns: 1fr;
+  }
+  .goal-principle {
+    border-left: 0;
+    border-top: 1px solid #d2e3d9;
+    padding: 16px 0 0;
+  }
+  .billing-charts {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 16px;
+  }
+  .fund-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .planning-options {
+    gap: 12px;
+  }
+  .plan-option {
+    padding: 20px;
+  }
+  .plan-option > strong {
+    font-size: 28px;
+  }
+  .planning-form .form-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .security-principles > div {
+    padding: 0 12px;
+  }
+}
+@media (max-width: 700px) {
+  .page {
+    padding: 24px 16px;
+  }
+  .page-heading {
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .page-heading h1 {
+    font-size: 24px;
+    line-height: 1.5;
+  }
+  .workspace-footer {
+    padding: 0 16px 20px;
+    font-size: 12px;
+    flex-wrap: wrap;
+  }
+  .topbar {
+    padding: 0 16px;
+    gap: 8px;
+  }
+  .toolbar-actions {
+    gap: 8px;
+    min-width: 0;
+  }
+  .toolbar-actions select {
+    max-width: 160px;
+  }
+  .panel {
+    padding: 20px 16px;
+  }
+  .overview-top,
+  .overview-middle,
+  .overview-bottom,
+  .billing-charts {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .overview-middle,
+  .overview-bottom {
+    margin-top: 16px;
+  }
+  .balance-panel {
+    padding: 24px;
+  }
+  .balance-amount {
+    font-size: 42px;
+  }
+  .insight-panel {
+    padding: 20px;
+  }
+  .metric-strip {
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .metric-strip > div {
+    padding: 20px 16px;
+    border-bottom: 1px solid #e5eaf0;
+  }
+  .metric-strip > div:nth-child(2n) {
+    border-right: 0;
+  }
+  .metric-strip > div:nth-last-child(-n + 2) {
+    border-bottom: 0;
+  }
+  .metric-strip strong {
+    font-size: 24px;
+    letter-spacing: -0.6px;
+  }
+  .metric-strip small {
+    font-size: 12px;
+  }
+  .transaction-row strong {
+    font-size: 14px;
+  }
+  .transaction-icon {
+    width: 32px;
+    height: 32px;
+  }
+  .chart {
+    height: 264px;
+  }
+  .assistant-layout {
+    grid-template-columns: 1fr;
+  }
+  .conversation-sidebar {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+    padding: 16px;
+    border-right: 0;
+    border-bottom: 1px solid #e5eaf0;
+  }
+  .conversation-sidebar > .w-full {
+    width: auto;
+  }
+  .history-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    background: transparent;
+    border: 0;
+    font-size: 13px;
+    color: #526174;
+  }
+  .history-toggle[aria-expanded='true'] > svg:last-child {
+    transform: rotate(90deg);
+  }
+  .conversation-body {
+    display: none;
+    grid-column: 1 / -1;
+  }
+  .conversation-sidebar.expanded .conversation-body {
+    display: block;
+  }
+  .chat-scroll {
+    padding: 20px 16px;
+    min-height: 0;
+    max-height: 600px;
+  }
+  .assistant-intro {
+    padding: 0;
+  }
+  .assistant-intro h2 {
+    font-size: 22px;
+  }
+  .composer {
+    margin: 8px 16px 16px;
+    padding: 12px;
+  }
+  .composer-bottom {
+    align-items: flex-end;
+    gap: 12px;
+  }
+  .composer-bottom > span {
+    font-size: 12px;
+    max-width: 160px;
+  }
+  .task-inspector {
+    padding: 20px 16px;
+    gap: 16px;
+  }
+  .context-balance {
+    padding: 12px;
+  }
+  .context-balance strong {
+    font-size: 22px;
+    overflow-wrap: anywhere;
+  }
+  .agent-context b {
+    font-size: 12px;
+  }
+  .agent-context {
+    gap: 8px;
+  }
+  .agent-context > svg {
+    display: none;
+  }
+  .agent-message {
+    padding: 16px;
+  }
+  .agent-role-overview {
+    padding: 24px 20px;
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .execution-toolbar {
+    flex-wrap: wrap;
+    padding: 12px;
+    gap: 12px;
+  }
+  .execution-toolbar > div {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .agent-canvas {
+    padding: 20px 16px;
+  }
+  .flow-panel {
+    padding: 0;
+  }
+  .flow-node {
+    min-width: 128px;
+  }
+  .flow-panel .timeline-title {
+    padding: 20px 16px 16px;
+  }
+  .flow-panel > .timeline {
+    margin: 0 16px 20px;
+  }
+  .subscription-row {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    gap: 12px;
+  }
+  .subscription-row > button {
+    grid-column: 2 / -1;
+    justify-self: start;
+  }
+  .subscription-price {
+    min-width: 0;
+  }
+  .subscription-price strong {
+    font-size: 18px;
+  }
+  .goal-feature {
+    padding: 20px;
+    gap: 16px;
+  }
+  .goal-feature-copy {
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .goal-feature-copy .large-spark {
+    width: 36px;
+    height: 36px;
+  }
+  .goal-feature h2 {
+    font-size: 20px;
+  }
+  .goal-feature p {
+    font-size: 13px;
+  }
+  .fund-grid,
+  .planning-options,
+  .planning-form .form-columns {
+    grid-template-columns: 1fr;
+  }
+  .plan-option > strong {
+    font-size: 32px;
+  }
+  .plan-option p {
+    min-height: 0;
+  }
+  .plan-option > small {
+    margin-top: 20px;
+  }
+  .goals-layout .row-between,
+  .planning-form .row-between {
+    flex-wrap: wrap;
+  }
+  .goals-layout .row-between > button,
+  .planning-form .row-between > button {
+    margin-left: auto;
+  }
+  .security-principles {
+    padding: 20px 16px;
+    gap: 16px;
+  }
+  .security-principles > div {
+    padding: 0;
+    border: 0;
+  }
+  .security-page .transfer-accounts {
+    grid-template-columns: 1fr;
+  }
+  .filter-bar {
+    gap: 12px;
+    padding: 12px 0;
+  }
+  .filter-bar > .grow {
+    flex-basis: 100%;
+  }
+  .filter-bar > .search-field {
+    width: 100%;
+  }
+  .detail-grid {
+    grid-template-columns: 112px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .dialog-content {
+    padding: 20px;
+    max-height: calc(100svh - 32px);
+  }
+  .dialog-content [id^='reka-dialog-title'] {
+    font-size: 20px;
+    padding-right: 24px;
+  }
+  .dialog-content [id^='reka-dialog-description'] {
+    font-size: 13px;
+  }
+  .execution-dialog > .dialog-actions {
+    bottom: -20px;
+    margin: 16px -20px -20px;
+    padding: 16px 20px;
+    flex-wrap: nowrap;
+  }
+  .confirmation-amount strong {
+    font-size: 32px;
+  }
+  .pagination {
+    flex-wrap: wrap;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+  .fund-card:hover,
+  .plan-option:hover,
+  .flow-node:hover {
+    transform: none;
+  }
+}

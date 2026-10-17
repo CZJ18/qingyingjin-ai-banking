@@ -1,0 +1,40 @@
+name: Qingyingjin Goal Facts Parser
+status: reference_requires_model_configuration_and_publishing
+source_canvas: backend/domain/workflow/internal/canvas/examples/llm_node_with_skills/llm_node_with_workflow_tool.json
+nodes:
+  - id: '100001'
+    type: '1'
+    title: Start
+    required_input: {name: input_string, type: string}
+  - id: '159950'
+    type: '3'
+    title: Goal facts parser LLM
+    input: {name: input, from_node: '100001', from_output: input_string}
+    prompt: '{{input}}'
+    system_prompt_file: system-prompt.md
+    json_schema_file: services/banking-service/internal/goal/schemas/goal-parse.schema.json
+    model: choose_actual_installed_model
+    temperature: 0
+    responseFormat: 2
+    chat_history: false
+    function_calling_tools: []
+    output: {name: output, type: string}
+    retries: 0
+    timeout_ms: 25000
+  - id: '900001'
+    type: '2'
+    title: End
+    terminatePlan: returnVariables
+    output: {name: output, type: string, from_node: '159950', from_output: output}
+edges:
+  - {sourceNodeID: '100001', targetNodeID: '159950'}
+  - {sourceNodeID: '159950', targetNodeID: '900001'}
+banking_transport:
+  method: POST
+  path: /v1/workflow/run
+  authorization: Bearer PAT
+  request:
+    workflow_id: configured_published_workflow_id
+    parameters: JSON_encoded_string_containing_input_string
+    is_async: false
+  response: {code: 0, execute_id: string, data: JSON_string_containing_End_output_string}

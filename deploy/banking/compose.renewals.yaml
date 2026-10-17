@@ -1,0 +1,6 @@
+# Last overlay, after compose.cards.yaml. Migration 015 must be applied first.
+services:
+  banking-service:
+    image: qingyingjin-banking-service:renewal-reminders
+  banking-migrate:
+    image: qingyingjin-banking-service:renewal-reminders
