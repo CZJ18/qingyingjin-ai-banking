@@ -17,3 +17,5 @@ evidence 是字段名到原文片段的映射，键必须精确使用 period_mon
 输出 {"status":"needs_information","missing_information":["period_months"]}
 
 输出 JSON 所有字段，数组为空使用[]，evidence 使用对象。输出前检查 evidence 中的周期、金额、类别、禁止操作原文片段全部真实存在。
+
+减少支出的金额证据必须是完整原文片段，同时明确“每月”和“少花/减少支出/节省开支”的含义；不能只摘取“减少购物支出100元”而丢失周期，也不能把一次性的减少当作每月目标。可调整类别的证据必须包含“可调整/可以调整/允许调整/可以减少/愿意减少”等明确许可及原类别，不能从单纯消费记录或禁止调整的话语推断许可。原文不足以提供这些证据时返回 {"status":"needs_information","missing_information":["goal_details"]}，不得编造或改写证据。

@@ -1,0 +1,16 @@
+{
+  "project_id": "",
+  "currency": "",
+  "model": "",
+  "price_version": "",
+  "price_source": "",
+  "price_evidence_sha256": "",
+  "valid_from": "",
+  "valid_until": "",
+  "lifetime_limit": "",
+  "input_price_per_million": "",
+  "cache_hit_price_per_million": "",
+  "output_price_per_million": "",
+  "provider_context_tokens": 0,
+  "max_output_tokens": 0
+}

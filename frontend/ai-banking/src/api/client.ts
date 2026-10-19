@@ -162,6 +162,10 @@ export const api = {
     (
       await request<Schema<'SubscriptionReport'>>('/api/v1/subscriptions', { signal })
     ).subscriptions.map((item) => item.subscription),
+  detectSubscriptions: (signal?: AbortSignal) =>
+    request<Schema<'SubscriptionReport'>>('/api/v1/subscriptions/detect_subscriptions', {
+      method: 'POST', body: {}, signal,
+    }),
   operations: (signal?: AbortSignal) =>
     request<Schema<'ExecutionOperation'>[]>('/api/v1/execution/operations', { signal }),
   billing: (body: Omit<Schema<'BillingInput'>, 'limit' | 'offset'>) =>

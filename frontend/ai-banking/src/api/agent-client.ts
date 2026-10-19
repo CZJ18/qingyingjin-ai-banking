@@ -1,14 +1,22 @@
 import type { components } from './agent-schema'
 import { ApiError, authorizationHeaders, request, sessionVersion } from './client'
+import type { MonthlyGoal } from '../lib/monthly-goal'
 
 export type AgentSchema<K extends keyof components['schemas']> = components['schemas'][K]
-export type AgentTask = AgentSchema<'AgentTaskView'>
+export type AgentConfirmation = Omit<AgentSchema<'PreparationChallenge'>, 'confirmation_scope'> & {
+  confirmation_scope: 'PREPARE_ONLY' | 'PLAN_ACCEPTANCE'
+}
+export type AgentTask = Omit<AgentSchema<'AgentTaskView'>, 'confirmation' | 'request'> & {
+  confirmation: AgentConfirmation | null
+  request: AgentSchema<'AgentSubmit'> & { monthly_goal?: MonthlyGoal | null }
+}
 export type AgentSubmit = Omit<
   AgentSchema<'AgentSubmit'>,
   'instruction' | 'max_attempts' | 'timeout_ms' | 'tasks'
 > &
   Partial<Pick<AgentSchema<'AgentSubmit'>, 'instruction' | 'max_attempts' | 'timeout_ms'>> & {
     tasks?: AgentTaskSpec[]
+    monthly_goal?: MonthlyGoal
   }
 export type AgentTaskSpec = Omit<
   AgentSchema<'AgentTaskSpec'>,
@@ -81,14 +89,15 @@ function validateTask(value: AgentTask, id?: string): AgentTask {
       typeof c.nonce !== 'string' ||
       c.nonce.length < 16 ||
       !Number.isFinite(Date.parse(c.expires_at)) ||
-      (c.confirmation_scope !== undefined && c.confirmation_scope !== 'PREPARE_ONLY'))
+      (c.confirmation_scope !== undefined &&
+        !['PREPARE_ONLY', 'PLAN_ACCEPTANCE'].includes(c.confirmation_scope)))
   )
     invalidResponse()
   // FastAPI's actual endpoint omits the schema defaults; apply only the documented literals.
   return {
     ...value,
     financial_execution_enabled: false,
-    confirmation: c ? { ...c, confirmation_scope: 'PREPARE_ONLY' } : null,
+    confirmation: c ? { ...c, confirmation_scope: c.confirmation_scope ?? 'PREPARE_ONLY' } : null,
   }
 }
 function validateEvent(value: AgentTaskEvent): AgentTaskEvent {

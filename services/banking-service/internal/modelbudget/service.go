@@ -45,6 +45,14 @@ type Window struct {
 func (Window) TableName() string { return "banking_model_budget_windows" }
 
 type Call struct {
+	RawReportedCost                                       *string
+	ValidatedReportedCost                                 *string
+	CostStatus, CostCurrency, CostUnit                    string
+	ConfirmedCost                                         *string
+	ConfirmedCurrency, ConfirmedUnit                      string
+	UsageStatus                                           string
+	ReportedTokens                                        *int64
+	ProviderExecuteID, ReportDigest                       string
 	ID                                                    string `gorm:"primaryKey"`
 	UserID                                                int64
 	WindowID, RequestKey, RequestHash, WorkflowID, Status string
@@ -122,7 +130,7 @@ func (s *Service) Begin(ctx context.Context, user int64, key, workflow, digest s
 		if e = tx.Save(&window).Error; e != nil {
 			return e
 		}
-		call := Call{ID: uuid.NewString(), UserID: user, WindowID: window.ID, RequestKey: k, RequestHash: digest, WorkflowID: workflow, Status: "reserved", ReservedTokens: p.ReservationTokens}
+		call := Call{ID: uuid.NewString(), UserID: user, WindowID: window.ID, RequestKey: k, RequestHash: digest, WorkflowID: workflow, Status: "reserved", ReservedTokens: p.ReservationTokens, UsageStatus: "pending", CostStatus: "missing"}
 		if e = tx.Create(&call).Error; e != nil {
 			return e
 		}
@@ -136,6 +144,9 @@ func (s *Service) Complete(ctx context.Context, user int64, id string, raw []byt
 		return coze.ErrBudgetUnavailable
 	}
 	if complete && !json.Valid(raw) {
+		return coze.ErrBudgetUnavailable
+	}
+	if cost != "" && !coze.ValidReportedCost(cost) {
 		return coze.ErrBudgetUnavailable
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -157,13 +168,19 @@ func (s *Service) Complete(ctx context.Context, user int64, id string, raw []byt
 		}
 		if !complete {
 			call.Status = "unknown"
+			if call.ActualTokens == nil {
+				call.UsageStatus = "pending"
+			}
 			return tx.Save(&call).Error
 		}
 		var window Window
 		if e := tx.Where("id=? AND user_id=?", call.WindowID, user).Take(&window).Error; e != nil {
 			return e
 		}
-		if tokens != nil {
+		if tokens != nil && call.ActualTokens != nil && *tokens != *call.ActualTokens {
+			return coze.ErrRequestConflict
+		}
+		if tokens != nil && call.ActualTokens == nil {
 			if window.TokensReserved < call.ReservedTokens || window.TokensUsed > 1_000_000_000_000-*tokens {
 				return coze.ErrBudgetUnavailable
 			}
@@ -174,10 +191,24 @@ func (s *Service) Complete(ctx context.Context, user int64, id string, raw []byt
 			}
 			call.ReservedTokens = 0
 			call.ActualTokens = tokens
+			call.UsageStatus = "settled"
+		}
+		if call.ActualTokens == nil {
+			call.UsageStatus = "pending"
 		}
 		response := string(raw)
 		call.ResponseJSON = &response
 		call.ReportedCost = cost
+		if call.RawReportedCost == nil {
+			value := cost
+			call.RawReportedCost = &value
+			if cost != "" {
+				call.ValidatedReportedCost = &value
+				call.CostStatus = "reported_unverified"
+			} else {
+				call.CostStatus = "missing"
+			}
+		}
 		call.Status = "completed"
 		return tx.Save(&call).Error
 	})

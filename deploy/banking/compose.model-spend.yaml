@@ -1,0 +1,37 @@
+# Opt-in development overlay, after compose.yaml and compose.coze-local.yaml.
+# Does not rewrite Coze connections or remove old keys: follow MODEL-SPEND.md.
+# The protected gateway env must explicitly select development for this HTTP
+# listener; production refuses it and requires --tls-cert/--tls-key deployment.
+services:
+  banking-model-gateway:
+    image: ${BANKING_IMAGE:?build and review the new local image first}
+    entrypoint: [/banking-model-gateway]
+    command:
+      - --env-file
+      - /run/secrets/model-gateway.env
+      - --policy-file
+      - /run/secrets/model-spend-policy.json
+      - --expected-database
+      - ${BANKING_MODEL_SPEND_DATABASE:?set exact monetary ledger database}
+      - --listen
+      - 0.0.0.0:8092
+      - --price-evidence-file
+      - /run/secrets/model-price-evidence
+      - --confirm-price-review
+    volumes:
+      - ${BANKING_MODEL_GATEWAY_ENV_FILE:?private gateway env}:/run/secrets/model-gateway.env:ro
+      - ${BANKING_MODEL_SPEND_POLICY_FILE:?verified policy file}:/run/secrets/model-spend-policy.json:ro
+      - ${BANKING_MODEL_PRICE_EVIDENCE_FILE:?independent price and bound evidence}:/run/secrets/model-price-evidence:ro
+    ports: ['127.0.0.1:18160:8092']
+    networks: [banking-internal, banking-egress, coze-local]
+    depends_on:
+      banking-migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, /banking-model-gateway, --probe, 'http://127.0.0.1:8092/readyz']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped

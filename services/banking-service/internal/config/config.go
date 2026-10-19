@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/qingyingjin/banking-service/internal/outbound"
 	"net"
 	"net/url"
 	"strconv"
@@ -10,6 +11,8 @@ import (
 )
 
 type Config struct {
+	ModelCostCurrency, ModelCostUnit                                                                  string
+	Outbound                                                                                          outbound.Policy
 	ModelDailyCalls, ModelDailyTokens, ModelReservationTokens                                         int64
 	SMS                                                                                               SMSConfig
 	AuthCookieSecure                                                                                  bool
@@ -38,6 +41,11 @@ type Config struct {
 
 func Load(get func(string) string) (Config, error) {
 	var c Config
+	var policyErr error
+	c.Outbound, policyErr = outbound.Parse(get("BANKING_ENVIRONMENT"), get("BANKING_HTTP_ALLOWED_ORIGINS"))
+	if policyErr != nil {
+		return c, policyErr
+	}
 	if err := loadModelBudget(&c, get); err != nil {
 		return c, err
 	}
@@ -156,6 +164,9 @@ func Load(get func(string) string) (Config, error) {
 	c.GoalWorkflowID = get("BANKING_GOAL_WORKFLOW_ID")
 	c.BillingWorkflowID = get("BANKING_BILLING_WORKFLOW_ID")
 	c.OrchestratorBaseURL = value("BANKING_ORCHESTRATOR_API_BASE_URL", "http://127.0.0.1:8090")
+	if err := c.Outbound.Validate(c.OrchestratorBaseURL); err != nil {
+		return c, fmt.Errorf("BANKING_ORCHESTRATOR_API_BASE_URL violates transport policy")
+	}
 	u, parseError := url.Parse(c.OrchestratorBaseURL)
 	if parseError != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
 		return c, fmt.Errorf("invalid BANKING_ORCHESTRATOR_API_BASE_URL")
@@ -181,6 +192,9 @@ func Load(get func(string) string) (Config, error) {
 		return c, fmt.Errorf("BANKING_COZE_BASE_URL and BANKING_COZE_PAT must be set together")
 	}
 	if c.CozeBaseURL != "" {
+		if err := c.Outbound.Validate(c.CozeBaseURL); err != nil {
+			return c, fmt.Errorf("BANKING_COZE_BASE_URL violates transport policy")
+		}
 		u, e := url.Parse(c.CozeBaseURL)
 		if e != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
 			return c, fmt.Errorf("invalid BANKING_COZE_BASE_URL")

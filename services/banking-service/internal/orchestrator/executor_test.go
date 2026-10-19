@@ -1,5 +1,7 @@
 package orchestrator
 
+import "github.com/qingyingjin/banking-service/internal/outbound"
+
 import (
 	"context"
 	"encoding/json"
@@ -23,7 +25,7 @@ func TestSkillRejectedBeforeTransport(t *testing.T) {
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { requests++ }))
 	defer server.Close()
-	x, err := NewHTTPExecutor(server.URL, executorAuth(), nil, nil, nil)
+	x, err := NewHTTPExecutor(server.URL, executorAuth(), nil, nil, nil, outbound.TestPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +83,7 @@ func TestHTTPExecutorCozeCannotReplaceFinancialFacts(t *testing.T) {
 				}
 				return workflowResult(out), nil
 			})
-			x, _ := NewHTTPExecutor(s.URL, executorAuth(), runner, map[string]string{"billing": "123"}, nil)
+			x, _ := NewHTTPExecutor(s.URL, executorAuth(), runner, map[string]string{"billing": "123"}, nil, outbound.TestPolicy())
 			call := billingCall()
 			call.UseCoze = true
 			out, e := x.Run(context.Background(), call)
@@ -101,7 +103,7 @@ func TestHTTPExecutorCozeCannotReplaceFinancialFacts(t *testing.T) {
 			}
 		})
 	}
-	x, _ := NewHTTPExecutor(s.URL, executorAuth(), nil, nil, nil)
+	x, _ := NewHTTPExecutor(s.URL, executorAuth(), nil, nil, nil, outbound.TestPolicy())
 	call := billingCall()
 	call.UseCoze = true
 	if _, e := x.Run(context.Background(), call); entity.Code(e) != "COZE_UNAVAILABLE" {
@@ -114,7 +116,7 @@ func TestSupervisorPlannerRejectsUntrustedWorkflowPlan(t *testing.T) {
 			runner := workflowFixture(func(context.Context, coze.RunRequest) (coze.RunResponse, error) {
 				return workflowResult(map[string]any{"tasks": []TaskSpec{{Key: "a", AgentType: "billing", Tool: tool, Parameters: json.RawMessage(`{}`), Dependencies: []string{}, Priority: 1}}}), nil
 			})
-			x, _ := NewHTTPExecutor("http://127.0.0.1:8090", executorAuth(), runner, map[string]string{"supervisor": "123"}, nil)
+			x, _ := NewHTTPExecutor("http://127.0.0.1:8090", executorAuth(), runner, map[string]string{"supervisor": "123"}, nil, outbound.TestPolicy())
 			tasks, e := x.Plan(context.Background(), service.Meta{UserID: 42}, "分析账单", Bindings{})
 			if tool == "detect_anomalies" {
 				if e != nil || len(tasks) != 1 {
@@ -138,7 +140,7 @@ func TestHTTPExecutorCancellationPropagates(t *testing.T) {
 	}))
 	defer s.Close()
 	defer close(release)
-	x, _ := NewHTTPExecutor(s.URL, executorAuth(), nil, nil, nil)
+	x, _ := NewHTTPExecutor(s.URL, executorAuth(), nil, nil, nil, outbound.TestPolicy())
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { _, e := x.Run(ctx, billingCall()); done <- e }()
@@ -175,7 +177,7 @@ func TestHTTPExecutorPlanningRecomputesPersistedSnapshot(t *testing.T) {
 				json.NewEncoder(w).Encode(map[string]any{"code": "OK", "data": response})
 			}))
 			defer server.Close()
-			x, _ := NewHTTPExecutor(server.URL, executorAuth(), nil, nil, nil)
+			x, _ := NewHTTPExecutor(server.URL, executorAuth(), nil, nil, nil, outbound.TestPolicy())
 			c := billingCall()
 			c.AgentType = "savings"
 			c.Tool = "get_financial_plan"
@@ -217,7 +219,7 @@ func TestHTTPExecutorBankingIdentityAndStructuredResult(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]any{"code": "OK", "data": r})
 	}))
 	defer server.Close()
-	x, e := NewHTTPExecutor(server.URL, a, nil, nil, nil)
+	x, e := NewHTTPExecutor(server.URL, a, nil, nil, nil, outbound.TestPolicy())
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -247,7 +249,7 @@ func TestHTTPExecutorRejectsUnsafeBankResults(t *testing.T) {
 				w.Write([]byte(`{"code":"OK","data":` + tc.body + `}`))
 			}))
 			defer s.Close()
-			x, _ := NewHTTPExecutor(s.URL, executorAuth(), nil, nil, nil)
+			x, _ := NewHTTPExecutor(s.URL, executorAuth(), nil, nil, nil, outbound.TestPolicy())
 			if _, e := x.Run(context.Background(), billingCall()); e == nil {
 				t.Fatal("unsafe tool result accepted")
 			}
@@ -260,7 +262,7 @@ func TestHTTPExecutorNoRedirectNoUngatedProposal(t *testing.T) {
 	defer target.Close()
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, q *http.Request) { http.Redirect(w, q, target.URL, 302) }))
 	defer s.Close()
-	x, _ := NewHTTPExecutor(s.URL, executorAuth(), nil, nil, nil)
+	x, _ := NewHTTPExecutor(s.URL, executorAuth(), nil, nil, nil, outbound.TestPolicy())
 	if _, e := x.Run(context.Background(), billingCall()); e == nil || hit {
 		t.Fatal("redirect followed")
 	}

@@ -10,7 +10,8 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
 from langgraph.types import Command, Send, interrupt
 
-from .agent_models import AgentSubmit, AgentTaskSpec, safe_parameters
+from . import monthly_plan
+from .agent_models import AgentSubmit, AgentTaskRequest, AgentTaskSpec, safe_parameters
 from .checkpoint import TenantCheckpointSaver
 from .errors import DomainError
 
@@ -80,6 +81,7 @@ class RunContext:
     repository: Any = field(repr=False)
     tools: Any = field(repr=False)
     max_attempts: int
+    monthly_goal: dict | None = None
 
     async def db(self, method, *args, **kwargs):
         return await asyncio.to_thread(
@@ -87,6 +89,10 @@ class RunContext:
         )
 
     async def active(self):
+        if self.monthly_goal and self.monthly_goal["period"] != monthly_plan.current_period():
+            raise DomainError(
+                "MONTHLY_GOAL_EXPIRED", "monthly goal no longer belongs to the current month", 409
+            )
         if not await self.db("check_active", self.lease):
             raise DomainError("TASK_INTERRUPTED", "task was cancelled or lease expired", 409)
 
@@ -142,6 +148,7 @@ async def journal_call(context, node, parameters, mode, operation, *, idempotent
             )
             if (
                 not idempotent
+                or error.code in ("COZE_UNAVAILABLE", "MODEL_OUTCOME_UNKNOWN", "MODEL_BUDGET_UNAVAILABLE")
                 or error.status not in (503, 504)
                 or attempt + 1 == context.max_attempts
             ):
@@ -184,7 +191,9 @@ async def supervisor(state: GraphState, runtime: Runtime[RunContext]):
             idempotent=True,
         )
         try:
-            parsed = AgentSubmit.model_validate({"tasks": raw["tasks"]})
+            parsed = AgentSubmit.model_validate(
+                {"tasks": raw["tasks"], "monthly_goal": request.get("monthly_goal")}
+            )
         except (ValueError, KeyError):
             raise DomainError(
                 "TOOL_OUTPUT_INVALID", "Supervisor returned an invalid task graph", 502
@@ -194,7 +203,11 @@ async def supervisor(state: GraphState, runtime: Runtime[RunContext]):
     # Only this fixed read task may be added from authoritative next_actions.
     # Advice and financial intent parameters are never taken from free text.
     outputs = state.get("outputs", {})
-    if len(specs) < 32 and not any(task["agent_type"] == "subscription" for task in specs):
+    if (
+        monthly_plan.REVIEW_NODE not in outputs
+        and len(specs) < 32
+        and not any(task["agent_type"] == "subscription" for task in specs)
+    ):
         for task in specs:
             output = outputs.get(task["key"], {})
             if task["agent_type"] == "billing" and any(
@@ -222,12 +235,30 @@ async def supervisor(state: GraphState, runtime: Runtime[RunContext]):
                 )
                 specs.append(addition.model_dump())
                 break
+    if context.monthly_goal:
+        try:
+            monthly_plan.validate_monthly_specs(specs)
+        except ValueError:
+            raise DomainError(
+                "INVALID_TASK_PLAN", "monthly plan cannot be reviewed safely", 422
+            ) from None
+        accepted = outputs.get(monthly_plan.REVIEW_NODE)
+        if accepted:
+            view = monthly_review_view(state["request"], specs, outputs, context.task_id)
+            if accepted.get("result", {}).get("plan_digest") != digest(view):
+                raise DomainError("CONFIRMATION_CONFLICT", "accepted monthly plan changed", 409)
     return {"specs": specs, "supervisor_metadata": metadata}
 
 
 def dispatch(state: GraphState):
     specs, outputs = state["specs"], state.get("outputs", {})
     remaining = [task for task in specs if task["key"] not in outputs]
+    if state["request"].get("monthly_goal") and monthly_plan.REVIEW_NODE not in outputs:
+        remaining = [
+            task for task in remaining if task["execution_mode"] in monthly_plan.SOURCE_MODES
+        ]
+        if not remaining:
+            return monthly_plan.REVIEW_NODE
     if not remaining:
         return END
     ready = [task for task in remaining if all(dep in outputs for dep in task["dependencies"])]
@@ -246,6 +277,81 @@ def dispatch(state: GraphState):
         )
         for task in selected
     ]
+
+
+def monthly_review_view(request, specs, outputs, task_id):
+    try:
+        suggestions = monthly_plan.validate_suggestions(specs, outputs, task_id)
+    except ValueError:
+        raise DomainError(
+            "TOOL_OUTPUT_INVALID", "monthly plan requires successful verified suggestions", 502
+        ) from None
+    if not monthly_plan.has_usable_plan(specs, suggestions, request["monthly_goal"]):
+        raise DomainError(
+            "PLAN_ADVICE_REQUIRED",
+            "a feasible monthly plan requires complete source information",
+            422,
+        )
+    return {
+        "confirmation_scope": "PLAN_ACCEPTANCE",
+        "monthly_goal": request["monthly_goal"],
+        "goal_text": request["instruction"],
+        "plan_tasks": specs,
+        "suggestions": suggestions,
+        "source_digest": digest(suggestions),
+    }
+
+
+async def monthly_review(state: GraphState, runtime: Runtime[RunContext]):
+    """This node is server-owned and never comes from a model task specification."""
+    context = runtime.context
+    await context.active()
+    view = monthly_review_view(
+        state["request"], state["specs"], state.get("outputs", {}), context.task_id
+    )
+    request_digest, node = digest(view), monthly_plan.REVIEW_NODE
+    challenge = await context.db("challenge", context.lease, node, request_digest, view)
+    decision = interrupt(
+        {
+            "node_key": node,
+            "digest": request_digest,
+            "parameters_view": view,
+            "expires_at": challenge.get("expires_at"),
+            "confirmation_scope": "PLAN_ACCEPTANCE",
+        }
+    )
+    if (
+        not isinstance(decision, dict)
+        or decision.get("node_key") != node
+        or decision.get("digest") != request_digest
+        or decision.get("decision") not in ("approve", "reject")
+    ):
+        raise DomainError("CONFIRMATION_CONFLICT", "bound plan acceptance required", 409)
+    if decision["decision"] == "reject":
+        raise DomainError("USER_REJECTED", "user declined the monthly plan", 409)
+    if not await context.db("approved", node, request_digest):
+        raise DomainError("CONFIRMATION_EXPIRED", "current persisted plan acceptance required", 409)
+    await context.active()
+    return {
+        "outputs": {
+            node: {
+                "task_id": context.task_id + "." + node,
+                "agent_type": "supervisor",
+                "status": "succeeded",
+                "result": {
+                    "plan_accepted": True,
+                    "authorization_granted": False,
+                    "financial_execution_enabled": False,
+                    "plan_digest": request_digest,
+                    "source_digest": view["source_digest"],
+                },
+                "evidence": [],
+                "errors": [],
+                "next_actions": [],
+                "financial_execution_enabled": False,
+            }
+        }
+    }
 
 
 async def specialist(state: GraphState, runtime: Runtime[RunContext]):
@@ -320,6 +426,8 @@ async def specialist(state: GraphState, runtime: Runtime[RunContext]):
 def build_graph(saver):
     builder = StateGraph(GraphState, context_schema=RunContext)
     builder.add_node("supervisor", supervisor)
+    builder.add_node(monthly_plan.REVIEW_NODE, monthly_review)
+    builder.add_edge(monthly_plan.REVIEW_NODE, "supervisor")
     for role in ("billing", "subscription", "lifestyle", "savings", "supervisor"):
         builder.add_node("specialist_" + role, specialist)
         builder.add_edge("specialist_" + role, "supervisor")
@@ -353,12 +461,22 @@ class LangGraphOrchestrator:
             self.repository,
             self.tools,
             request["max_attempts"],
+            request.get("monthly_goal"),
         )
         saver = self.saver_factory(self.repository, user_id, task_id, lease_token=lease)
         graph = build_graph(saver)
         config = {"configurable": {"thread_id": task_id}, "recursion_limit": 100}
         try:
+            try:
+                AgentTaskRequest.model_validate(request)
+            except ValueError:
+                raise DomainError(
+                    "INVALID_TASK_PLAN", "stored task request is invalid", 422
+                ) from None
+            await context.active()
             snapshot = await graph.aget_state(config)
+            if snapshot.values and snapshot.values.get("request") != request:
+                raise DomainError("CONFIRMATION_CONFLICT", "checkpoint request changed", 409)
             if resume is None and snapshot.interrupts:
                 value = snapshot.interrupts[0].value
                 resume = await context.db("decision", value["node_key"], value["digest"])
@@ -429,9 +547,7 @@ class LangGraphOrchestrator:
         except TimeoutError:
             return await context.safe_finish("interrupted", error_code="TASK_TIMEOUT")
         except asyncio.CancelledError:
-            await asyncio.shield(
-                context.safe_finish("interrupted", error_code="TASK_INTERRUPTED")
-            )
+            await asyncio.shield(context.safe_finish("interrupted", error_code="TASK_INTERRUPTED"))
             raise
         except Exception:
             # Serializer/DB/engine errors may contain SQL or credentials. Do not

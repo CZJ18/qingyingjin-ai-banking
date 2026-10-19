@@ -1,5 +1,7 @@
 package coze
 
+import "github.com/qingyingjin/banking-service/internal/outbound"
+
 import (
 	"context"
 	"errors"
@@ -43,7 +45,7 @@ func TestBudgetDenialNeverCallsUpstream(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls++ }))
 	defer s.Close()
 	meter := &testMeter{denied: ErrQuotaExceeded}
-	c, e := NewBudgeted(s.URL, "synthetic-pat", time.Second, meter)
+	c, e := NewBudgeted(s.URL, "synthetic-pat", time.Second, meter, outbound.TestPolicy())
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -64,7 +66,7 @@ func TestBudgetCachesMeteredResponseAndDoesNotRepeatCall(t *testing.T) {
 	}))
 	defer s.Close()
 	meter := &testMeter{}
-	c, _ := NewBudgeted(s.URL, "synthetic-pat", time.Second, meter)
+	c, _ := NewBudgeted(s.URL, "synthetic-pat", time.Second, meter, outbound.TestPolicy())
 	ctx := WithIdentity(context.Background(), 42, "stable-owned-task")
 	out, e := c.RunSyncWorkflow(ctx, RunRequest{WorkflowID: "123", Parameters: map[string]any{"synthetic": true}})
 	if e != nil || out.ExecuteID != "456" || meter.completed != 1 || meter.token != 42 || calls != 1 {
@@ -83,7 +85,7 @@ func TestBudgetTimeoutKeepsUnknownReservationAfterCancellation(t *testing.T) {
 	}))
 	defer s.Close()
 	meter := &testMeter{}
-	c, _ := NewBudgeted(s.URL, "synthetic-pat", time.Second, meter)
+	c, _ := NewBudgeted(s.URL, "synthetic-pat", time.Second, meter, outbound.TestPolicy())
 	ctx, cancel := context.WithTimeout(WithIdentity(context.Background(), 42, "lost-result"), 10*time.Millisecond)
 	defer cancel()
 	_, e := c.RunSyncWorkflow(ctx, RunRequest{WorkflowID: "123"})
@@ -97,7 +99,7 @@ func TestBudgetAccountingFailureCannotReturnSuccessfulModelOutput(t *testing.T) 
 	}))
 	defer s.Close()
 	meter := &testMeter{errorOnComplete: errors.New("synthetic SQL fault")}
-	c, _ := NewBudgeted(s.URL, "synthetic-pat", time.Second, meter)
+	c, _ := NewBudgeted(s.URL, "synthetic-pat", time.Second, meter, outbound.TestPolicy())
 	out, e := c.RunSyncWorkflow(WithIdentity(context.Background(), 42, "accounting-fault"), RunRequest{WorkflowID: "123"})
 	if e == nil || out.ExecuteID != "" {
 		t.Fatal("unaccounted model output reported success")
@@ -109,7 +111,7 @@ func TestCachedModelResponseMustObeyLiveResponseValidation(t *testing.T) {
 	defer s.Close()
 	for _, raw := range []string{`{"code":0,"execute_id":"456","data":"{}","token":-1}`, `{"code":0,"execute_id":"456"}`} {
 		meter := &testMeter{cached: []byte(raw)}
-		c, _ := NewBudgeted(s.URL, "synthetic-pat", time.Second, meter)
+		c, _ := NewBudgeted(s.URL, "synthetic-pat", time.Second, meter, outbound.TestPolicy())
 		if _, e := c.RunSyncWorkflow(WithIdentity(context.Background(), 42, "corrupt-cache"), RunRequest{WorkflowID: "123"}); e == nil {
 			t.Fatal("invalid cached usage/output accepted")
 		}

@@ -1,4 +1,4 @@
-"""User-owned graph API; resumption is a bound PREPARE decision, never execution."""
+"""User-owned graph API; bound acceptance and preparation never execute funds."""
 
 import asyncio
 import json
@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from .agent_graph import digest
-from .agent_models import AgentResume, AgentSubmit, TaskVersionInput
+from .agent_models import AgentResume, AgentSubmit, AgentTaskRequest, TaskVersionInput
 from .errors import DomainError
 from .models import Envelope
 
@@ -22,7 +22,7 @@ class PreparationChallenge(BaseModel):
     expires_at: str
     status: Literal["pending"]
     parameters_view: dict[str, Any]
-    confirmation_scope: Literal["PREPARE_ONLY"] = "PREPARE_ONLY"
+    confirmation_scope: Literal["PREPARE_ONLY", "PLAN_ACCEPTANCE"] = "PREPARE_ONLY"
 
 
 class AgentTaskView(BaseModel):
@@ -38,7 +38,7 @@ class AgentTaskView(BaseModel):
         "cancelled",
     ]
     version: int = Field(ge=1)
-    request: AgentSubmit
+    request: AgentTaskRequest
     result: dict[str, Any] | None
     error_code: str
     confirmation: PreparationChallenge | None
@@ -84,7 +84,8 @@ def register_agent_routes(app, authenticate, response):
 
         if not correlation.fullmatch(idempotency_key):
             raise DomainError("INVALID_ARGUMENT", "valid idempotency key required", 400)
-        value = body.model_dump()
+        # Keep existing ordinary requests stable for persisted idempotency keys.
+        value = body.model_dump(exclude={"monthly_goal"} if body.monthly_goal is None else None)
         serialized = json.dumps(value, ensure_ascii=False)
         secrets = (actor[1], request.app.state.agent_service_key)
         if any(

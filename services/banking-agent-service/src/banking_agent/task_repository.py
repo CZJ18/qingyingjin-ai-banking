@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from psycopg.types.json import Jsonb
 
+from . import monthly_plan
 from .errors import DomainError
 from .repository import Repository, _text
 
@@ -100,6 +101,9 @@ class TaskRepository:
         ).fetchone()
         if challenge:
             challenge["expires_at"] = challenge["expires_at"].isoformat()
+            challenge["confirmation_scope"] = challenge["parameters_view"].get(
+                "confirmation_scope", "PREPARE_ONLY"
+            )
         result["confirmation"] = challenge
         return result
 
@@ -314,6 +318,9 @@ class TaskRepository:
                 or challenge["waiting_version"] != expected_version
             ):
                 conflict("CONFIRMATION_CONFLICT")
+            goal = row["request"].get("monthly_goal")
+            if goal and goal["period"] != monthly_plan.current_period():
+                conflict("MONTHLY_GOAL_EXPIRED")
             if challenge["status"] != "pending":
                 if challenge["status"] != status:
                     conflict("CONFIRMATION_CONFLICT")

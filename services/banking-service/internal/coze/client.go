@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/qingyingjin/banking-service/internal/outbound"
 	"io"
 	"log/slog"
 	"net/http"
@@ -18,10 +19,22 @@ import (
 )
 
 type Client struct {
-	base, pat string
-	http      *http.Client
-	meter     Meter
+	costCurrency, costUnit string
+	base, pat              string
+	http                   *http.Client
+	meter                  Meter
 }
+
+// ConfigureReportedCost declares operator-verified field metadata, not trust in
+// reported amounts. Empty metadata explicitly leaves currency/unit unknown.
+func (c *Client) ConfigureReportedCost(currency, unit string) error {
+	if !ValidCostMetadata(currency, unit) {
+		return errors.New("invalid reported cost metadata")
+	}
+	c.costCurrency, c.costUnit = currency, unit
+	return nil
+}
+
 type RunRequest struct {
 	WorkflowID string
 	Parameters map[string]any
@@ -35,7 +48,17 @@ type RunResponse struct {
 	Cost      string `json:"cost,omitempty"`
 }
 
-func New(base, pat string, timeout time.Duration) (*Client, error) {
+func New(base, pat string, timeout time.Duration, policies ...outbound.Policy) (*Client, error) {
+	p := outbound.Policy{}
+	if len(policies) > 1 {
+		return nil, errors.New("invalid transport policy")
+	}
+	if len(policies) == 1 {
+		p = policies[0]
+	}
+	if e := p.Validate(base); e != nil {
+		return nil, e
+	}
 	u, err := url.Parse(base)
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") || strings.TrimSpace(pat) == "" || timeout <= 0 {
 		return nil, errors.New("invalid Coze client configuration")
@@ -92,7 +115,7 @@ func (c *Client) run(ctx context.Context, in RunRequest, async bool) (RunRespons
 			return out, err
 		}
 		if len(cache) > 0 {
-			if len(cache) > 1<<20 || json.Unmarshal(cache, &out) != nil || out.Code == nil || *out.Code != 0 || out.ExecuteID == "" || !async && out.Data == "" || out.Token != nil && (*out.Token < 0 || *out.Token > 1_000_000_000_000) || len(out.Cost) > 64 {
+			if len(cache) > 1<<20 || json.Unmarshal(cache, &out) != nil || out.Code == nil || *out.Code != 0 || out.ExecuteID == "" || !async && out.Data == "" || out.Token != nil && (*out.Token < 0 || *out.Token > 1_000_000_000_000) || out.Cost != "" && !ValidReportedCost(out.Cost) {
 				return RunResponse{}, ErrBudgetUnavailable
 			}
 			return out, nil
@@ -129,7 +152,32 @@ func (c *Client) run(ctx context.Context, in RunRequest, async bool) (RunRespons
 	if err != nil || len(raw) > 1024*1024 {
 		return out, errors.New("invalid Coze response size")
 	}
-	if err := json.Unmarshal(raw, &out); err != nil || out.Code == nil {
+	decodeError := json.Unmarshal(raw, &out)
+	if recorder, ok := c.meter.(CostReporter); ok {
+		report := CostReport{Raw: out.Cost, ExecuteID: out.ExecuteID, Currency: c.costCurrency, Unit: c.costUnit, ResponseDigest: fmt.Sprintf("%x", sha256.Sum256(raw))}
+		var fields map[string]json.RawMessage
+		if json.Unmarshal(raw, &fields) != nil {
+			report.InvalidFormat = true
+		} else {
+			if value, ok := fields["cost"]; ok && string(value) != "null" {
+				if json.Unmarshal(value, &report.Raw) != nil {
+					report.Raw = string(value)
+					report.InvalidFormat = true
+				}
+			}
+			var tokens int64
+			if v, ok := fields["token"]; ok && string(v) != "null" && json.Unmarshal(v, &tokens) == nil {
+				report.Tokens = &tokens
+			}
+		}
+		accounting, stop := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+		recordError := recorder.RecordReport(accounting, identity.owner, reservation, report)
+		stop()
+		if recordError != nil {
+			return RunResponse{}, ErrBudgetUnavailable
+		}
+	}
+	if decodeError != nil || out.Code == nil {
 		return RunResponse{}, errors.New("invalid Coze response")
 	}
 	if *out.Code != 0 {
@@ -140,6 +188,9 @@ func (c *Client) run(ctx context.Context, in RunRequest, async bool) (RunRespons
 	}
 	if !async && out.Data == "" {
 		return RunResponse{}, errors.New("Coze synchronous response missing data")
+	}
+	if out.Cost != "" && !ValidReportedCost(out.Cost) {
+		return RunResponse{}, errors.New("invalid reported Coze cost")
 	}
 	if out.Token != nil && (*out.Token < 0 || *out.Token > 1_000_000_000_000) || len(out.Cost) > 64 {
 		return RunResponse{}, errors.New("invalid Coze usage")

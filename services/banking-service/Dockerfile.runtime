@@ -7,5 +7,8 @@ COPY banking-migrate /banking-migrate
 COPY banking-seed /banking-seed
 COPY banking-storage-migrate /banking-storage-migrate
 COPY banking-storage-control /banking-storage-control
+COPY banking-model-reconcile /banking-model-reconcile
+COPY banking-model-gateway /banking-model-gateway
+COPY banking-model-spend-reconcile /banking-model-spend-reconcile
 EXPOSE 8090
 ENTRYPOINT ["/banking-service"]

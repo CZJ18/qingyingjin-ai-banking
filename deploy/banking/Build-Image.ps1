@@ -8,7 +8,7 @@ if ($LocalBinaries) {
     Push-Location -LiteralPath (Join-Path $repoRoot 'services/banking-service')
     try {
         $env:GOOS = 'linux'; $env:GOARCH = 'amd64'; $env:CGO_ENABLED = '0'
-        foreach ($command in @('server', 'migrate', 'seed', 'storage-migrate', 'storage-control')) {
+        foreach ($command in @('server', 'migrate', 'seed', 'storage-migrate', 'storage-control', 'model-reconcile', 'model-gateway', 'model-spend-reconcile')) {
             $binary = if ($command -eq 'server') { 'banking-service' } else { 'banking-' + $command }
             & go build -buildvcs=false -trimpath -o (Join-Path $contextDirectory $binary) ('./cmd/' + $command)
             if ($LASTEXITCODE -ne 0) { throw "Failed to compile $command" }

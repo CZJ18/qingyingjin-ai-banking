@@ -78,6 +78,33 @@
       ],
       "title": "AgentTaskSpec",
       "type": "object"
+    },
+    "MonthlyGoal": {
+      "additionalProperties": false,
+      "properties": {
+        "period": {
+          "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
+          "title": "Period",
+          "type": "string"
+        },
+        "currency": {
+          "const": "CNY",
+          "title": "Currency",
+          "type": "string"
+        },
+        "timezone": {
+          "const": "Asia/Shanghai",
+          "title": "Timezone",
+          "type": "string"
+        }
+      },
+      "required": [
+        "period",
+        "currency",
+        "timezone"
+      ],
+      "title": "MonthlyGoal",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -114,6 +141,17 @@
       "minimum": 100,
       "title": "Timeout Ms",
       "type": "integer"
+    },
+    "monthly_goal": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MonthlyGoal"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "title": "AgentSubmit",

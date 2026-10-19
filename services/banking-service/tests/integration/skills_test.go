@@ -13,6 +13,7 @@ import (
 	"github.com/qingyingjin/banking-service/internal/billing"
 	"github.com/qingyingjin/banking-service/internal/httpapi"
 	"github.com/qingyingjin/banking-service/internal/orchestrator"
+	"github.com/qingyingjin/banking-service/internal/outbound"
 	"github.com/qingyingjin/banking-service/internal/repository"
 	"github.com/qingyingjin/banking-service/internal/risk"
 	"github.com/qingyingjin/banking-service/internal/service"
@@ -33,7 +34,7 @@ func TestSkillsPersistentBindingsAndRoleIsolation(t *testing.T) {
 	subs := subscription.New(repository.New(h.conn.DB), risk.SimulationGateway{}, subscription.LocalSimulator{})
 	tools := httptest.NewServer(httpapi.NewWithSubscriptions(h.auth, log, nil, time.Second, h.svc, nil, bills, subs))
 	defer tools.Close()
-	executor, err := orchestrator.NewHTTPExecutor(tools.URL, h.auth, nil, nil, nil)
+	executor, err := orchestrator.NewHTTPExecutor(tools.URL, h.auth, nil, nil, nil, outbound.TestPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}

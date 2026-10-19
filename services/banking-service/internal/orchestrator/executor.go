@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/google/uuid"
+	"github.com/qingyingjin/banking-service/internal/outbound"
 	"github.com/qingyingjin/banking-service/internal/skills"
 	"io"
 	"net/http"
@@ -42,7 +43,17 @@ type HTTPExecutor struct {
 	gateway   ProposalGateway
 }
 
-func NewHTTPExecutor(baseURL string, auth *identity.Auth, runner WorkflowRunner, workflowIDs map[string]string, gateway ProposalGateway) (*HTTPExecutor, error) {
+func NewHTTPExecutor(baseURL string, auth *identity.Auth, runner WorkflowRunner, workflowIDs map[string]string, gateway ProposalGateway, policies ...outbound.Policy) (*HTTPExecutor, error) {
+	p := outbound.Policy{}
+	if len(policies) > 1 {
+		return nil, errors.New("invalid executor transport policy")
+	}
+	if len(policies) == 1 {
+		p = policies[0]
+	}
+	if e := p.Validate(baseURL); e != nil {
+		return nil, e
+	}
 	u, e := url.Parse(baseURL)
 	if e != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") || auth == nil {
 		return nil, errors.New("invalid Banking executor configuration")

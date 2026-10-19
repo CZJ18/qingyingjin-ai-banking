@@ -260,7 +260,7 @@ const integrity = computed(() => {
       warnings.push('流水范围与账户筛选不一致')
     for (const direction of ['income', 'expense'] as const) {
       if (
-        items.filter((t) => t.direction === direction).reduce((n, t) => n + t.amount_minor, 0) >
+        items.filter((t) => t.kind === 'external' && t.direction === direction).reduce((n, t) => n + t.amount_minor, 0) >
         (direction === 'income' ? r.total_income : r.total_expense)
       )
         warnings.push('当前分页' + (direction === 'income' ? '收入' : '支出') + '超过周期汇总')

@@ -18,3 +18,18 @@ func TestModelBudgetDefaultsAndBoundedOverrides(t *testing.T) {
 		}
 	}
 }
+
+func TestReportedCostMetadataRequiresExplicitPair(t *testing.T) {
+	for _, tc := range []struct {
+		currency, unit string
+		ok             bool
+	}{{"", "", true}, {"USD", "currency_major", true}, {"CNY", "", false}, {"", "currency_major", false}, {"usd", "currency_major", false}, {"USD", "tokens", false}} {
+		env := validEnv()
+		env["BANKING_MODEL_REPORTED_COST_CURRENCY"] = tc.currency
+		env["BANKING_MODEL_REPORTED_COST_UNIT"] = tc.unit
+		_, e := Load(func(k string) string { return env[k] })
+		if (e == nil) != tc.ok {
+			t.Fatalf("metadata %+v err=%v", tc, e)
+		}
+	}
+}

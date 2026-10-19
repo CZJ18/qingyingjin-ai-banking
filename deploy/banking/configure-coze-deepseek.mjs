@@ -3,12 +3,13 @@ import { execFileSync } from 'node:child_process'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { buildGatewayConfig, verifyGateway } from './model-spend-gateway.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
 const officialBase = 'https://api.deepseek.com/v1'
 const cozeBase = 'http://127.0.0.1:8888'
 const requiredRoles = ['supervisor', 'billing', 'subscription', 'savings', 'lifestyle', 'goal_v2']
-const envNames = new Set(['DEEPSEEK_API_KEY', 'DEEPSEEK_BASE_URL', 'DEEPSEEK_MODEL', 'DEEPSEEK_MAX_TOKENS', 'DEEPSEEK_WORKFLOW_TIMEOUT_MS'])
+const envNames = new Set(['DEEPSEEK_API_KEY', 'DEEPSEEK_BASE_URL', 'DEEPSEEK_MODEL', 'DEEPSEEK_MAX_TOKENS', 'DEEPSEEK_WORKFLOW_TIMEOUT_MS', 'BANKING_ENVIRONMENT', 'DEEPSEEK_GATEWAY_BASE_URL', 'DEEPSEEK_GATEWAY_ALLOWED_ORIGIN', 'DEEPSEEK_GATEWAY_VERIFY_BASE_URL', 'DEEPSEEK_GATEWAY_TOKEN'])
 const fail = code => { throw new Error(code) }
 const hash = value => createHash('sha256').update(value).digest('hex')
 const nativeID = value => typeof value === 'string' && /^[1-9][0-9]{0,18}$/.test(value) && BigInt(value) < 2n ** 63n
@@ -273,20 +274,22 @@ export function createNativeCall(state, fetcher = fetch) {
 }
 
 export async function main(mode = 'Prepare') {
-  const envPath = resolve(import.meta.dirname, '.env.deepseek.local')
-  if (mode === 'Prepare') {
-    const example = await readFile(resolve(import.meta.dirname, '.env.deepseek.example'), 'utf8')
+  const gatewayMode=['Apply','ApplyGateway','VerifyGateway','PrepareGateway'].includes(mode)
+  const envPath = resolve(import.meta.dirname, gatewayMode?'.env.deepseek-gateway.local':'.env.deepseek.local')
+  if (mode === 'Prepare'||mode==='PrepareGateway') {
+    const example = await readFile(resolve(import.meta.dirname, gatewayMode?'.env.deepseek-gateway.example':'.env.deepseek.example'), 'utf8')
     try { await writeFile(envPath, example, { flag: 'wx', mode: 0o600 }) } catch (error) { if (error.code !== 'EEXIST') throw error }
     console.log('DeepSeek private configuration prepared; existing values preserved. No provider or Coze API called.')
     return
   }
-  if (!['Verify', 'Apply'].includes(mode)) fail('DEEPSEEK_MODE_INVALID')
+  if (!['Verify','Apply','ApplyGateway','VerifyGateway','ApplyDirectUnbudgeted'].includes(mode)) fail('DEEPSEEK_MODE_INVALID')
   let env
   try { env = parseEnv(await readFile(envPath, 'utf8')) } catch (error) { if (error.message === 'DEEPSEEK_ENV_INVALID') throw error; fail('DEEPSEEK_ENV_MISSING') }
-  const config = buildConfig(env)
-  const models = await verifyModels(config)
-  if (mode === 'Verify') {
-    console.log(JSON.stringify({ provider: 'DeepSeek', model: config.model, available_models: models, paid_chat_called: false, coze_modified: false }))
+  const config = gatewayMode?buildGatewayConfig(env):buildConfig(env)
+  const proof = gatewayMode?await verifyGateway(config):null
+  const models = gatewayMode?[config.model]:await verifyModels(config)
+  if (mode === 'Verify'||mode==='VerifyGateway') {
+    console.log(JSON.stringify({ provider: 'DeepSeek', model: config.model, available_models: models, gateway_enforcement:proof,paid_chat_called: false, coze_modified: false }))
     return
   }
   const logLevel = containerLogLevel()
@@ -306,6 +309,8 @@ export async function main(mode = 'Prepare') {
     backup: snapshot => atomicJSON(resolve(backupDirectory, `${snapshot.role}.previous.json`), snapshot),
   })
   report.native_log_level = logLevel
+  report.gateway_enforcement = proof
+  report.direct_unbudgeted = !gatewayMode
   report.provider_models_verified = true
   report.live_agent_validation_passed = false
   await atomicJSON(resolve(root, 'output/deepseek-config-result.json'), report)
@@ -314,7 +319,7 @@ export async function main(mode = 'Prepare') {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   main(process.argv[2] || 'Prepare').catch(error => {
-    const safeCode = /^(DEEPSEEK|COZE)_[A-Z0-9_]+$/.test(error.message) ? error.message : 'DEEPSEEK_CONFIGURATION_FAILED'
+    const safeCode = /^(DEEPSEEK|COZE|MODEL_GATEWAY)_[A-Z0-9_]+$/.test(error.message) ? error.message : 'DEEPSEEK_CONFIGURATION_FAILED'
     console.error(safeCode)
     process.exitCode = 1
   })

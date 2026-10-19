@@ -93,8 +93,11 @@ func run() error {
 		if e != nil {
 			return e
 		}
-		client, e := coze.NewBudgeted(cfg.CozeBaseURL, cfg.CozePAT, cfg.CozeTimeout, meter)
+		client, e := coze.NewBudgeted(cfg.CozeBaseURL, cfg.CozePAT, cfg.CozeTimeout, meter, cfg.Outbound)
 		if e != nil {
+			return e
+		}
+		if e = client.ConfigureReportedCost(cfg.ModelCostCurrency, cfg.ModelCostUnit); e != nil {
 			return e
 		}
 		parser.Runner = client
@@ -107,7 +110,7 @@ func run() error {
 	plans := planning.New(connections.DB)
 	lives := lifestyle.New(connections.DB)
 	lives.Parser = &lifestyle.Parser{Runner: parser.Runner, WorkflowID: cfg.LifestyleGoalWorkflowID}
-	executor, e := orchestrator.NewHTTPExecutor(cfg.OrchestratorBaseURL, auth, parser.Runner, map[string]string{"lifestyle": cfg.LifestyleAgentWorkflowID, "supervisor": cfg.SupervisorWorkflowID, "billing": cfg.BillingAgentWorkflowID, "subscription": cfg.SubscriptionAgentWorkflowID, "savings": cfg.SavingsAgentWorkflowID}, executionGateway)
+	executor, e := orchestrator.NewHTTPExecutor(cfg.OrchestratorBaseURL, auth, parser.Runner, map[string]string{"lifestyle": cfg.LifestyleAgentWorkflowID, "supervisor": cfg.SupervisorWorkflowID, "billing": cfg.BillingAgentWorkflowID, "subscription": cfg.SubscriptionAgentWorkflowID, "savings": cfg.SavingsAgentWorkflowID}, executionGateway, cfg.Outbound)
 	if e != nil {
 		return e
 	}

@@ -2626,6 +2626,16 @@
             "minimum": 100.0,
             "title": "Timeout Ms",
             "default": 90000
+          },
+          "monthly_goal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MonthlyGoal"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -2663,6 +2673,56 @@
           "data"
         ],
         "title": "AgentTaskEnvelope"
+      },
+      "AgentTaskRequest": {
+        "properties": {
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/AgentTaskSpec"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "title": "Tasks"
+          },
+          "instruction": {
+            "type": "string",
+            "maxLength": 8192,
+            "title": "Instruction",
+            "default": ""
+          },
+          "bindings": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Bindings"
+          },
+          "max_attempts": {
+            "type": "integer",
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Max Attempts",
+            "default": 2
+          },
+          "timeout_ms": {
+            "type": "integer",
+            "maximum": 180000.0,
+            "minimum": 100.0,
+            "title": "Timeout Ms",
+            "default": 90000
+          },
+          "monthly_goal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MonthlyGoal"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AgentTaskRequest"
       },
       "AgentTaskSpec": {
         "properties": {
@@ -2774,7 +2834,7 @@
             "title": "Version"
           },
           "request": {
-            "$ref": "#/components/schemas/AgentSubmit"
+            "$ref": "#/components/schemas/AgentTaskRequest"
           },
           "result": {
             "anyOf": [
@@ -2951,6 +3011,33 @@
         ],
         "title": "EvidenceView"
       },
+      "MonthlyGoal": {
+        "properties": {
+          "period": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
+            "title": "Period"
+          },
+          "currency": {
+            "type": "string",
+            "const": "CNY",
+            "title": "Currency"
+          },
+          "timezone": {
+            "type": "string",
+            "const": "Asia/Shanghai",
+            "title": "Timezone"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "period",
+          "currency",
+          "timezone"
+        ],
+        "title": "MonthlyGoal"
+      },
       "PreparationChallenge": {
         "properties": {
           "node_key": {
@@ -2981,7 +3068,10 @@
           },
           "confirmation_scope": {
             "type": "string",
-            "const": "PREPARE_ONLY",
+            "enum": [
+              "PREPARE_ONLY",
+              "PLAN_ACCEPTANCE"
+            ],
             "title": "Confirmation Scope",
             "default": "PREPARE_ONLY"
           }

@@ -16,6 +16,13 @@ describe('Financial amounts', () => {
   })
 })
 describe('Banking API transport', () => {
+  it('detects recurring payments using the backend historical window and exact input contract', async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'OK', data: { candidates: [] } })))
+    vi.stubGlobal('fetch', fetch)
+    await api.detectSubscriptions()
+    expect(fetch.mock.calls[0]![0]).toBe('/api/v1/subscriptions/detect_subscriptions')
+    expect(JSON.parse(fetch.mock.calls[0]![1].body)).toEqual({})
+  })
   it('discards a body decoded after the authenticated user changes', async () => {
     let complete!: (value: unknown) => void
     vi.stubGlobal(

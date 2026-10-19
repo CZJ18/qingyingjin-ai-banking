@@ -1,5 +1,7 @@
 package goal
 
+import "github.com/qingyingjin/banking-service/internal/outbound"
+
 import (
 	"context"
 	"encoding/json"
@@ -44,7 +46,7 @@ func TestParserProtocolAndAbnormalOutputs(t *testing.T) {
 				json.NewEncoder(w).Encode(map[string]any{"code": 0, "execute_id": "456", "data": string(data)})
 			}))
 			defer server.Close()
-			client, _ := coze.New(server.URL, "test-pat", time.Second)
+			client, _ := coze.New(server.URL, "test-pat", time.Second, outbound.TestPolicy())
 			p := Parser{Runner: client, WorkflowID: "123"}
 			_, execute, err := p.Parse(context.Background(), "未来三个月每月储蓄200元", "goal-test")
 			if tc.code == "" {

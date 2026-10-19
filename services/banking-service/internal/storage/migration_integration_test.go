@@ -144,6 +144,31 @@ func TestOfflineMigrationAndCutoverInvariants(t *testing.T) {
 		}
 	})
 
+	// Include actual monetary rows and an SSE replay body in the cross-dialect
+	// snapshot, so an empty-table manifest cannot conceal copy/primary-key bugs.
+	t.Run("SeedMonetarySnapshotWithPlainSSE", func(t *testing.T) {
+		tx, e := source.SQL.BeginTx(ctx, nil)
+		if e != nil {
+			t.Fatal(e)
+		}
+		defer tx.Rollback()
+		for _, row := range []struct {
+			query string
+			args  []any
+		}{
+			{"INSERT INTO banking_model_spend_pools(project_id,currency,policy_hash,limit_units,used_units,held_units,frozen,created_at,updated_at) VALUES('p7-spend-snapshot','CNY',?,90,0,7,?,1,1)", []any{strings.Repeat("a", 64), false}},
+			{"INSERT INTO banking_model_spend_attempts(id,project_id,request_key,request_hash,policy_hash,status,reserved_units,estimated_units,response_body,content_type,created_at,updated_at) VALUES('00000000-0000-4000-8000-000000000020','p7-spend-snapshot',?,?,?,'unknown',7,3,?,'text/event-stream',1,1)", []any{strings.Repeat("b", 64), strings.Repeat("c", 64), strings.Repeat("a", 64), "data: {\"text\":\"快照\"}\n\ndata: [DONE]\n\n"}},
+			{"INSERT INTO banking_model_spend_events(id,project_id,attempt_id,kind,dedupe_key,request_hash,amount_units,snapshot_json,created_at) VALUES('00000000-0000-4000-8000-000000000021','p7-spend-snapshot','00000000-0000-4000-8000-000000000020','reserve',?,?,7,'{\"synthetic\":true}',1)", []any{strings.Repeat("d", 64), strings.Repeat("c", 64)}},
+		} {
+			if _, e = tx.ExecContext(ctx, row.query, row.args...); e != nil {
+				t.Fatal("cannot seed monetary snapshot", e)
+			}
+		}
+		if e = tx.Commit(); e != nil {
+			t.Fatal(e)
+		}
+	})
+
 	t.Run("ActiveSourceRefused", func(t *testing.T) {
 		if _, e := Import(ctx, source.SQL, target.SQL, "mysql", "postgres", ImportOptions{AllowBootstrapRules: true}); e == nil {
 			t.Fatal("active source was imported")
@@ -188,7 +213,7 @@ func TestOfflineMigrationAndCutoverInvariants(t *testing.T) {
 			t.Fatal("failed import changed target baseline or state")
 		}
 	})
-	t.Run("Exact48TableSnapshotAnd17FinancialChecks", func(t *testing.T) {
+	t.Run("Exact52TableSnapshotAnd17FinancialChecks", func(t *testing.T) {
 		var beforeGeneration, afterGeneration int64
 		if e := target.SQL.QueryRowContext(ctx, "SELECT generation FROM banking_storage_control WHERE id=1").Scan(&beforeGeneration); e != nil {
 			t.Fatal(e)
@@ -197,7 +222,7 @@ func TestOfflineMigrationAndCutoverInvariants(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		if !r.Passed || len(r.Source) != 48 || len(r.Target) != 48 || len(r.SourceChecks) != 17 || !sameData(r.Source, r.Target) {
+		if !r.Passed || len(r.Source) != 52 || len(r.Target) != 52 || len(r.SourceChecks) != 17 || !sameData(r.Source, r.Target) {
 			t.Fatal("incomplete reconciliation")
 		}
 		if _, e := Compare(ctx, source.SQL, target.SQL, "mysql", "postgres"); e != nil {

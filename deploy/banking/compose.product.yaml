@@ -1,0 +1,6 @@
+# Append after the existing local overlays; require the exact image built for this update.
+services:
+  banking-service:
+    image: ${BANKING_PRODUCT_IMAGE:?set the reviewed current Banking image}
+  banking-migrate:
+    image: ${BANKING_PRODUCT_IMAGE:?set the reviewed current Banking image}

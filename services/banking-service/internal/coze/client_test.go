@@ -1,5 +1,7 @@
 package coze
 
+import "github.com/qingyingjin/banking-service/internal/outbound"
+
 import (
 	"context"
 	"encoding/json"
@@ -30,7 +32,7 @@ func TestRunWorkflowContract(t *testing.T) {
 		w.Write([]byte(`{"code":0,"execute_id":"456"}`))
 	}))
 	defer s.Close()
-	c, err := New(s.URL, "pat-test", time.Second)
+	c, err := New(s.URL, "pat-test", time.Second, outbound.TestPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +50,7 @@ func TestRunWorkflowRejectsBusinessFailureAndRedirect(t *testing.T) {
 			w.WriteHeader(status)
 			w.Write([]byte(`{"code":401,"msg":"secret upstream detail"}`))
 		}))
-		c, err := New(s.URL, "pat-test", time.Second)
+		c, err := New(s.URL, "pat-test", time.Second, outbound.TestPolicy())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -66,7 +68,7 @@ func TestRunWorkflowRejectsIDOverflowBeforeNetwork(t *testing.T) {
 		w.Write([]byte(`{"code":0,"execute_id":"456"}`))
 	}))
 	defer s.Close()
-	c, err := New(s.URL, "pat-test", time.Second)
+	c, err := New(s.URL, "pat-test", time.Second, outbound.TestPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}

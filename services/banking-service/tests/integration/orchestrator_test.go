@@ -14,6 +14,7 @@ import (
 	"github.com/qingyingjin/banking-service/internal/entity"
 	"github.com/qingyingjin/banking-service/internal/httpapi"
 	"github.com/qingyingjin/banking-service/internal/orchestrator"
+	"github.com/qingyingjin/banking-service/internal/outbound"
 	"github.com/qingyingjin/banking-service/internal/planning"
 	"github.com/qingyingjin/banking-service/internal/repository"
 	"github.com/qingyingjin/banking-service/internal/risk"
@@ -49,7 +50,7 @@ func TestOrchestratorProtectedAPIAndSSE(t *testing.T) {
 	// Real protected Banking APIs, not fixture tool results.
 	toolServer := httptest.NewServer(httpapi.NewWithPlanning(h.auth, log, nil, time.Second, h.svc, nil, bills, subs, plans))
 	t.Cleanup(toolServer.Close)
-	executor, e := orchestrator.NewHTTPExecutor(toolServer.URL, h.auth, nil, nil, nil)
+	executor, e := orchestrator.NewHTTPExecutor(toolServer.URL, h.auth, nil, nil, nil, outbound.TestPolicy())
 	if e != nil {
 		t.Fatal(e)
 	}

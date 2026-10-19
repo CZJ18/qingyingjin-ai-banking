@@ -147,10 +147,10 @@ func verifyNoFixtureRows(t *testing.T, db *sql.DB) {
 func verifyFenceCoverage(t *testing.T, db *sql.DB, dialect string) {
 	t.Helper()
 	query := "SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_schema=DATABASE() AND trigger_name LIKE 'qyj_fence_%'"
-	want := 138
+	want := 156 // 011's 46 + 018's 2 + 019's 1 + 020's 3, with 3 operations each.
 	if dialect == "postgres" {
 		query = "SELECT COUNT(*) FROM pg_trigger WHERE NOT tgisinternal AND tgname='qyj_storage_fence' AND tgrelid IN (SELECT oid FROM pg_class WHERE relnamespace='public'::regnamespace)"
-		want = 46
+		want = 52
 	}
 	var actual int
 	if err := db.QueryRowContext(context.Background(), query).Scan(&actual); err != nil || actual != want {

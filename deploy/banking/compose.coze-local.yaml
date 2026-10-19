@@ -8,10 +8,17 @@ services:
     volumes: ['./nginx-coze-local.conf:/etc/nginx/conf.d/default.conf:ro']
     networks: [coze-local]
   banking-service:
+    environment:
+      # Exact local Docker endpoint on the explicitly attached Coze network.
+      # Production rejects this exception; it must use a verified HTTPS origin.
+      BANKING_HTTP_ALLOWED_ORIGINS: ${BANKING_HTTP_ALLOWED_ORIGINS:-http://coze-server-local:8888}
     networks:
       - banking-internal
       - banking-egress
       - coze-local
+  banking-migrate:
+    environment:
+      BANKING_HTTP_ALLOWED_ORIGINS: ${BANKING_HTTP_ALLOWED_ORIGINS:-http://coze-server-local:8888}
 networks:
   coze-local:
     external: true

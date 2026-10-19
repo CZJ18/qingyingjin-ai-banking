@@ -78,6 +78,24 @@ def test_implementation_is_available():
     assert importlib.util.find_spec("banking_agent.agent_tools") is not None
 
 
+@pytest.mark.parametrize("status,code", [(409, "MODEL_OUTCOME_UNKNOWN"), (429, "MODEL_QUOTA_EXCEEDED"), (503, "COZE_UNAVAILABLE"), (422, "INVALID_TASK_PLAN"), (422, "MODEL_OUTPUT_INVALID"), (422, "INPUT_REQUIRED")])
+def test_model_failures_preserve_actionable_codes_without_reflecting_upstream_text(status, code):
+    def handler(req):
+        return httpx.Response(status, json={"code": code, "message": KEY + " unsafe upstream details"})
+
+    with pytest.raises(DomainError) as caught:
+        execute(handler)
+    assert caught.value.code == code
+    assert KEY not in str(caught.value)
+
+
+def test_unknown_upstream_error_code_is_not_trusted():
+    with pytest.raises(DomainError) as caught:
+        execute(lambda req: httpx.Response(409, json={"code": KEY, "message": KEY}))
+    assert caught.value.code == "CONFLICT"
+    assert KEY not in str(caught.value)
+
+
 def test_delegated_run_and_recursive_secret_removal():
     requests = []
 

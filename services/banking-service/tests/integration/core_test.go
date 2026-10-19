@@ -16,10 +16,12 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/qingyingjin/banking-service/api"
 	"github.com/qingyingjin/banking-service/internal/config"
+	"github.com/qingyingjin/banking-service/internal/coze"
 	"github.com/qingyingjin/banking-service/internal/entity"
 	"github.com/qingyingjin/banking-service/internal/httpapi"
 	"github.com/qingyingjin/banking-service/internal/identity"
 	"github.com/qingyingjin/banking-service/internal/migration"
+	"github.com/qingyingjin/banking-service/internal/outbound"
 	"github.com/qingyingjin/banking-service/internal/platform"
 	"github.com/qingyingjin/banking-service/internal/repository"
 	"github.com/qingyingjin/banking-service/internal/risk"
@@ -53,6 +55,15 @@ type response struct {
 }
 
 type rejectingGateway struct{}
+
+func fixtureCozeClient(t *testing.T, baseURL, pat string, timeout time.Duration) *coze.Client {
+	t.Helper()
+	client, err := coze.New(baseURL, pat, timeout, outbound.TestPolicy())
+	if err != nil {
+		t.Fatal("test Coze client initialization:", err)
+	}
+	return client
+}
 
 func (rejectingGateway) Check(context.Context, int64, *entity.TransferIntent, *entity.Approval) error {
 	return entity.Fail("RISK_REJECTED", "injected policy refusal")

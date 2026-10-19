@@ -1,11 +1,12 @@
 """Versioned specialist contracts; financial facts always come from Go tools."""
 
 import json
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
 from .models import StrictInput
+from .monthly_plan import REVIEW_NODE, current_period, validate_monthly_specs
 
 PAIRS = (
     {
@@ -104,6 +105,8 @@ class AgentTaskSpec(StrictInput):
 
     @model_validator(mode="after")
     def registered_binding(self):
+        if self.key == REVIEW_NODE:
+            raise ValueError("monthly plan review is reserved for the server")
         if (
             PAIRS.get((self.agent_type, self.tool)) != (self.skill_id, self.execution_mode)
             or self.skill_version != 1
@@ -126,12 +129,19 @@ class AgentTaskSpec(StrictInput):
         return self
 
 
-class AgentSubmit(StrictInput):
+class MonthlyGoal(StrictInput):
+    period: str = Field(pattern=r"^[0-9]{4}-(0[1-9]|1[0-2])$")
+    currency: Literal["CNY"]
+    timezone: Literal["Asia/Shanghai"]
+
+
+class AgentTaskRequest(StrictInput):
     tasks: list[AgentTaskSpec] = Field(default_factory=list, max_length=32)
     instruction: str = Field(default="", max_length=8192)
     bindings: dict[str, Any] = Field(default_factory=dict)
     max_attempts: int = Field(default=2, ge=1, le=3)
     timeout_ms: int = Field(default=90_000, ge=100, le=180_000)
+    monthly_goal: MonthlyGoal | None = None
 
     @model_validator(mode="after")
     def valid_graph(self):
@@ -151,6 +161,16 @@ class AgentSubmit(StrictInput):
             if not ready:
                 raise ValueError("cycle or unknown dependency")
             seen |= ready
+        if self.monthly_goal is not None and self.tasks:
+            validate_monthly_specs([task.model_dump() for task in self.tasks])
+        return self
+
+
+class AgentSubmit(AgentTaskRequest):
+    @model_validator(mode="after")
+    def current_month(self):
+        if self.monthly_goal is not None and self.monthly_goal.period != current_period():
+            raise ValueError("monthly goal must use the current Asia/Shanghai calendar month")
         return self
 
 

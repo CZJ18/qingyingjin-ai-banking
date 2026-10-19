@@ -1,5 +1,7 @@
 package httpapi
 
+import "github.com/qingyingjin/banking-service/internal/outbound"
+
 import (
 	"bytes"
 	"context"
@@ -574,7 +576,7 @@ func TestLangGraphRealExecutorPreservesBankingValidationAndCozeEvidence(t *testi
 				zero := int64(0)
 				return coze.RunResponse{Code: &zero, ExecuteID: "bridge-coze-execute", Data: langGraphJSON(t, map[string]any{"output": output})}, nil
 			})
-			executor, err := orchestrator.NewHTTPExecutor(bank.URL, auth, workflow, map[string]string{"billing": "123"}, nil)
+			executor, err := orchestrator.NewHTTPExecutor(bank.URL, auth, workflow, map[string]string{"billing": "123"}, nil, outbound.TestPolicy())
 			if err != nil {
 				t.Fatal(err)
 			}

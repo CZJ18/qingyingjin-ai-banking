@@ -55,12 +55,12 @@ func TestManifestHasExactlyBusinessSchemaAndSpecialKeys(t *testing.T) {
 		}
 		seen[table] = true
 	}
-	if len(seen) != 48 || len(primaryKey("banking_core_idempotency")) != 3 || primaryKey("banking_transfer_approvals")[0] != "transfer_id" {
+	if len(seen) != 52 || len(primaryKey("banking_core_idempotency")) != 3 || primaryKey("banking_transfer_approvals")[0] != "transfer_id" || primaryKey("banking_model_spend_pools")[0] != "project_id" {
 		t.Fatal("manifest drift")
 	}
 	// The allowlist must cover the real persisted schema, rather than merely
 	// containing the expected number of guessed table names.
-	createTable := regexp.MustCompile(`CREATE TABLE IF NOT EXISTS (banking_[a-z_]+)`)
+	createTable := regexp.MustCompile(`CREATE TABLE (?:IF NOT EXISTS )?(banking_[a-z_]+)`)
 	found := map[string]bool{}
 	for version := 1; version <= 10; version++ {
 		paths, e := filepath.Glob(filepath.Join("..", "migration", fmt.Sprintf("%03d_*.sql", version)))
@@ -78,15 +78,17 @@ func TestManifestHasExactlyBusinessSchemaAndSpecialKeys(t *testing.T) {
 			found[match[1]] = true
 		}
 	}
-	raw, e := os.ReadFile(filepath.Join("..", "migration", "model_budget_018_mysql.sql"))
-	if e != nil {
-		t.Fatal(e)
-	}
-	for _, match := range createTable.FindAllStringSubmatch(string(raw), -1) {
-		if !seen[match[1]] {
-			t.Fatal("quota table missing from snapshot")
+	for _, filename := range []string{"model_budget_018_mysql.sql", "model_accounting_019_mysql.sql", "model_spend_020_mysql.sql"} {
+		raw, e := os.ReadFile(filepath.Join("..", "migration", filename))
+		if e != nil {
+			t.Fatal(e)
 		}
-		found[match[1]] = true
+		for _, match := range createTable.FindAllStringSubmatch(string(raw), -1) {
+			if !seen[match[1]] {
+				t.Fatal("quota table missing from snapshot")
+			}
+			found[match[1]] = true
+		}
 	}
 	if len(found) != len(seen) {
 		t.Fatal("snapshot manifest contains nonexistent business tables")

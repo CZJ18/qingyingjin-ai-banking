@@ -3,6 +3,7 @@ package coze
 import (
 	"context"
 	"errors"
+	"github.com/qingyingjin/banking-service/internal/outbound"
 	"time"
 )
 
@@ -30,11 +31,11 @@ type identityKey struct{}
 func WithIdentity(ctx context.Context, owner int64, key string) context.Context {
 	return context.WithValue(ctx, identityKey{}, modelIdentity{owner, key})
 }
-func NewBudgeted(base, pat string, timeout time.Duration, meter Meter) (*Client, error) {
+func NewBudgeted(base, pat string, timeout time.Duration, meter Meter, policies ...outbound.Policy) (*Client, error) {
 	if meter == nil {
 		return nil, ErrBudgetUnavailable
 	}
-	c, e := New(base, pat, timeout)
+	c, e := New(base, pat, timeout, policies...)
 	if e == nil {
 		c.meter = meter
 	}

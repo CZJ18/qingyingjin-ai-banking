@@ -21,3 +21,18 @@ func ModelBudgetFences(dialect string) []string {
 	}
 	return out
 }
+
+func ModelReconciliationFences(dialect string) []string {
+	var out []string
+	for _, table := range []string{"banking_model_reconciliations"} {
+		if dialect == "postgres" {
+			out = append(out, fmt.Sprintf(`CREATE OR REPLACE TRIGGER qyj_storage_fence BEFORE INSERT OR UPDATE OR DELETE ON "%s" FOR EACH ROW EXECUTE FUNCTION qyj_storage_fence()`, table))
+		} else {
+			for _, event := range []string{"INSERT", "UPDATE", "DELETE"} {
+				name := "qyj_fence_" + strings.TrimPrefix(table, "banking_") + "_" + strings.ToLower(event)
+				out = append(out, "DROP TRIGGER IF EXISTS `"+name+"`", mysqlTrigger(name, table, event))
+			}
+		}
+	}
+	return out
+}

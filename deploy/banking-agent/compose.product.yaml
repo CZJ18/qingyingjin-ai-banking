@@ -1,0 +1,6 @@
+# Append after the P7 overlay so its historical image cannot mask this build.
+services:
+  banking-agent-service:
+    image: ${BANKING_PRODUCT_AGENT_IMAGE:?set the reviewed current Agent image}
+  banking-agent-migrate:
+    image: ${BANKING_PRODUCT_AGENT_IMAGE:?set the reviewed current Agent image}

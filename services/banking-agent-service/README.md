@@ -2,6 +2,32 @@
 
 当前版本为 0.5.0。P5 增加五角色 LangGraph、Skill 绑定、PostgreSQL 检查点、用户准备确认、journal 与重启恢复，详细设计与接口见 [P5.md](P5.md)。账户与账本继续使用 Go/MySQL；P5 不取得资金执行权限。P5 本轮模型验收状态及实际测试日志见 `output/p5/`，历史 P4 验收不代替 P5 验收。
 
+## 2026-10-18：本月目标建议与本人最终确认
+
+助手新增“本月目标”流程：用户描述目标，现有专业 Agent 查询获准数据并生成建议，后端冻结方案后等待本人确认。可以使用按钮，也可以在当前待确认方案中直接回复“确认方案”或“拒绝方案”；修改目标会建立新任务，不继承旧确认。
+
+`POST /api/v1/agent-tasks` 可附加：
+
+```json
+{
+  "instruction": "本月希望存下2000元，请先提出方案让我确认",
+  "bindings": {},
+  "monthly_goal": {
+    "period": "2026-10",
+    "currency": "CNY",
+    "timezone": "Asia/Shanghai"
+  }
+}
+```
+
+月份必须替换为当前北京时间所在月份。目标金额是用户输入示例，不是默认值；实际规划所需账户、预算及计划等来源须属于本人并已具备。缺数据或建议工具失败时先补齐/重试，不编造可执行方案。
+
+本流程的服务端固定节点为 `monthly_plan_review`，模型不能创建同名节点。只读查询/建议完成后生成 `PLAN_ACCEPTANCE` challenge，摘要绑定月份、原始目标、完整任务、建议及来源摘要。即使模型没有返回确认步骤，流程也必须暂停；`intent` 等步骤不能提前执行。确认仍走现有 `/resume`，绑定本人、task/version/node/digest/nonce，十分钟过期；跨月确认拒绝。历史任务仍可读取，但不能跨月续用旧目标授权。
+
+采纳只记录 `plan_accepted=true`，`authorization_granted=false`、`financial_execution_enabled=false`。后续金融意向继续 `PREPARE_ONLY` 确认及 Go Trusted Execution Gateway 的独立授权、风险和幂等检查。生活/储蓄目标不自动修改 AI 模型消费月额度，不从模型输出取得用户授权。
+
+复用现有 Agent schema 002，不需要新迁移或依赖。普通任务不附加 `monthly_goal` 时保持原请求及幂等摘要兼容。本次本地模拟验证和限制见[交付记录](../../docs/security/monthly-goal-20261018-51ee3b4453/implementation-and-validation.md)；真实 Coze/供应商验证及运行镜像更新不由源码实现自动证明。
+
 以下是 P4 当期的实现与验收记录；其中“只读”“不实现 P5”均描述 P4 范围。P5 工具可以在用户绑定确认后创建待授权意向，最终 authorize/execute 仍由原 Go 网关和用户独立完成。
 
 ## P4：产品 API 与 PostgreSQL 投影

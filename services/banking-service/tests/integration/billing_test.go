@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/qingyingjin/banking-service/api"
 	"github.com/qingyingjin/banking-service/internal/billing"
-	"github.com/qingyingjin/banking-service/internal/coze"
 	"github.com/qingyingjin/banking-service/internal/entity"
 	"github.com/qingyingjin/banking-service/internal/httpapi"
 	"io"
@@ -179,7 +178,7 @@ func TestBillingNaturalQueryMySQLAPI(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]any{"code": 0, "execute_id": "456", "data": string(data)})
 	}))
 	defer upstream.Close()
-	client, _ := coze.New(upstream.URL, "test-only-pat", time.Second)
+	client := fixtureCozeClient(t, upstream.URL, "test-only-pat", time.Second)
 	svc := billing.New(billing.NewRepository(h.conn.DB), &billing.QueryParser{Runner: client, WorkflowID: "123"})
 	h.server.Close()
 	h.server = httptest.NewServer(httpapi.NewWithGoals(h.auth, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, time.Second, h.svc, nil, svc))

@@ -30,7 +30,7 @@ func Lookup(tool string) (ToolPolicy, bool) {
 	return ToolPolicy{}, false
 }
 
-var keyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$`)
+var keyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
 
 func ValidateTasks(tasks []TaskSpec) ([]TaskSpec, error) {
 	if len(tasks) == 0 || len(tasks) > 32 {
@@ -188,9 +188,9 @@ func ValidateParameters(tool string, raw json.RawMessage, complete bool) error {
 			if e := strictJSON(raw, &in); e != nil {
 				return e
 			}
-			if complete && (in.From == "" || in.To == "") {
-				return entity.Fail("INPUT_REQUIRED", "subscription analysis period required")
-			}
+			// The subscription service owns the bounded default three-month
+			// window and validates any supplied dates and account ownership.
+			// Keep the same DTO contract for user and delegated read calls.
 		} else {
 			var in struct{}
 			return strictJSON(raw, &in)

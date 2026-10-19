@@ -3,7 +3,7 @@
 package storage
 
 // Tables is the foreign-key insertion order of business tables, including
-// schema 018's model reservations. Schema history/control metadata are excluded.
+// schema 020's monetary spend ledger. Schema history/control metadata are excluded.
 // This fixed allowlist prevents accidentally migrating the Coze/product schemas.
 var Tables = []string{
 	"banking_users", "banking_bank_accounts", "banking_transactions",
@@ -23,10 +23,14 @@ var Tables = []string{
 	"banking_execution_audits", "banking_lifestyle_goals", "banking_lifestyle_goal_versions",
 	"banking_lifestyle_plans", "banking_lifestyle_recommendations", "banking_lifestyle_decisions",
 	"banking_model_budget_windows", "banking_model_calls",
+	"banking_model_reconciliations",
+	"banking_model_spend_pools", "banking_model_spend_attempts", "banking_model_spend_events",
 }
 
 func primaryKey(table string) []string {
 	switch table {
+	case "banking_model_spend_pools":
+		return []string{"project_id"}
 	case "banking_core_idempotency":
 		return []string{"user_id", "action", "idem_key"}
 	case "banking_transfer_approvals":

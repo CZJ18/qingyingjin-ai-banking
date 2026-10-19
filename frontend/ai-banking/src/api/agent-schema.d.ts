@@ -334,6 +334,7 @@ export interface components {
              * @default 90000
              */
             timeout_ms: number;
+            monthly_goal?: components["schemas"]["MonthlyGoal"] | null;
         };
         /** AgentTaskEnvelope */
         AgentTaskEnvelope: {
@@ -346,6 +347,31 @@ export interface components {
             /** Trace Id */
             trace_id: string;
             data: components["schemas"]["AgentTaskView"];
+        };
+        /** AgentTaskRequest */
+        AgentTaskRequest: {
+            /** Tasks */
+            tasks?: components["schemas"]["AgentTaskSpec"][];
+            /**
+             * Instruction
+             * @default
+             */
+            instruction: string;
+            /** Bindings */
+            bindings?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Max Attempts
+             * @default 2
+             */
+            max_attempts: number;
+            /**
+             * Timeout Ms
+             * @default 90000
+             */
+            timeout_ms: number;
+            monthly_goal?: components["schemas"]["MonthlyGoal"] | null;
         };
         /** AgentTaskSpec */
         AgentTaskSpec: {
@@ -401,7 +427,7 @@ export interface components {
             status: "queued" | "running" | "interrupted" | "waiting_confirmation" | "succeeded" | "failed" | "cancelled";
             /** Version */
             version: number;
-            request: components["schemas"]["AgentSubmit"];
+            request: components["schemas"]["AgentTaskRequest"];
             /** Result */
             result: {
                 [key: string]: unknown;
@@ -465,6 +491,21 @@ export interface components {
             /** Evidence */
             evidence: components["schemas"]["EvidenceRef"][];
         };
+        /** MonthlyGoal */
+        MonthlyGoal: {
+            /** Period */
+            period: string;
+            /**
+             * Currency
+             * @constant
+             */
+            currency: "CNY";
+            /**
+             * Timezone
+             * @constant
+             */
+            timezone: "Asia/Shanghai";
+        };
         /** PreparationChallenge */
         PreparationChallenge: {
             /** Node Key */
@@ -487,9 +528,9 @@ export interface components {
             /**
              * Confirmation Scope
              * @default PREPARE_ONLY
-             * @constant
+             * @enum {string}
              */
-            confirmation_scope: "PREPARE_ONLY";
+            confirmation_scope: "PREPARE_ONLY" | "PLAN_ACCEPTANCE";
         };
         /** ProfileEnvelope */
         ProfileEnvelope: {

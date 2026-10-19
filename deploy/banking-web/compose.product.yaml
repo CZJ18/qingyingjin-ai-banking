@@ -1,0 +1,4 @@
+# Append after feature overlays; the selected image must contain the current dist.
+services:
+  banking-web:
+    image: ${BANKING_PRODUCT_WEB_IMAGE:?set the reviewed current Web image}

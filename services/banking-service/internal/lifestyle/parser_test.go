@@ -1,5 +1,7 @@
 package lifestyle
 
+import "github.com/qingyingjin/banking-service/internal/outbound"
+
 import (
 	"context"
 	"encoding/json"
@@ -51,7 +53,7 @@ func TestV2TransportTimeoutAndNoReplay(t *testing.T) {
 	}))
 	defer s.Close()
 	defer close(release)
-	client, _ := coze.New(s.URL, "test-only", 20*time.Millisecond)
+	client, _ := coze.New(s.URL, "test-only", 20*time.Millisecond, outbound.TestPolicy())
 	service := New(nil)
 	service.Parser = &Parser{Runner: client, WorkflowID: "123"}
 	_, e := service.Parse(context.Background(), ParseInput{Text: "三个月生活目标"}, "test")

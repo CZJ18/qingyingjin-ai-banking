@@ -103,6 +103,18 @@ describe('LangGraph task contract', () => {
     })
     expect(fetch).not.toHaveBeenCalled()
   })
+  it('preserves PLAN_ACCEPTANCE and accepts only the two documented confirmation scopes', async () => {
+    const confirmation = { status: 'pending', node_key: 'monthly_plan_acceptance', digest: 'a'.repeat(64),
+      nonce: 'n'.repeat(32), expires_at: '2026-10-18T12:00:00Z', parameters_view: {},
+      confirmation_scope: 'PLAN_ACCEPTANCE' }
+    const fetch = vi.fn().mockImplementation(() => Promise.resolve(reply({ ...task('waiting_confirmation', 3), confirmation })))
+    vi.stubGlobal('fetch', fetch)
+    expect((await agentApi.task(id)).confirmation?.confirmation_scope).toBe('PLAN_ACCEPTANCE')
+    confirmation.confirmation_scope = 'EXECUTE'
+    await expect(agentApi.task(id)).rejects.toMatchObject({ code: 'INVALID_RESPONSE' })
+    confirmation.confirmation_scope = 'PREPARE_ONLY'
+    expect((await agentApi.task(id)).confirmation?.confirmation_scope).toBe('PREPARE_ONLY')
+  })
 })
 
 describe('Owner authenticated LangGraph SSE', () => {

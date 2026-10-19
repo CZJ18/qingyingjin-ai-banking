@@ -252,21 +252,26 @@ class AgentBankingClient(BankingClient):
             headers["Idempotency-Key"] = idempotency_key
         try:
             async with self._client.stream(method, path, headers=headers, json=body) as response:
-                if response.status_code in (401, 403, 404, 409, 429):
+                if response.status_code in (401, 403, 404, 409, 422, 429):
                     failures = {
                         401: ("UNAUTHENTICATED", "A valid bearer identity is required"),
                         403: ("FORBIDDEN", "Banking agent access is forbidden"),
                         404: ("SOURCE_NOT_FOUND", "Banking resource was not found"),
                         409: ("CONFLICT", "Banking operation conflicts with current state"),
+                        422: ("TOOL_OUTPUT_INVALID", "Banking rejected the task contract"),
                         429: ("RATE_LIMITED", "Banking agent request limit exceeded"),
                     }
                     code, message = failures[response.status_code]
+                    code, message = await self._business_failure(response, code, message)
                     raise DomainError(code, message, response.status_code)
                 if response.status_code == 504:
                     raise DomainError("TOOL_TIMEOUT", "Banking agent deadline exceeded", 504)
                 if response.status_code >= 500:
+                    code, message = await self._business_failure(
+                        response, "DEPENDENCY_UNAVAILABLE", "Banking agent dependency is unavailable"
+                    )
                     raise DomainError(
-                        "DEPENDENCY_UNAVAILABLE", "Banking agent dependency is unavailable", 503
+                        code, message, 503
                     )
                 if response.status_code == 400:
                     raise DomainError(
@@ -310,6 +315,35 @@ class AgentBankingClient(BankingClient):
             return envelope["data"]
         except (ValueError, TypeError, UnicodeDecodeError, RecursionError):
             raise _invalid_output() from None
+
+    @staticmethod
+    async def _business_failure(response, default_code, default_message):
+        # Preserve only known business codes and local messages. Never reflect
+        # provider text, credentials or an unbounded error response into a task.
+        failures = {
+            (422, "INPUT_REQUIRED"): "Additional task inputs are required",
+            (409, "MODEL_OUTCOME_UNKNOWN"): "Model outcome is unknown; inspect this task before retrying",
+            (409, "MODEL_REQUEST_CONFLICT"): "Model request conflicts with its persisted invocation",
+            (422, "MODEL_OUTPUT_INVALID"): "Model output failed the task contract",
+            (422, "INVALID_TASK_PLAN"): "Model task graph failed role, skill, tool or dependency validation",
+            (429, "MODEL_QUOTA_EXCEEDED"): "Model call allowance is exhausted",
+            (503, "COZE_UNAVAILABLE"): "Configured model workflow is unavailable",
+            (503, "MODEL_BUDGET_UNAVAILABLE"): "Model allowance tracking is unavailable",
+        }
+        try:
+            payload = bytearray()
+            async for chunk in response.aiter_bytes():
+                if len(payload) + len(chunk) > 4096:
+                    return default_code, default_message
+                payload.extend(chunk)
+            envelope = json.loads(payload, object_pairs_hook=_unique_object, parse_constant=_invalid_constant)
+            code = envelope.get("code") if type(envelope) is dict else None
+            message = failures.get((response.status_code, code)) if type(code) is str else None
+            if message:
+                return code, message
+        except (ValueError, TypeError, UnicodeDecodeError, RecursionError):
+            pass
+        return default_code, default_message
 
     async def _delegate(self, user_token: str, task_id: str, role: str, trace_id: str) -> str:
         data = await self._request(

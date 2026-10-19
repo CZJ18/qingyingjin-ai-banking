@@ -30,6 +30,17 @@ func TestSkillGraphBinding(t *testing.T) {
 		t.Fatal("cross-skill tool accepted")
 	}
 }
+
+func TestTaskKeysMatchLangGraphContract(t *testing.T) {
+	for _, key := range []string{"read.bill", "read:bill", "read/bill"} {
+		if _, err := ValidateTasks([]TaskSpec{spec(key, "billing", "get_transactions")}); err == nil {
+			t.Fatalf("key %q cannot cross the LangGraph task boundary", key)
+		}
+	}
+	if _, err := ValidateTasks([]TaskSpec{spec("read_bill-1", "billing", "get_transactions")}); err != nil {
+		t.Fatal(err)
+	}
+}
 func TestOldWaveCannotRemoveResumedCancellation(t *testing.T) {
 	s := New(nil, nil, nil)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -61,5 +72,13 @@ func TestReadyDependencyAndPriority(t *testing.T) {
 	}
 	if tasks[0].ExecutionMode != "read_only" {
 		t.Fatal(tasks)
+	}
+}
+func TestSubscriptionDetectionUsesBusinessDefaultWindow(t *testing.T) {
+	if err := ValidateParameters("detect_subscriptions", json.RawMessage(`{}`), true); err != nil {
+		t.Fatalf("the subscription API supports its bounded default three-month window: %v", err)
+	}
+	if err := ValidateParameters("detect_subscriptions", json.RawMessage(`{"timezone":"UTC"}`), true); err == nil {
+		t.Fatal("unsupported fields must still be rejected")
 	}
 }

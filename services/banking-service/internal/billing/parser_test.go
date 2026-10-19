@@ -1,5 +1,7 @@
 package billing
 
+import "github.com/qingyingjin/banking-service/internal/outbound"
+
 import (
 	"context"
 	"encoding/json"
@@ -17,7 +19,7 @@ func TestModelOutputAbnormal(t *testing.T) {
 			data, _ := json.Marshal(map[string]string{"output": raw})
 			json.NewEncoder(w).Encode(map[string]any{"code": 0, "execute_id": "456", "data": string(data)})
 		}))
-		client, _ := coze.New(server.URL, "test-pat", time.Second)
+		client, _ := coze.New(server.URL, "test-pat", time.Second, outbound.TestPolicy())
 		parser := QueryParser{Runner: client, WorkflowID: "123"}
 		_, err := parser.Parse(context.Background(), QueryInput{Question: "查询2026年1月消费", Timezone: "UTC"}, "billing-test")
 		server.Close()
@@ -45,7 +47,7 @@ func TestValidModelRoute(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]any{"code": 0, "execute_id": "456", "data": string(data)})
 	}))
 	defer server.Close()
-	client, _ := coze.New(server.URL, "test-pat", time.Second)
+	client, _ := coze.New(server.URL, "test-pat", time.Second, outbound.TestPolicy())
 	parser := QueryParser{Runner: client, WorkflowID: "123"}
 	out, e := parser.Parse(context.Background(), QueryInput{Question: "查询1月消费", Timezone: "UTC"}, "test")
 	if e != nil || out.Route.Tool != "analyze_spending" {

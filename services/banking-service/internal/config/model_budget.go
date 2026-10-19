@@ -2,10 +2,16 @@ package config
 
 import (
 	"fmt"
+	"github.com/qingyingjin/banking-service/internal/coze"
 	"strconv"
 )
 
 func loadModelBudget(c *Config, get func(string) string) error {
+	c.ModelCostCurrency = get("BANKING_MODEL_REPORTED_COST_CURRENCY")
+	c.ModelCostUnit = get("BANKING_MODEL_REPORTED_COST_UNIT")
+	if !coze.ValidCostMetadata(c.ModelCostCurrency, c.ModelCostUnit) {
+		return fmt.Errorf("invalid model reported cost metadata")
+	}
 	for _, item := range []struct {
 		key, def string
 		target   *int64

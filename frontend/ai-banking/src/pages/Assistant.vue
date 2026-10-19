@@ -29,7 +29,7 @@ import { useSession, useUI } from '@/lib/store'
 import { useAccounts, period, currentMonth } from '@/lib/queries'
 import { useJob } from '@/lib/job'
 import { useAgentJob } from '@/lib/agent-job'
-import { agentApi, type AgentResume } from '@/api/agent-client'
+import { agentApi, type AgentResume, type AgentSubmit } from '@/api/agent-client'
 import { sessionVersion } from '@/api/client'
 import { money } from '@/lib/utils'
 import {
@@ -37,13 +37,19 @@ import {
   agentTrace,
   roleNames,
   taskControls,
+  preparationCurrent,
   type TaskRow,
 } from '@/components/agents/task-view'
+import {
+  currentMonthlyGoal, monthlyConfirmationBinding, monthlyDecision, monthlyDialogueResume,
+  monthlyGoalError, monthlyGoalSubmission, monthlyResume, type MonthlyConfirmationBinding,
+} from '@/lib/monthly-goal'
 import Button from '@/components/ui/button/Button.vue'
 import Status from '@/components/Status.vue'
 import TaskDetails from '@/components/assistant/TaskDetails.vue'
 import TaskResult from '@/components/assistant/TaskResult.vue'
 import PreparationConfirmation from '@/components/agents/PreparationConfirmation.vue'
+import MonthlyPlanConfirmation from '@/components/agents/MonthlyPlanConfirmation.vue'
 import ExecutionDialog from '@/components/ExecutionDialog.vue'
 import '@/components/agents/p6-workbench.css'
 const s = useSession(),
@@ -107,6 +113,8 @@ const input = ref(''),
   historyOpen = ref(false),
   inspectorOpen = ref(true),
   mobileDetails = ref(false)
+const inputMode = ref<'monthly' | 'general'>('monthly')
+const replyBinding = ref<MonthlyConfirmationBinding | null>(null)
 const instructions = ref<Record<string, string>>({}),
   taskInput = ref<HTMLTextAreaElement>()
 const executionDialog = ref<InstanceType<typeof ExecutionDialog>>()
@@ -137,6 +145,8 @@ const instruction = computed(
 const confirmation = computed(
   () => currentTask.value?.status === 'waiting_confirmation' && !!currentTask.value.confirmation,
 )
+const monthlyConfirmation = computed(() => confirmation.value &&
+  currentTask.value?.confirmation?.confirmation_scope === 'PLAN_ACCEPTANCE')
 const failed = computed(
   () => job.data.value?.job.status === 'failed' || tasks.value.some((t) => t.status === 'failed'),
 )
@@ -146,7 +156,7 @@ const controls = computed(() => taskControls(currentTask.value?.status || ''))
 const stage = computed(
   () =>
     ({
-      waiting_confirmation: '需要你确认准备范围',
+      waiting_confirmation: monthlyConfirmation.value ? '需要你最终确认本月方案' : '需要你确认准备范围',
       interrupted: '任务已中断',
       failed: '任务未完成',
       succeeded: '任务已完成',
@@ -159,6 +169,17 @@ watch(selectedId, () => {
   inspectorOpen.value = true
   mobileDetails.value = false
   historyOpen.value = false
+  replyBinding.value = null
+})
+watch(input, (value) => {
+  replyBinding.value = monthlyDecision(value)
+    ? monthlyConfirmationBinding(currentTask.value, s.sessionEpoch) : null
+}, { flush: 'sync' })
+watch(() => s.sessionEpoch, () => {
+  input.value = ''
+  replyBinding.value = null
+  error.value = ''
+  pendingSubmission.value = undefined
 })
 function newTask() {
   historyKind.value = 'langgraph'
@@ -166,7 +187,14 @@ function newTask() {
   input.value = ''
   error.value = ''
   pendingSubmission.value = undefined
+  replyBinding.value = null
   nextTick(() => taskInput.value?.focus())
+}
+function editMonthlyGoal() {
+  const goal = currentTask.value?.request.instruction || ''
+  newTask()
+  inputMode.value = 'monthly'
+  input.value = goal
 }
 function selectHistory(id: string) {
   if (historyKind.value === 'langgraph') s.selectedAgentTask = id
@@ -178,6 +206,7 @@ function retryTask() {
   void trace.refetch()
 }
 function choose(instruction: string) {
+  inputMode.value = 'general'
   input.value = instruction
   nextTick(() => taskInput.value?.focus())
 }
@@ -200,7 +229,7 @@ async function runTask() {
     await agent.run(currentTask.value.version)
   } catch (e) {
     if (ownEpoch === sessionVersion() && ownTask === selectedId.value)
-      error.value = (e as Error).message + '；请重新查询状态再决定下一步。'
+      error.value = monthlyGoalError(e) + '；请重新查询状态再决定下一步。'
   } finally {
     if (ownEpoch === sessionVersion()) busy.value = false
   }
@@ -220,16 +249,23 @@ async function cancelTask() {
     if (ownEpoch === sessionVersion()) busy.value = false
   }
 }
-async function confirm(decision: 'approve' | 'reject') {
+async function confirm(decision: 'approve' | 'reject', binding?: MonthlyConfirmationBinding) {
   const current = currentTask.value,
     challenge = current?.confirmation
-  if (!current || !challenge || busy.value) return
-  const body: AgentResume = {
+  if (!s.connected || !current || !challenge || busy.value) return false
+  const isMonthly = challenge.confirmation_scope === 'PLAN_ACCEPTANCE'
+  const body: AgentResume | null = isMonthly
+    ? monthlyResume(current, decision, binding, s.sessionEpoch, Date.now())
+    : preparationCurrent(current, Date.now()) ? {
     expected_version: current.version,
     node_key: challenge.node_key,
     digest: challenge.digest,
     nonce: challenge.nonce,
     decision,
+    } : null
+  if (!body) {
+    error.value = '该确认已失效或内容已更新，请重新核对当前方案。'
+    return false
   }
   const ownEpoch = sessionVersion(),
     ownTask = current.task_id
@@ -237,11 +273,15 @@ async function confirm(decision: 'approve' | 'reject') {
   error.value = ''
   try {
     await agent.resume(body)
-    if (ownEpoch !== sessionVersion() || ownTask !== selectedId.value) return
-    ui.notify(decision === 'approve' ? '准备确认已处理，金融意向仍需单独授权' : '已拒绝准备请求')
+    if (ownEpoch !== sessionVersion() || ownTask !== selectedId.value) return false
+    ui.notify(isMonthly
+      ? decision === 'approve' ? '本月方案已确认，金融操作仍需单独授权' : '已拒绝本月方案'
+      : decision === 'approve' ? '准备确认已处理，金融意向仍需单独授权' : '已拒绝准备请求')
+    return true
   } catch (e) {
     if (ownEpoch === sessionVersion() && ownTask === selectedId.value)
       error.value = (e as Error).message + '；请查询最终任务状态。'
+    return false
   } finally {
     if (ownEpoch === sessionVersion()) busy.value = false
   }
@@ -252,22 +292,37 @@ async function submit() {
     ui.notify('请先通过右上角登录')
     return
   }
+  if (inputMode.value === 'monthly' && monthlyConfirmation.value && monthlyDecision(input.value)) {
+    const body = monthlyDialogueResume(currentTask.value, input.value, s.connected, replyBinding.value,
+      s.sessionEpoch, Date.now())
+    if (!body || !replyBinding.value) {
+      error.value = '该方案确认已失效或内容已更新，请重新核对后输入确认。'
+      return
+    }
+    if (await confirm(body.decision, replyBinding.value)) input.value = ''
+    return
+  }
   const ownEpoch = sessionVersion()
   let submittedId = ''
   busy.value = true
   error.value = ''
   try {
     const p = period(currentMonth()),
-      body = {
+      bindings = {
+        ...(s.accountId ? { account_id: s.accountId } : {}),
+        ...(s.planId ? { financial_plan_id: s.planId } : {}),
+        ...(s.lifestyleGoalId ? { lifestyle_goal_id: s.lifestyleGoalId } : {}),
+        ...(s.lifestylePlanId ? { lifestyle_plan_id: s.lifestylePlanId } : {}),
+        ...(s.billingReportId ? { billing_report_id: s.billingReportId } : {}),
+      },
+      body: AgentSubmit = inputMode.value === 'monthly'
+      ? monthlyGoalSubmission(input.value, bindings)
+      : {
         instruction: input.value.trim(),
         bindings: {
           from: p.from,
           to: p.to,
-          ...(s.accountId ? { account_id: s.accountId } : {}),
-          ...(s.planId ? { financial_plan_id: s.planId } : {}),
-          ...(s.lifestyleGoalId ? { lifestyle_goal_id: s.lifestyleGoalId } : {}),
-          ...(s.lifestylePlanId ? { lifestyle_plan_id: s.lifestylePlanId } : {}),
-          ...(s.billingReportId ? { billing_report_id: s.billingReportId } : {}),
+          ...bindings,
         },
         timeout_ms: 180000,
       }
@@ -277,16 +332,16 @@ async function submit() {
     const result = await agentApi.submit(body, pendingSubmission.value!.key)
     if (ownEpoch !== sessionVersion()) return
     submittedId = result.task_id
-    instructions.value[result.task_id] = input.value.trim()
+    instructions.value[result.task_id] = body.instruction || ''
     historyKind.value = 'langgraph'
     s.saveAgentTask(result.task_id)
     input.value = ''
     pendingSubmission.value = undefined
-    ui.notify('任务已提交，专业 Agent 正在查询真实银行数据')
+    ui.notify(body.monthly_goal ? '本月目标已提交，AI 将根据账户数据提出建议，等待你最终确认' : '任务已提交，专业 Agent 正在查询真实银行数据')
     await agent.run(result.version)
   } catch (e) {
     if (ownEpoch === sessionVersion() && (!submittedId || submittedId === selectedId.value))
-      error.value = (e as Error).message + '；已提交任务请先查询状态。'
+      error.value = monthlyGoalError(e) + '；已提交任务请先查询状态。'
   } finally {
     if (ownEpoch === sessionVersion()) busy.value = false
   }
@@ -340,7 +395,7 @@ async function submit() {
     </div>
     <div class="p6-task-bindings">
       <span
-        >分析区间 <b>{{ currentMonth() }}</b></span
+        >{{ inputMode === 'monthly' ? '目标月份' : '分析区间' }} <b>{{ inputMode === 'monthly' ? currentMonthlyGoal().period : currentMonth() }}</b></span
       ><span
         >生活目标 <b>{{ s.lifestyleGoalId ? '已关联' : '待选择' }}</b></span
       ><span
@@ -354,9 +409,9 @@ async function submit() {
         <div class="workbench-scroll">
           <div v-if="!selectedId" class="workbench-empty">
             <span class="workspace-eyebrow">账户服务 / 智能任务</span>
-            <h2>你想处理哪项金融任务？</h2>
-            <p>选择常用任务，或在下方描述具体需求。</p>
-            <div class="financial-shortcuts">
+            <h2>{{ inputMode === 'monthly' ? '这个月，你想实现什么目标？' : '你想处理哪项金融任务？' }}</h2>
+            <p>{{ inputMode === 'monthly' ? '自由描述本月储蓄、支出与生活安排。AI 提出建议后，由你最终确认方案。' : '选择常用任务，或在下方描述具体需求。' }}</p>
+            <div v-if="inputMode === 'general'" class="financial-shortcuts">
               <button v-for="t in shortcuts" :key="t.title" @click="choose(t.instruction)">
                 <component :is="t.icon" :size="19" /><span>{{ t.title }}</span
                 ><ArrowRight :size="15" />
@@ -368,22 +423,22 @@ async function submit() {
                 <li>
                   <span>1</span>
                   <div>
-                    <b>明确需求</b>
-                    <p>结合当前账户与分析区间解析任务。</p>
+                    <b>{{ inputMode === 'monthly' ? '写下本月目标' : '明确需求' }}</b>
+                    <p>{{ inputMode === 'monthly' ? '说明希望存下多少、控制哪些开支，以及需要保留的生活安排。' : '结合当前账户与分析区间解析任务。' }}</p>
                   </div>
                 </li>
                 <li>
                   <span>2</span>
                   <div>
-                    <b>返回业务结果</b>
+                    <b>{{ inputMode === 'monthly' ? '查看 AI 建议' : '返回业务结果' }}</b>
                     <p>查看分析摘要、资金建议与数据来源。</p>
                   </div>
                 </li>
                 <li>
                   <span>3</span>
                   <div>
-                    <b>核对后授权</b>
-                    <p>涉及金融操作时，单独核对并确认。</p>
+                    <b>{{ inputMode === 'monthly' ? '由你最终确认' : '核对后授权' }}</b>
+                    <p>{{ inputMode === 'monthly' ? '核对完整方案后确认或拒绝；金融操作仍需单独授权。' : '涉及金融操作时，单独核对并确认。' }}</p>
                   </div>
                 </li>
               </ol>
@@ -428,8 +483,16 @@ async function submit() {
               <Button variant="outline" @click="retryTask"><RotateCw :size="14" />重新查询</Button>
             </div>
             <template v-else-if="job.data.value">
+              <MonthlyPlanConfirmation
+                v-if="monthlyConfirmation"
+                :task="currentTask"
+                :busy="busy"
+                :epoch="s.sessionEpoch"
+                @confirm="confirm"
+                @edit="editMonthlyGoal"
+              />
               <PreparationConfirmation
-                v-if="confirmation"
+                v-else-if="confirmation"
                 :task="currentTask"
                 :busy="busy"
                 @confirm="confirm"
@@ -519,14 +582,18 @@ async function submit() {
           </div>
         </div>
         <form class="workbench-composer composer" @submit.prevent="submit">
-          <label for="task-input">{{ selectedId ? '发起新的金融任务' : '描述你的金融需求' }}</label
+          <div class="composer-modes" role="group" aria-label="任务类型">
+            <button type="button" :aria-pressed="inputMode === 'monthly'" :disabled="busy" @click="inputMode = 'monthly'">本月目标</button>
+            <button type="button" :aria-pressed="inputMode === 'general'" :disabled="busy" @click="inputMode = 'general'">一般任务</button>
+          </div>
+          <label for="task-input">{{ inputMode === 'monthly' ? monthlyConfirmation ? '回复方案，或输入新的本月目标' : '描述你的本月目标' : selectedId ? '发起新的金融任务' : '描述你的金融需求' }}</label
           ><textarea
             id="task-input"
             maxlength="8192"
-            aria-label="金融任务指令"
+            :aria-label="inputMode === 'monthly' ? '本月目标或方案回复' : '金融任务指令'"
             ref="taskInput"
             v-model="input"
-            placeholder="例如：分析近期消费，在保留必要生活开支的前提下制定储蓄计划。"
+            :placeholder="inputMode === 'monthly' ? monthlyConfirmation ? '输入“确认方案”或“拒绝方案”；输入调整后的目标将发起新任务。' : '例如：这个月希望存下 2000 元，减少外卖支出，同时保留日常饮食和运动预算。' : '例如：分析近期消费，在保留必要生活开支的前提下制定储蓄计划。'"
             rows="3"
             :disabled="busy"
             @keydown.ctrl.enter.prevent="submit"
@@ -580,6 +647,10 @@ async function submit() {
   </div>
 </template>
 <style scoped>
+.composer-modes { display: flex; gap: 6px; margin-bottom: 12px; }
+.composer-modes button { border: 1px solid #dbe4ea; border-radius: 7px; background: #fff; color: #475569; padding: 7px 14px; cursor: pointer; font-size: 14px; }
+.composer-modes button[aria-pressed="true"] { background: #e6f4ee; border-color: #8abca6; color: #116449; }
+.composer-modes button:disabled { opacity: .55; cursor: default; }
 .assistant-page {
   padding: 24px 28px !important;
   max-width: 1600px;

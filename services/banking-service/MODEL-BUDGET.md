@@ -1,8 +1,10 @@
 # Coze 调用配额与部署
 
+当前源码包含019费用状态/核对审计和020独立项目金额控制，尚未部署本轮变更。新增受控出口与账单导入见[金额预算说明](MODEL-SPEND.md)。HTTP环境策略、字段含义、离线管理员核对及权限要求见[安全加固说明](SECURITY-HARDENING.md)。018的两张计量表保留，019增加核对审计表；下述调用/token预算仍不等同货币硬额度。
+
 生产入口由 `cmd/server` 使用 `coze.NewBudgeted`，不接受客户端指定配额 owner。所有 Coze 调用入口（编排解释、Supervisor、目标/账单/健康目标解析）在发起 HTTP 前绑定服务端用户及调用键。
 
-先备份目标数据库，以迁移身份执行 schema 018，再启动新版本。示例：`migrate --env-file <private-env> --expected-database <exact-database>`。独立测试库另加 `--test-only`。历史 001–017 迁移未重写。018 新增两张计量表及存储冻结触发器；离线迁移表清单含这两张表。PostgreSQL 运行身份需要新表 SELECT/INSERT/UPDATE 权限，不应拥有修改 storage control 或迁移账本的权限。用迁移身份执行 DDL，不用运行身份执行。
+先备份目标数据库，以迁移身份执行 schema 020，再启动新版本。示例：`migrate --env-file <private-env> --expected-database <exact-database>`。独立测试库另加 `--test-only`。历史 001–018 迁移未重写。018 新增两张计量表及存储冻结触发器；离线迁移表清单含这两张表。PostgreSQL 运行身份需要新表 SELECT/INSERT/UPDATE 权限，不应拥有修改 storage control 或迁移账本的权限。用迁移身份执行 DDL，不用运行身份执行。
 
 | 配置 | 默认值 | 有效范围 |
 |---|---:|---|

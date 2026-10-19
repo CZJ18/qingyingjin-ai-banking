@@ -15,6 +15,7 @@ import (
 	"github.com/qingyingjin/banking-service/internal/httpapi"
 	"github.com/qingyingjin/banking-service/internal/lifestyle"
 	"github.com/qingyingjin/banking-service/internal/orchestrator"
+	"github.com/qingyingjin/banking-service/internal/outbound"
 	"github.com/qingyingjin/banking-service/internal/service"
 	"io"
 	"log/slog"
@@ -147,7 +148,7 @@ func TestLifestyleMySQLAPI(t *testing.T) {
 		}
 	})
 	t.Run("signed specialist and supervisor call", func(t *testing.T) {
-		executor, e := orchestrator.NewHTTPExecutor(h.server.URL, h.auth, nil, nil, nil)
+		executor, e := orchestrator.NewHTTPExecutor(h.server.URL, h.auth, nil, nil, nil, outbound.TestPolicy())
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -167,7 +168,7 @@ func TestLifestyleMySQLAPI(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		executor, e := orchestrator.NewHTTPExecutor(h.server.URL, h.auth, nil, nil, nil)
+		executor, e := orchestrator.NewHTTPExecutor(h.server.URL, h.auth, nil, nil, nil, outbound.TestPolicy())
 		if e != nil {
 			t.Fatal(e)
 		}

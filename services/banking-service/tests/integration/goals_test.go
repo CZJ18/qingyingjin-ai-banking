@@ -11,7 +11,6 @@ import (
 	"github.com/getkin/kin-openapi/routers/legacy"
 	"github.com/google/uuid"
 	"github.com/qingyingjin/banking-service/api"
-	"github.com/qingyingjin/banking-service/internal/coze"
 	"github.com/qingyingjin/banking-service/internal/entity"
 	"github.com/qingyingjin/banking-service/internal/goal"
 	"github.com/qingyingjin/banking-service/internal/httpapi"
@@ -71,7 +70,7 @@ func TestGoalCompilerMySQLAPI(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]any{"code": 0, "execute_id": "456", "data": string(data)})
 	}))
 	defer upstream.Close()
-	client, _ := coze.New(upstream.URL, "integration-only-pat", 5*time.Second)
+	client := fixtureCozeClient(t, upstream.URL, "integration-only-pat", 5*time.Second)
 	repo := goal.NewRepository(h.conn.DB)
 	svc := goal.NewService(repo, &goal.Parser{Runner: client, WorkflowID: "123"}, h.svc)
 	install := func(s *goal.Service) {

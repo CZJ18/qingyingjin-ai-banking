@@ -1,5 +1,7 @@
 package orchestrator
 
+import "github.com/qingyingjin/banking-service/internal/outbound"
+
 import (
 	"context"
 	"encoding/json"
@@ -51,7 +53,7 @@ func TestLifestyleConclusionsAreDerivedFromActualVerifiedPlan(t *testing.T) {
 			}
 			return workflowResult(value), nil
 		})
-		x, _ := NewHTTPExecutor("http://127.0.0.1:8090", executorAuth(), runner, map[string]string{"lifestyle": "123"}, nil)
+		x, _ := NewHTTPExecutor("http://127.0.0.1:8090", executorAuth(), runner, map[string]string{"lifestyle": "123"}, nil, outbound.TestPolicy())
 		actual := AgentOutput{Result: raw, Evidence: out.Evidence}
 		e = x.explain(context.Background(), c, &actual)
 		if malicious {

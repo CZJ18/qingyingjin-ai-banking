@@ -7,6 +7,7 @@ import (
 
 func validEnv() map[string]string {
 	return map[string]string{
+		"BANKING_ENVIRONMENT":    "test",
 		"BANKING_MYSQL_PASSWORD": "test-password", "BANKING_REDIS_PASSWORD": "test-redis",
 		"BANKING_USER_JWT_SECRET": strings.Repeat("u", 32), "BANKING_TOOL_TOKEN": strings.Repeat("t", 32),
 		"BANKING_TOOL_USER_ID": "42", "BANKING_TOOL_COZE_USER_ID": "7",

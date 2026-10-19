@@ -5,7 +5,6 @@ import { Repeat2, ArrowUpRight, Search, Sparkles, CalendarClock } from 'lucide-v
 import { useSession, useUI } from '@/lib/store'
 import { api, request, post, type Schema } from '@/api/client'
 import { money, date } from '@/lib/utils'
-import { period, currentMonth } from '@/lib/queries'
 import State from '@/components/State.vue'
 import Status from '@/components/Status.vue'
 import Button from '@/components/ui/button/Button.vue'
@@ -51,10 +50,7 @@ async function detect() {
   if (busy.value) return
   busy.value = true
   try {
-    await post<'/api/v1/subscriptions/detect_subscriptions', Schema<'SubscriptionReport'>>(
-      '/api/v1/subscriptions/detect_subscriptions',
-      { ...period(currentMonth()) },
-    )
+    await api.detectSubscriptions()
     await subs.refetch()
     await analysis.refetch()
     ui.notify('已完成订阅识别，请核实候选项目')
@@ -70,10 +66,10 @@ async function detect() {
     <div class="page-heading">
       <div>
         <h1>订阅与代扣管理</h1>
-        <p>让持续的小额支出，成为可控的生活选择。</p>
+        <p>从近三个月流水识别周期性消费，核实后管理模拟订阅。</p>
       </div>
       <Button @click="detect" :disabled="!s.connected || busy"
-        ><Sparkles :size="16" />{{ busy ? '识别中…' : '识别本月订阅' }}</Button
+        ><Sparkles :size="16" />{{ busy ? '识别中…' : '识别近期订阅' }}</Button
       >
     </div>
     <RenewalReminders />

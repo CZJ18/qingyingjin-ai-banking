@@ -91,6 +91,8 @@ class Tools:
         return {
             "task_id": task + "." + item["key"],
             "agent_type": item["agent_type"],
+            "skill_id": item["skill_id"],
+            "skill_version": item["skill_version"],
             "status": "succeeded",
             "result": {"report_id": "real-report"},
             "evidence": [],
@@ -225,6 +227,24 @@ async def test_retry_read_failure_is_finite_and_recovers():
     tools.fail = 1
     result = await engine.run("42", store.task["task_id"], "bearer", "trace")
     assert result["status"] == "succeeded" and tools.called == ["billing", "billing"]
+
+
+@pytest.mark.asyncio
+async def test_model_dependency_failure_is_not_replayed_as_a_conflicting_invocation():
+    engine, store, tools, _ = system(AgentSubmit(instruction="Analyze my spending").model_dump())
+    attempts = []
+
+    async def unavailable(*args):
+        attempts.append(True)
+        if len(attempts) > 1:
+            raise DomainError("MODEL_OUTCOME_UNKNOWN", "previous outcome unknown", 409)
+        raise DomainError("COZE_UNAVAILABLE", "workflow is unavailable", 503)
+
+    tools.plan = unavailable
+    result = await engine.run("42", store.task["task_id"], "bearer", "trace")
+    assert result["status"] == "failed"
+    assert result["error_code"] == "COZE_UNAVAILABLE"
+    assert len(attempts) == 1
 
 
 @pytest.mark.asyncio
