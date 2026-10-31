@@ -9,7 +9,7 @@ from pathlib import Path
 import psycopg
 from psycopg.rows import dict_row
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 MIGRATIONS_DIRECTORY = Path(__file__).resolve().parents[2] / "migrations"
 
 

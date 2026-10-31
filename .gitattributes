@@ -14,3 +14,10 @@ yarn.lock merge=binary
 # For more information, see this issue: https://github.com/microsoft/rushstack/issues/1088
 #
 *.json linguist-language=JSON-with-Comments
+
+# Competition artifacts must keep their exact binary bytes
+*.pdf binary
+*.pptx binary
+*.docx binary
+*.mp4 binary
+*.png binary

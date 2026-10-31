@@ -52,6 +52,7 @@ func (f *langGraphRunnerFixture) PlanWithEvidence(ctx context.Context, meta serv
 func langGraphTestHandler(t *testing.T, runner LangGraphExecutor, active func(context.Context, int64) error) (http.Handler, *identity.Auth, *bytes.Buffer) {
 	t.Helper()
 	a := identity.New(strings.Repeat("u", 32), "qingyingjin", "banking-service", strings.Repeat("t", 32), "42", "7")
+	a.SetLegacyValidator(func(context.Context, string, int64) error { return nil })
 	var logs bytes.Buffer
 	b := NewLangGraphBridge(langGraphTestKey, runner)
 	b.ActiveUser = active
@@ -382,6 +383,19 @@ func TestLangGraphRunRequiresExplicitMode(t *testing.T) {
 				t.Fatal("inferred execution mode reached executor")
 			}
 		})
+	}
+}
+
+func TestLangGraphRunAcceptsOnlyRegisteredSmokeForSupervisor(t *testing.T) {
+	runner := &langGraphRunnerFixture{run: func(_ context.Context, c orchestrator.Call) (orchestrator.AgentOutput, error) {
+		return orchestrator.AgentOutput{TaskID: c.TaskID, AgentType: c.AgentType, Status: "succeeded", Result: json.RawMessage(`{"smoke_only":true}`)}, nil
+	}}
+	h, auth, _ := langGraphTestHandler(t, runner, langGraphActive)
+	body := langGraphJSON(t, map[string]any{"skill_id": "task_planning", "skill_version": 1, "tool": "model_smoke", "execution_mode": "read_only", "parameters": map[string]any{}})
+	w, res := langGraphRequest(t, h, "POST", "/api/v1/langgraph/run", langGraphToken(t, auth, "supervisor", langGraphTestTask), langGraphTestKey, body, nil)
+	langGraphWantStatus(t, w, res, 200, "OK")
+	if len(runner.calls) != 1 || runner.calls[0].Meta.UserID != 42 || runner.calls[0].UseCoze {
+		t.Fatal("smoke lost signed identity")
 	}
 }
 

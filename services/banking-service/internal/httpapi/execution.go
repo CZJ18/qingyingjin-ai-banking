@@ -6,6 +6,7 @@ import (
 	"github.com/qingyingjin/banking-service/internal/entity"
 	"github.com/qingyingjin/banking-service/internal/execution"
 	"github.com/qingyingjin/banking-service/internal/identity"
+	"github.com/qingyingjin/banking-service/internal/scenariooverview"
 	"github.com/qingyingjin/banking-service/internal/service"
 	"github.com/qingyingjin/banking-service/internal/subscription"
 	"strconv"
@@ -72,7 +73,7 @@ func agentPlanAllowed(c *gin.Context) bool {
 		return true
 	}
 	switch p {
-	case "/api/v1/billing/get_transactions", "/api/v1/billing/get_account_summary", "/api/v1/billing/analyze_spending", "/api/v1/billing/compare_budget", "/api/v1/billing/detect_anomalies", "/api/v1/billing/generate_billing_report", "/api/v1/billing/query",
+	case "/api/v1/scenarios/get_scenario_overview", "/api/v1/billing/get_transactions", "/api/v1/billing/get_account_summary", "/api/v1/billing/analyze_spending", "/api/v1/billing/compare_budget", "/api/v1/billing/detect_anomalies", "/api/v1/billing/generate_billing_report", "/api/v1/billing/query",
 		"/api/v1/subscriptions/detect_subscriptions", "/api/v1/subscriptions/get_subscription_details", "/api/v1/subscriptions/get_subscription_status", "/api/v1/subscriptions/analyze_subscription_cost", "/api/v1/subscriptions/suggest_subscription_actions":
 		return true
 	}
@@ -160,7 +161,50 @@ func registerExecution(user, tools *gin.RouterGroup, s *execution.Service) {
 		}
 		return v, true
 	}
+	user.POST("/scenarios/get_scenario_overview", ready, func(c *gin.Context) {
+		a := actor(c)
+		if a.Kind != "user" && (a.Kind != "agent" || a.AgentType != "supervisor") {
+			respond(c, 403, "FORBIDDEN", "signed Supervisor or user required", nil)
+			return
+		}
+		var in scenariooverview.Input
+		if e := decode(c, &in); e != nil {
+			coreError(c, e)
+			return
+		}
+		out, e := s.ScenarioOverview(c.Request.Context(), a, meta(c), in)
+		finish(c, out, e, 200)
+	})
 	g := user.Group("/execution", ready)
+	g.GET("/scenarios", human, func(c *gin.Context) {
+		out, e := s.Scenarios(c.Request.Context(), actor(c), meta(c))
+		finish(c, out, e, 200)
+	})
+	g.POST("/operations/:id/cancel", human, func(c *gin.Context) {
+		v, ok := id(c)
+		if !ok {
+			return
+		}
+		var in execution.AuthorizeInput
+		if e := decode(c, &in); e != nil {
+			executionInputError(c, s, actor(c), "CANCEL", e)
+			return
+		}
+		out, e := s.CancelScheduled(c.Request.Context(), actor(c), meta(c), v, in)
+		finish(c, out, e, 200)
+	})
+	g.GET("/readiness", func(c *gin.Context) {
+		if actor(c).Kind != "user" {
+			respond(c, 403, "FORBIDDEN", "user identity required", nil)
+			return
+		}
+		e := s.CheckReady(c.Request.Context())
+		if e != nil {
+			respond(c, 503, "DEPENDENCY_UNAVAILABLE", "execution policy unavailable; no operation created", nil)
+			return
+		}
+		respond(c, 200, "OK", "", gin.H{"ready": true})
+	})
 	g.POST("/operations", prepare(201))
 	g.GET("/operations", func(c *gin.Context) {
 		resource, e := queryInt(c, "resource_id")

@@ -11,6 +11,8 @@ class Settings:
     banking_timeout: float = 5.0
     profile_timezone: str = "Asia/Shanghai"
     agent_service_key: str = field(default="", repr=False)
+    background_worker_enabled: bool = False
+    background_poll_seconds: float = 1.0
 
     def __post_init__(self):
         pg = urlsplit(self.database_url)
@@ -32,6 +34,10 @@ class Settings:
             raise ValueError("explicit Banking origin without credentials required")
         if not 0.1 <= self.banking_timeout <= 30:
             raise ValueError("Banking timeout must be between 0.1 and 30 seconds")
+        if not 0.05 <= self.background_poll_seconds <= 60:
+            raise ValueError("Background poll must be between 0.05 and 60 seconds")
+        if self.background_worker_enabled and not self.agent_service_key:
+            raise ValueError("Background worker requires Agent service delegation")
         if self.agent_service_key and (
             len(self.agent_service_key) < 32
             or not self.agent_service_key.isascii()
@@ -47,4 +53,6 @@ class Settings:
             banking_url=os.environ["BANKING_AGENT_BANKING_URL"],
             banking_timeout=float(os.environ.get("BANKING_AGENT_BANKING_TIMEOUT", "5")),
             agent_service_key=os.environ.get("BANKING_AGENT_SERVICE_KEY", ""),
+            background_worker_enabled=os.environ.get("BANKING_AGENT_BACKGROUND_WORKER", "false").lower() == "true",
+            background_poll_seconds=float(os.environ.get("BANKING_AGENT_BACKGROUND_POLL_SECONDS", "1")),
         )

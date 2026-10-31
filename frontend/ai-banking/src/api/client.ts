@@ -24,6 +24,7 @@ export class ApiError extends Error {
     message: string,
     public requestId = '',
     public status = 0,
+    public reason = '',
   ) {
     super(message)
   }
@@ -84,7 +85,8 @@ export async function request<T>(
     if (epoch !== sessionVersion())
       throw new ApiError('SESSION_CHANGED', '账户连接已变化，已丢弃此前会话的响应')
     if (!response.ok || envelope.code !== 'OK')
-      throw new ApiError(envelope.code, envelope.message, envelope.request_id, response.status)
+      throw new ApiError(envelope.code, envelope.message, envelope.request_id, response.status,
+        typeof envelope.data?.reason === 'string' ? envelope.data.reason : '')
     return envelope.data as T
   } catch (e) {
     if (e instanceof ApiError) throw e

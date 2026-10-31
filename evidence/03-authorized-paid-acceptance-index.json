@@ -1,0 +1,169 @@
+{
+  "status": "PARTIAL_REAL_PLANNING_PASS_FULL_AI_ANALYSIS_FAIL_CODE_FIX_OFFLINE_VERIFIED",
+  "counts": {
+    "PASS": 10,
+    "FAIL": 1,
+    "PARTIAL": 1,
+    "BLOCKED": 2,
+    "SKIPPED": 2
+  },
+  "checks": [
+    {
+      "name": "Exact READY/paid authorization and actual reviewed isolated artifacts",
+      "status": "PASS",
+      "evidence": [
+        "operator-authorization.json",
+        "activated.json"
+      ]
+    },
+    {
+      "name": "Real Vue natural-language submission, Python/LangGraph and real Coze/DeepSeek planning",
+      "status": "PASS",
+      "evidence": [
+        "submission-attempted.json",
+        "provider-evidence.json",
+        "tool-journal.json"
+      ],
+      "supplier_requests": 1
+    },
+    {
+      "name": "Model selected exact approved read-only Billing tool, account27 and September",
+      "status": "PASS",
+      "evidence": "tool-journal.json"
+    },
+    {
+      "name": "Go tool queried/persisted actual61row SQL report with5000income/3900expense",
+      "status": "PASS",
+      "evidence": [
+        "actual-SQL-source.json",
+        "actual-Go-report-generated-before-model-failure.json"
+      ]
+    },
+    {
+      "name": "Billing model explanation and complete user-facing AI analysis",
+      "status": "FAIL",
+      "reason": "Coze Billingv0.0.8 scope/model transport rejected large evidence input before a second supplier response; task failed with TOOL_OUTCOME_UNKNOWN",
+      "evidence": [
+        "task-terminal.json",
+        "Coze-fail-reasons.json",
+        "offline-context-bound-diagnosis.json"
+      ]
+    },
+    {
+      "name": "Actual supplier count, tokens and monetary hold within approved limits",
+      "status": "PASS",
+      "evidence": "ledger-integrity-final.json",
+      "settled": false
+    },
+    {
+      "name": "Stop-on-failure/no replay; retain old and new unknown/report holds",
+      "status": "PASS",
+      "evidence": [
+        "cycle-closed.json",
+        "ledger-integrity-final.json",
+        "runtime-final-state.json"
+      ]
+    },
+    {
+      "name": "Precise source fix after failing regressions; full existing related Go regressions pass",
+      "status": "PASS",
+      "evidence": [
+        "repair/changes.json",
+        "command-073-red-full-month-billing-model-evidence-regression.json",
+        "command-074-red-billing-evidence-reference-not-disclosed.json",
+        "command-075-red-full-month-actual-gateway-context-parser.json",
+        "command-078-green-bounded-billing-model-evidence-and-gateway.json",
+        "command-079-existing-orchestrator-coze-and-gateway-regression.json"
+      ]
+    },
+    {
+      "name": "New Linux binary/image and actual network-none Linux regression; gateway unchanged",
+      "status": "PASS",
+      "evidence": [
+        "repair/artifacts.json",
+        "command-092-actual-Linux-fixed-image-evidence-and-gateway-regression-no-env-no-network.json"
+      ]
+    },
+    {
+      "name": "Actual preserved30432 failed-history UI and owned report HTTP readback",
+      "status": "PASS",
+      "evidence": "current30432-user-readback.json",
+      "meaning": "Expected failure visible, not AI business success"
+    },
+    {
+      "name": "Stop-only rollback preview retains all volumes and records",
+      "status": "PASS",
+      "evidence": "rollback.ps1"
+    },
+    {
+      "name": "Fix is staged; deployed current app/approved model binaries retain original version",
+      "status": "PARTIAL",
+      "reason": "New core image built and verified, not swapped into running apps and not paid-retested",
+      "evidence": "repair/artifacts.json"
+    },
+    {
+      "name": "Specific model savings advice quality",
+      "status": "BLOCKED",
+      "reason": "No Billing model explanation returned; no actual advice to evaluate"
+    },
+    {
+      "name": "Formal supplier expense reconciliation",
+      "status": "BLOCKED",
+      "reason": "No original supplier bill; estimate/reserved/reported not settled"
+    },
+    {
+      "name": "Repair real-model retest",
+      "status": "SKIPPED",
+      "reason": "Original failure/unknown stop condition triggered. No remaining slot reused or unknown task replayed"
+    },
+    {
+      "name": "Actual bank/merchant execution and production release",
+      "status": "SKIPPED",
+      "reason": "Outside this readonly synthetic-data trial"
+    }
+  ],
+  "task_id": "lg-db3d0748-0c53-46cf-95b5-4b717d45012e",
+  "actual_supplier_requests": 1,
+  "actual_supplier_request_ids": [
+    "f0d3ee21-f845-4480-b149-b36fc5eabaea"
+  ],
+  "actual_response_model": "deepseek-flash",
+  "tokens": 677,
+  "reserved_usd": "0.00245760",
+  "estimated_usd": "0.00022594",
+  "settled_usd": null,
+  "new_Billing_bridge_unknown_reserved_tokens": 16384,
+  "new_financial_intents": 0,
+  "old_history_preserved": true,
+  "paid_components_closed": true,
+  "actual_model_explanation_returned": false,
+  "repair_real_retest_executed": false,
+  "formal_supplier_bill_reconciled": false,
+  "current_app_url": "http://127.0.0.1:30432",
+  "source_differs_from_running_core": true,
+  "evidence": {
+    "operator-authorization.json": "ac914a29e4badefcd31b28f0f73a42e7608b97c5beb36269ca1664ebd66dfe0f",
+    "provider-evidence.json": "4bcbbc683caff4e1fb8d6d6f8ce7b092363fc019fb4f3fccf593502a753cf71b",
+    "task-terminal.json": "bf33c6c704e17fc2cba4d627e6415f455a3b2600cca85938ac2cce2b78f124b8",
+    "tool-journal.json": "8afb1b21ca5d38a077e21f2dc9c87b34244529575edbbff94499d636e94930fb",
+    "Coze-actual-executions.json": "5ebb5ce9af8df0f93653e680fb54f2af54eb66cec9f3d6f47e051d61baebb831",
+    "Coze-fail-reasons.json": "ebce36901a0589fcf0728fa192425878b63c18ded5850c516c759ab3e9c6a60a",
+    "actual-SQL-source.json": "79f21bacbf7e00b0ad31de824fc9cb37a718707a9432a34be8dd6e0a8c603cab",
+    "actual-Go-report-generated-before-model-failure.json": "939a2ecf98cf64b39dbbad03e82e05e2e97c2775c6ad38b984bccb90109a8f80",
+    "offline-context-bound-diagnosis.json": "09ca425821dc6925e804de64fd4fc867f5cdf17c9835004b012ac53e887b1954",
+    "ledger-integrity-final.json": "815249e26107524864fb3a9070beef316d0ef24cb7b52f4784860e5661aea1a6",
+    "runtime-final-state.json": "c639dbcec293d154f96346d3c700274ba4472dea50a87e21666b707f7b549d93",
+    "cycle-closed.json": "9776e5b4c4703ea35e14677bf82e1be7b199cd9e37540fcc6d6bd6a8ffe28151",
+    "repair/changes.json": "8b67489f2cabf79f3c734107db0ed80f5e44ebfaefc53acfa43bbf5e42336486",
+    "repair/artifacts.json": "112b5529fcbd8be45edd9498d9b792d2f4ee26ec97fc9af56b9155fccf87a9db",
+    "repair/source-diff.patch": "e030e696567f1a3392303139105ad7a904ec871b0b436d23e15e95c471f274ab",
+    "current30432-user-readback.json": "d9933af900b970353360b41edde61a260f2bb8e3e458975c21eddda01f13711c",
+    "test-summary.json": "e8e2ecab93aad33093e06e4a1940b042bfe937064f4eb298a7c250dabc210c47",
+    "commands.json": "6c28b1f6d1ada300f73eb4c1c92e53dae37b374f46e297c76c4cb7abfd92716b",
+    "changes.json": "efec2bf546d3d86b9a6057af82e2ad38bf81b5a89340b3c1a842c47c003ceb54",
+    "rollback.ps1": "fa7d2342892fc4d3d8c2b01c7dcff2dd6cb41ab147f3461916b6cd6491650012",
+    "rollback-targets.json": "7d6bd60da49bcc88871a921e79f0370dfc924f279fac79934e3ead5ad6650373",
+    "handoff.md": "25c1c68cc4f44afabfd248ca4ad5bf02852d02a0b032fa2d1b8931abae90c714",
+    "closed-cycle-guard.json": "685548eb15b60607be02a02971d1e5b259d73f6a2d1ca706f70f588013852981"
+  }
+}

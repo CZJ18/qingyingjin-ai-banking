@@ -1,0 +1,20 @@
+{
+  "status": "PASS_OFFLINE_LINUX_BUILD_AND_ISOLATED_LINUX_REGRESSION_STAGED_NOT_DEPLOYED",
+  "image_id": "sha256:cddbc9ce72ba82fe2afb2173e4b5f437535e45bcdf7cd1f6d920de86c7c61148",
+  "base_image": "sha256:8d9020110a9c218e7b7be017069e042b2a0c7fc735e5380c9fb33e46adc322e2",
+  "binary_sha256": {
+    "banking-service": "090f23a8ef676c282629a6aad37fa2b8bdc0d7b8f0bba3150cd6866ef5ac6065",
+    "banking-model-gateway": "d0914de91560c6165d8640971880b57a8aa023b50615e1bff64ee370b63c637b"
+  },
+  "test_image_id": "sha256:90ceb09246c5662d370032b85825bc3991da05d9420219dd10b58a06157d9e10",
+  "source_sha256": {
+    "services/banking-service/internal/orchestrator/explanation.go": "15e596be65e1e6895d3684f183b4071f6f81c1d0ecbff34e115af109f676f0e7",
+    "services/banking-service/internal/orchestrator/executor.go": "a655af0f7e33dcb5b73da465bf0ce4dedb198dd7dda66f99ee20a15b0cc3bc02",
+    "services/banking-service/internal/orchestrator/billing_explanation_evidence_test.go": "907d2efa49de789e8ee71786fdec106813fc3af60b96bea9b17b2019602ce459"
+  },
+  "gateway_binary_unchanged": true,
+  "runtime_containers_replaced": false,
+  "real_model_retest_executed": false,
+  "real_model_call_count_this_trial": 1,
+  "failed_task_and_unknown_hold_preserved": true
+}

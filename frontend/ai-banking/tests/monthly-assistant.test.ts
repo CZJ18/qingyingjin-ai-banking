@@ -16,5 +16,7 @@ it('opens in monthly goal mode with an explicit general task alternative', async
   expect(html).toContain('一般任务')
   expect(html).toContain('这个月，你想实现什么目标？')
   expect(html).toContain('AI 提出建议后，由你最终确认方案')
+  expect(html).toContain('账单、转账、理财、卡片、订阅和生日计划')
+  expect(html).toContain('操作前仍须本人核对并独立授权')
   client.clear()
 })

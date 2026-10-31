@@ -18,7 +18,7 @@ const cards = useQuery({
   queryFn: ({ signal }) => request<Schema<'BankCard'>[]>('/api/v1/cards', { signal }),
   enabled: computed(() => session.connected),
 })
-const eligible = computed(() => accounts.data.value?.filter((a) => a.status === 'active') || [])
+const eligible = computed(() => accounts.data.value?.filter((a) => a.status === 'active' && ['checking','savings'].includes(a.account_type)) || [])
 const adding = ref(false),
   busy = ref(false),
   account = ref(''),
@@ -28,6 +28,22 @@ const adding = ref(false),
   type = ref<'debit' | 'credit'>('debit'),
   limit = ref('0')
 const dialog = ref<InstanceType<typeof ExecutionDialog>>()
+const application=ref(false),controlCard=ref<Schema<'BankCard'>|null>(null)
+const control=ref<'adjust_limit'|'set_transaction_limit'>('set_transaction_limit'),controlAmount=ref('')
+const payCard=ref<Schema<'BankCard'>|null>(null),payTarget=ref(''),payAmount=ref('')
+function editControl(card:Schema<'BankCard'>,action:'adjust_limit'|'set_transaction_limit'){
+ controlCard.value=card;control.value=action;controlAmount.value=action==='adjust_limit'?String(card.credit_limit_minor/100):card.transaction_limit_minor===undefined?'':String(card.transaction_limit_minor/100)
+}
+async function saveControl(){
+ if(!controlCard.value)return
+ try{const value=minor(controlAmount.value);if(value<0||control.value==='adjust_limit'&&value===0)throw new Error('信用额度必须大于零；如需阻止卡片转账，请设单笔限额为0或锁定卡片')
+ await prepare({action:control.value,card_id:controlCard.value.id,...(control.value==='adjust_limit'?{credit_limit_minor:value}:{transaction_limit_minor:value})})
+ }catch(e){ui.notify((e as Error).message)}
+}
+async function cardTransfer(){
+ if(!payCard.value)return
+ try{await dialog.value?.prepare('transfer',{source_account_id:payCard.value.account_id,target_account_id:payTarget.value,amount_minor:minor(payAmount.value),currency:'CNY',description:'模拟借记卡转账',card_id:payCard.value.id})}catch(e){ui.notify((e as Error).message)}
+}
 async function prepare(input: Schema<'ExecutionCardManageParameters'>) {
   if (busy.value || !session.connected) return
   busy.value = true
@@ -42,7 +58,7 @@ async function prepare(input: Schema<'ExecutionCardManageParameters'>) {
 async function bind() {
   try {
     await prepare({
-      action: 'bind',
+      action: application.value?'apply':'bind',
       account_id: account.value,
       issuer: issuer.value,
       name: name.value,
@@ -68,8 +84,10 @@ const accountName = (id: string) =>
       <Button variant="outline" :disabled="!session.connected" @click="adding = !adding"
         ><Plus :size="14" />绑定模拟卡</Button
       >
+      <Button variant="outline" :disabled="!session.connected" @click="adding=true;application=true">申请模拟卡</Button>
     </div>
     <form v-if="adding" class="card-form" @submit.prevent="bind">
+      <label>办理方式<select v-model="application" aria-label="卡片办理方式"><option :value="false">绑定已有模拟卡</option><option :value="true">申请新模拟卡</option></select></label>
       <label
         >关联模拟账户<select v-model="account" aria-label="关联模拟账户" required>
           <option disabled value="">请选择本人账户</option>
@@ -114,7 +132,7 @@ const accountName = (id: string) =>
       <p v-if="!eligible.length" class="card-note form-note">
         需要先创建本人可用的模拟账户；账户加载失败时请刷新账户管理。
       </p>
-      <Button type="submit" :disabled="busy || !eligible.length">创建绑定意向</Button>
+      <Button type="submit" :disabled="busy || !eligible.length">{{application?'创建申请意向':'创建绑定意向'}}</Button>
     </form>
     <State
       :connected="session.connected"
@@ -141,6 +159,7 @@ const accountName = (id: string) =>
             SIM <span aria-label="尾号">•••• {{ card.last_four }}</span>
           </p>
           <p class="card-account">关联：{{ accountName(card.account_id) }}</p>
+          <p class="card-note">单笔限额：{{card.transaction_limit_minor===undefined?'未单独设置，仍受账户风控约束':money(card.transaction_limit_minor)}}{{card.transaction_limit_minor===0?'（禁止卡片发起转账）':''}}</p>
           <dl v-if="card.card_type === 'credit'" class="credit-summary">
             <div>
               <dt>信用额度</dt>
@@ -160,6 +179,8 @@ const accountName = (id: string) =>
           </p>
           <footer>
             <span v-if="card.status === 'unbound'">已解绑 · 保留历史</span
+            ><span v-else-if="card.status==='locked'">已锁定 · 暂停卡片转账</span
+            ><span v-else-if="card.status==='lost'">已挂失 · 不可解锁</span
             ><span v-else-if="card.is_default" class="default-label"><Star :size="13" />默认卡</span
             ><span v-else>已绑定</span>
             <div v-if="card.status === 'active'" class="card-actions">
@@ -175,11 +196,32 @@ const accountName = (id: string) =>
                 @click="prepare({ action: 'unbind', card_id: card.id })"
                 >解绑</Button
               >
+              <Button variant="ghost" :disabled="busy" @click="editControl(card,'set_transaction_limit')">交易限额</Button>
+              <Button v-if="card.card_type==='credit'" variant="ghost" :disabled="busy" @click="editControl(card,'adjust_limit')">调整额度</Button>
+              <Button variant="ghost" :disabled="busy" @click="prepare({action:'lock',card_id:card.id})">锁定</Button>
+              <Button variant="ghost" :disabled="busy" @click="prepare({action:'report_lost',card_id:card.id})">挂失</Button>
+              <Button v-if="card.card_type==='debit'" variant="ghost" @click="payCard=card;payTarget='';payAmount=''">卡片转账</Button>
+            </div>
+            <div v-else-if="card.status!=='unbound'" class="card-actions">
+              <Button v-if="card.status==='locked'" variant="ghost" @click="prepare({action:'unlock',card_id:card.id})">解锁</Button>
+              <Button v-if="card.status==='locked'" variant="ghost" @click="prepare({action:'report_lost',card_id:card.id})">挂失</Button>
+              <Button variant="ghost" @click="prepare({action:'unbind',card_id:card.id})">解绑</Button>
             </div>
           </footer>
         </article>
       </div>
     </State>
+    <form v-if="controlCard" class="card-form" @submit.prevent="saveControl">
+      <p>{{controlCard.name}} · {{control==='adjust_limit'?'调整模拟信用额度，不增加现金':'限制此卡发起的单笔转账，0表示全部阻止'}}</p>
+      <label>{{control==='adjust_limit'?'新信用额度 / 元':'单笔限额 / 元'}}<input v-model="controlAmount" required inputmode="decimal" /></label>
+      <Button type="submit" :disabled="busy">创建限额调整意向</Button><Button type="button" variant="ghost" @click="controlCard=null">收起限额设置</Button>
+    </form>
+    <form v-if="payCard" class="card-form" @submit.prevent="cardTransfer">
+      <p>{{payCard.name}} · 模拟借记卡转账，执行前重新核验卡片状态、限额和账户资金保护。</p>
+      <label>转入本人账户<select v-model="payTarget" required aria-label="卡片转入账户"><option disabled value="">请选择</option><option v-for="a in eligible.filter(a=>a.id!==payCard?.account_id&&!a.savings_goal_id)" :key="a.id" :value="a.id">{{a.display_name}}</option></select></label>
+      <label>转账金额 / 元<input v-model="payAmount" required inputmode="decimal" /></label><Button type="submit">创建卡片转账意向</Button><Button type="button" variant="ghost" @click="payCard=null">收起卡片转账</Button>
+    </form>
+    <p class="card-note">申请、调额、限额、锁定、解锁和挂失均需独立授权。挂失不可直接解锁。卡片状态约束卡片发起的操作，不冻结关联账户或授权自动扣款。</p>
     <p class="card-note">默认卡仅表示管理偏好，不授予自动扣款权限。解绑不关闭账户、不转移资金。</p>
     <ExecutionDialog ref="dialog" />
   </section>
@@ -281,6 +323,7 @@ const accountName = (id: string) =>
   gap: 18px;
   margin: 16px 0;
 }
+.card-actions{flex-wrap:wrap;max-width:100%}
 .credit-summary dt {
   font-size: 11px;
   color: #64748b;

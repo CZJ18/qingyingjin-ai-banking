@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import {
   ApiError,
   setToken,
@@ -24,6 +24,10 @@ const validNumeric = (value: unknown): value is string =>
   typeof value === 'string' &&
   /^[1-9][0-9]{0,18}$/.test(value) &&
   BigInt(value) <= 9223372036854775807n
+export type AssistantDraft = {
+  conversation?: {input:string;mode:'monthly'|'general';analysisMonth:string}
+  expense?: {open:boolean;amount:string;month:string;categories:string[];checkEnabled:boolean;fullMonthConfirmed:boolean;statementCount:string;statementIncome:string;statementExpense:string;preview:Schema<'ExpensePreview'>|null;sourceReport:Schema<'BillingReport'>|null}
+}
 export const useSession = defineStore('session', () => {
   const connected = ref(false),
     accountId = ref(''),
@@ -47,6 +51,18 @@ export const useSession = defineStore('session', () => {
     lifestylePlanId = ref(''),
     billingReportId = ref('')
   const sessionEpoch = ref(0)
+  // One short-lived draft for this authenticated account. No browser storage,
+  // execution challenge, fee approval, grant or pending request is retained.
+  let assistantDraft: {user:string;account:string;epoch:number;at:number;data:AssistantDraft}|null=null
+  function readAssistantDraft():AssistantDraft|null {
+    if(!connected.value||!user.value||!assistantDraft||assistantDraft.user!==user.value.id||assistantDraft.account!==accountId.value||assistantDraft.epoch!==sessionEpoch.value||Date.now()-assistantDraft.at>30*60*1000||Date.now()<assistantDraft.at){assistantDraft=null;return null}
+    return JSON.parse(JSON.stringify(assistantDraft.data)) as AssistantDraft
+  }
+  function saveAssistantDraft(patch:Partial<AssistantDraft>){
+    if(!connected.value||!user.value)return
+    const data={...readAssistantDraft(),...patch}
+    assistantDraft={user:user.value.id,account:accountId.value,epoch:sessionEpoch.value,at:Date.now(),data:JSON.parse(JSON.stringify(data)) as AssistantDraft}
+  }
   let connectionAttempt = 0
   let refreshTimer: ReturnType<typeof setTimeout> | undefined
   function stopRefresh() {
@@ -54,6 +70,7 @@ export const useSession = defineStore('session', () => {
     refreshTimer = undefined
   }
   function clearMemory() {
+    assistantDraft=null
     connected.value = false
     user.value = null
     phoneMasked.value = ''
@@ -89,6 +106,7 @@ export const useSession = defineStore('session', () => {
       planId.value = validNumeric(saved.plan) ? saved.plan : ''
       lifestylePlanId.value = validNumeric(saved.lifestylePlan) ? saved.lifestylePlan : ''
       billingReportId.value = validUUID(saved.billingReport) ? saved.billingReport : ''
+      accountId.value = validNumeric(saved.account) ? saved.account : ''
       selectedJob.value = jobIds.value[0] || ''
       selectedAgentTask.value = agentTaskIds.value[0] || ''
       lifestyleGoalId.value = lifestyleGoalIds.value[0] || ''
@@ -109,12 +127,14 @@ export const useSession = defineStore('session', () => {
           lifestyle: lifestyleGoalIds.value,
           lifestylePlan: lifestylePlanId.value,
           billingReport: billingReportId.value,
+          account: validNumeric(accountId.value) ? accountId.value : '',
         }),
       )
     } catch {
       /* The current session remains usable when storage is disabled. */
     }
   }
+  watch(accountId, ()=>{assistantDraft=null;persist()}, { flush: 'sync' })
   function beginConnection() {
     const attempt = ++connectionAttempt
     stopRefresh()
@@ -313,6 +333,8 @@ export const useSession = defineStore('session', () => {
     phoneVerificationMethod,
     authError,
     sessionEpoch,
+    readAssistantDraft,
+    saveAssistantDraft,
     agentTaskIds,
     selectedAgentTask,
     lifestyleGoalIds,

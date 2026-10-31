@@ -15,22 +15,34 @@ import (
 var ErrUnauthenticated = errors.New("invalid credentials")
 
 type Actor struct {
-	AuthVersion int64    `json:"auth_version,omitempty"`
-	TokenID     string   `json:"token_id,omitempty"`
-	AgentType   string   `json:"agent_type,omitempty"`
-	TaskID      string   `json:"task_id,omitempty"`
-	Kind        string   `json:"kind"`
-	Subject     string   `json:"subject"`
-	UserID      string   `json:"user_id"`
-	CozeUserID  string   `json:"coze_user_id,omitempty"`
-	Scopes      []string `json:"scopes"`
+	TaskVersion       int64  `json:"task_version,omitempty"`
+	LeaseFingerprint  string `json:"lease_fingerprint,omitempty"`
+	TaskRequestDigest string `json:"task_request_digest,omitempty"`
+
+	ParentIssuedAt   int64    `json:"-"`
+	BackgroundDigest string   `json:"-"`
+	AuthVersion      int64    `json:"auth_version,omitempty"`
+	TokenID          string   `json:"token_id,omitempty"`
+	AgentType        string   `json:"agent_type,omitempty"`
+	TaskID           string   `json:"task_id,omitempty"`
+	Kind             string   `json:"kind"`
+	Subject          string   `json:"subject"`
+	UserID           string   `json:"user_id"`
+	CozeUserID       string   `json:"coze_user_id,omitempty"`
+	Scopes           []string `json:"scopes"`
 }
 type Claims struct {
-	AuthVersion *int64 `json:"auth_version,omitempty"`
-	TokenUse    string `json:"token_use,omitempty"`
-	AgentType   string `json:"agent_type,omitempty"`
-	TaskID      string `json:"task_id,omitempty"`
-	CozeUserID  string `json:"coze_user_id,omitempty"`
+	TaskVersion       int64  `json:"task_version,omitempty"`
+	LeaseFingerprint  string `json:"lease_fingerprint,omitempty"`
+	TaskRequestDigest string `json:"task_request_digest,omitempty"`
+
+	ParentAuthVersion *int64 `json:"parent_auth_version,omitempty"`
+	ParentIssuedAt    int64  `json:"parent_issued_at,omitempty"`
+	AuthVersion       *int64 `json:"auth_version,omitempty"`
+	TokenUse          string `json:"token_use,omitempty"`
+	AgentType         string `json:"agent_type,omitempty"`
+	TaskID            string `json:"task_id,omitempty"`
+	CozeUserID        string `json:"coze_user_id,omitempty"`
 	jwt.RegisteredClaims
 }
 type Auth struct {
@@ -89,9 +101,27 @@ func (a *Auth) UserContext(ctx context.Context, raw string) (Actor, error) {
 			return Actor{}, ErrUnauthenticated
 		}
 		actor.Kind, actor.AgentType, actor.TaskID = "agent", claims.AgentType, claims.TaskID
+		actor.TaskVersion, actor.LeaseFingerprint, actor.TaskRequestDigest = claims.TaskVersion, claims.LeaseFingerprint, claims.TaskRequestDigest
 		actor.Scopes = []string{"context:read", "banking:read", "billing:read", "subscription:read", "savings:plan:read", "execution:read", "execution:plan", "execution:prepare"}
 	default:
 		return Actor{}, ErrUnauthenticated
+	}
+	if claims.IssuedAt != nil {
+		actor.ParentIssuedAt = claims.IssuedAt.Unix()
+	}
+	if actor.Kind == "agent" && claims.ParentAuthVersion != nil {
+		parent := *claims.ParentAuthVersion
+		a.sessionMu.RLock()
+		session := a.sessionValidator
+		legacy := a.legacyValidator
+		a.sessionMu.RUnlock()
+		check, stop := context.WithTimeout(ctx, 2*time.Second)
+		defer stop()
+		if parent < 0 || parent > 0 && (session == nil || session(check, claims.Subject, parent) != nil) || parent == 0 && (claims.ParentIssuedAt <= 0 || legacy == nil || legacy(check, claims.Subject, claims.ParentIssuedAt) != nil) {
+			return Actor{}, ErrUnauthenticated
+		}
+		actor.AuthVersion = parent
+		actor.ParentIssuedAt = claims.ParentIssuedAt
 	}
 	if actor.Kind == "agent" {
 		a.sessionMu.RLock()
@@ -183,5 +213,19 @@ func (a *Auth) IssueAgent(userID, agentType, taskID string, ttl time.Duration) (
 	}
 	now := time.Now()
 	claims := Claims{TokenUse: "agent", AgentType: agentType, TaskID: taskID, RegisteredClaims: jwt.RegisteredClaims{ID: uuid.NewString(), Issuer: a.issuer, Subject: userID, Audience: jwt.ClaimStrings{a.audience}, IssuedAt: jwt.NewNumericDate(now), NotBefore: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(now.Add(ttl))}}
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(a.secret)
+}
+
+// IssueAgentForActor keeps session revocation effective through delegation.
+func (a *Auth) IssueAgentForActor(actor Actor, role, task string, ttl time.Duration) (string, error) {
+	if actor.Kind != "user" && actor.Kind != "background" && actor.Kind != "agent" {
+		return "", ErrUnauthenticated
+	}
+	if !config.PositiveID(actor.UserID) || !validAgent(role) || task == "" || len(task) > 128 || ttl <= 0 || ttl > 2*time.Minute {
+		return "", ErrUnauthenticated
+	}
+	version := actor.AuthVersion
+	now := time.Now()
+	claims := Claims{TokenUse: "agent", AgentType: role, TaskID: task, ParentAuthVersion: &version, ParentIssuedAt: actor.ParentIssuedAt, TaskVersion: actor.TaskVersion, LeaseFingerprint: actor.LeaseFingerprint, TaskRequestDigest: actor.TaskRequestDigest, RegisteredClaims: jwt.RegisteredClaims{ID: uuid.NewString(), Issuer: a.issuer, Subject: actor.UserID, Audience: jwt.ClaimStrings{a.audience}, IssuedAt: jwt.NewNumericDate(now), NotBefore: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(now.Add(ttl))}}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(a.secret)
 }

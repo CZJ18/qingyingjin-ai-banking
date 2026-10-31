@@ -213,7 +213,7 @@ func TestOfflineMigrationAndCutoverInvariants(t *testing.T) {
 			t.Fatal("failed import changed target baseline or state")
 		}
 	})
-	t.Run("Exact52TableSnapshotAnd17FinancialChecks", func(t *testing.T) {
+	t.Run("Exact55TableSnapshotAnd17FinancialChecks", func(t *testing.T) {
 		var beforeGeneration, afterGeneration int64
 		if e := target.SQL.QueryRowContext(ctx, "SELECT generation FROM banking_storage_control WHERE id=1").Scan(&beforeGeneration); e != nil {
 			t.Fatal(e)
@@ -222,7 +222,7 @@ func TestOfflineMigrationAndCutoverInvariants(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		if !r.Passed || len(r.Source) != 52 || len(r.Target) != 52 || len(r.SourceChecks) != 17 || !sameData(r.Source, r.Target) {
+		if !r.Passed || len(r.Source) != 55 || len(r.Target) != 55 || len(r.SourceChecks) != 17 || !sameData(r.Source, r.Target) {
 			t.Fatal("incomplete reconciliation")
 		}
 		if _, e := Compare(ctx, source.SQL, target.SQL, "mysql", "postgres"); e != nil {

@@ -66,7 +66,7 @@ func budget(tx *gorm.DB, user, id int64) (entity.Budget, error) {
 	return v, e
 }
 func (s *Service) Prepare(ctx context.Context, a identity.Actor, m service.Meta, key string, in PrepareInput) (out View, err error) {
-	if (in.Kind == "card_manage" || in.Kind == "aa_payment" || in.Kind == "recipient_transfer") && a.Kind != "user" {
+	if (in.Kind == "card_manage" || in.Kind == "aa_payment" || in.Kind == "recipient_transfer" || scenarioKind(in.Kind)) && a.Kind != "user" {
 		return out, s.fail(ctx, a, m, "PREPARE", entity.Fail("FORBIDDEN", "this operation requires the human user"))
 	}
 	if a.Kind == "agent" && a.AgentType != "supervisor" && !(a.AgentType == "subscription" && in.Kind == "cancel_subscription") {
@@ -89,6 +89,9 @@ func (s *Service) Prepare(ctx context.Context, a identity.Actor, m service.Meta,
 	return out, s.fail(ctx, a, m, "PREPARE", err)
 }
 func (s *Service) prepareTx(ctx context.Context, tx *gorm.DB, a identity.Actor, m service.Meta, key string, in PrepareInput) (out View, err error) {
+	if err = checkRequiredPolicies(tx); err != nil {
+		return out, err
+	}
 	skill := preparationSkill()
 	if !kindValid(in.Kind) {
 		return out, entity.Fail("INVALID_ARGUMENT", "unsupported operation kind")
@@ -120,6 +123,11 @@ func (s *Service) prepareTx(ctx context.Context, tx *gorm.DB, a identity.Actor, 
 	op := entity.OperationIntent{SkillID: skill.ID, SkillVersion: skill.Version, ID: uuid.NewString(), UserID: m.UserID, Kind: in.Kind, Permission: "EXECUTE", Agent: actorName(a), Payload: in.Parameters, Snapshot: json.RawMessage(`{}`), Result: json.RawMessage(`{}`), Nonce: uuid.NewString(), Status: "pending_authorization", Version: 1, ExpiresAt: time.Now().Add(time.Duration(in.ExpiresInSeconds) * time.Second).UnixMilli(), Currency: "CNY", RiskLevel: "high", TraceID: m.TraceID, TaskID: m.TaskID, IdempotencyKey: key, RequestHash: hash}
 	var typed any
 	switch in.Kind {
+	case "scheduled_transfer", "investment_assessment", "investment_order", "occasion_plan", "occasion_order", "occasion_release":
+		typed, e = prepareScenario(tx, &op, in.Parameters, true)
+		if e != nil {
+			return out, e
+		}
 	case "recipient_transfer":
 		var p recipients.PaymentInput
 		if e := strict(in.Parameters, &p); e != nil {
@@ -166,6 +174,9 @@ func (s *Service) prepareTx(ctx context.Context, tx *gorm.DB, a identity.Actor, 
 		op.SourceAccountID = p.SourceAccountID
 		op.TargetAccountID = p.TargetAccountID
 		op.AmountMinor = p.AmountMinor
+		if e := checkTransferCard(tx, m.UserID, p); e != nil {
+			return out, e
+		}
 		if p.Currency != "" {
 			op.Currency = p.Currency
 		}
@@ -225,6 +236,12 @@ func (s *Service) prepareTx(ctx context.Context, tx *gorm.DB, a identity.Actor, 
 		if e := strict(in.Parameters, &p); e != nil {
 			return out, e
 		}
+		if e := service.ValidateImportSource(p); e != nil {
+			return out, e
+		}
+		if p.Source != nil && p.EffectMode != "record_only" {
+			return out, entity.Fail("INVALID_ARGUMENT", "CSV evidence cannot change funds")
+		}
 		typed = p
 		op.SourceAccountID = p.BankAccountID
 		op.AmountMinor = p.AmountMinor
@@ -234,6 +251,9 @@ func (s *Service) prepareTx(ctx context.Context, tx *gorm.DB, a identity.Actor, 
 		v, e := account(tx, m.UserID, p.BankAccountID)
 		if e != nil {
 			return out, e
+		}
+		if v.AccountType == "investment" || v.AccountType == "occasion" {
+			return out, entity.Fail("FORBIDDEN", "cannot import arbitrary facts into reserved scenario accounts")
 		}
 		op.Snapshot = marshal(v)
 		if strings.TrimSpace(p.ExternalTransactionID) == "" || len(p.ExternalTransactionID) > 128 || strings.TrimSpace(p.Category) == "" || len(p.Category) > 64 || len(p.MerchantName) > 128 || len(p.Description) > 512 || p.OccurredAt <= 0 || p.Direction != "income" && p.Direction != "expense" || p.AmountMinor <= 0 || (p.EffectMode != "record_only" && p.EffectMode != "apply_simulated_effect") {

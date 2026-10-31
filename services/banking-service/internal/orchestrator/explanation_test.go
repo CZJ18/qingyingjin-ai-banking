@@ -6,6 +6,31 @@ import (
 	"testing"
 )
 
+func TestSupervisorCannotExpandBoundBillingPeriod(t *testing.T) {
+	b := Bindings{AccountID: "1", From: "2026-09-30T16:00:00Z", To: "2026-10-31T16:00:00Z"}
+	for _, agent := range []string{"billing", "subscription"} {
+		tool := "generate_billing_report"
+		if agent == "subscription" {
+			tool = "detect_subscriptions"
+		}
+		for _, tc := range []struct {
+			from, to string
+			allowed  bool
+		}{
+			{"2026-10-01T00:00:00+08:00", b.To, true},
+			{"2026-08-31T16:00:00Z", b.To, false},
+			{b.From, "2026-11-30T16:00:00Z", false},
+			{"", b.To, false}, {b.From, "not-a-date", false},
+		} {
+			raw, _ := json.Marshal(map[string]string{"account_id": "1", "from": tc.from, "to": tc.to})
+			err := validateAccountBindings([]TaskSpec{{AgentType: agent, Tool: tool, Parameters: raw}}, b)
+			if (err == nil) != tc.allowed {
+				t.Fatalf("%s period %q/%q: %v", agent, tc.from, tc.to, err)
+			}
+		}
+	}
+}
+
 func TestExplanationRejectsFabricatedMoneyAndExecution(t *testing.T) {
 	evidence := []Evidence{{ID: "actual-report"}}
 	for _, text := range []string{"可以储蓄999元。", "可存九百元。", "预算五成可节省。", "可转账９９元。", "已执行转账。", "Bearer SECRET", "confirmed=true"} {

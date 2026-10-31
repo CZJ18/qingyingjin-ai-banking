@@ -273,7 +273,12 @@ export function createNativeCall(state, fetcher = fetch) {
   }
 }
 
+export function assertBudgetedApply(mode) {
+  if (mode === 'ApplyDirectUnbudgeted') fail('MODEL_GATEWAY_REQUIRED')
+}
+
 export async function main(mode = 'Prepare') {
+  assertBudgetedApply(mode)
   const gatewayMode=['Apply','ApplyGateway','VerifyGateway','PrepareGateway'].includes(mode)
   const envPath = resolve(import.meta.dirname, gatewayMode?'.env.deepseek-gateway.local':'.env.deepseek.local')
   if (mode === 'Prepare'||mode==='PrepareGateway') {
@@ -282,7 +287,7 @@ export async function main(mode = 'Prepare') {
     console.log('DeepSeek private configuration prepared; existing values preserved. No provider or Coze API called.')
     return
   }
-  if (!['Verify','Apply','ApplyGateway','VerifyGateway','ApplyDirectUnbudgeted'].includes(mode)) fail('DEEPSEEK_MODE_INVALID')
+  if (!['Verify','Apply','ApplyGateway','VerifyGateway'].includes(mode)) fail('DEEPSEEK_MODE_INVALID')
   let env
   try { env = parseEnv(await readFile(envPath, 'utf8')) } catch (error) { if (error.message === 'DEEPSEEK_ENV_INVALID') throw error; fail('DEEPSEEK_ENV_MISSING') }
   const config = gatewayMode?buildGatewayConfig(env):buildConfig(env)

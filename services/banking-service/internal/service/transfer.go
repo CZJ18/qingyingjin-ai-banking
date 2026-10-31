@@ -15,6 +15,7 @@ type TransferInput struct {
 	AmountMinor     int64  `json:"amount_minor"`
 	Currency        string `json:"currency,omitempty"`
 	Description     string `json:"description"`
+	CardID          string `json:"card_id,omitempty"`
 }
 type ApprovalInput struct {
 	Decision     string `json:"decision"`
@@ -48,6 +49,7 @@ func (s *Core) createTransfer(ctx context.Context, m Meta, key string, in Transf
 			return zero, err
 		}
 		source, target := accounts[in.SourceAccountID], accounts[in.TargetAccountID]
+		if source.AccountType=="investment"||source.AccountType=="occasion"||target.AccountType=="investment"||target.AccountType=="occasion" {return zero,entity.Fail("FORBIDDEN","reserved scenario assets require their explicitly authorized scenario operation")}
 		if source.Currency != in.Currency || target.Currency != in.Currency {
 			return zero, entity.Fail("INVALID_ARGUMENT", "account currency mismatch")
 		}

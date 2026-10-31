@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
 import {
   Plus,
   Send,
   ReceiptText,
+  CreditCard,
+  Landmark,
+  Gift,
   Repeat2,
   Target,
   ChevronDown,
@@ -26,12 +29,14 @@ import {
   DialogClose,
 } from 'reka-ui'
 import { useSession, useUI } from '@/lib/store'
-import { useAccounts, period, currentMonth } from '@/lib/queries'
+import { useAccounts, period, currentMonth, analysisPeriodLabel } from '@/lib/queries'
 import { useJob } from '@/lib/job'
 import { useAgentJob } from '@/lib/agent-job'
+import { useTaskHistory } from '@/lib/task-history'
 import { agentApi, type AgentResume, type AgentSubmit } from '@/api/agent-client'
-import { sessionVersion } from '@/api/client'
+import { sessionVersion, request } from '@/api/client'
 import { money } from '@/lib/utils'
+import { modelAdmissionState, modelFailureMessage, type ModelAdmission } from '@/lib/model-admission'
 import {
   agentRows,
   agentTrace,
@@ -39,7 +44,9 @@ import {
   taskControls,
   preparationCurrent,
   type TaskRow,
+  type OperationSuggestion,
 } from '@/components/agents/task-view'
+import { operationPreparationKey } from '@/lib/operation-preparation'
 import {
   currentMonthlyGoal, monthlyConfirmationBinding, monthlyDecision, monthlyDialogueResume,
   monthlyGoalError, monthlyGoalSubmission, monthlyResume, type MonthlyConfirmationBinding,
@@ -48,6 +55,10 @@ import Button from '@/components/ui/button/Button.vue'
 import Status from '@/components/Status.vue'
 import TaskDetails from '@/components/assistant/TaskDetails.vue'
 import TaskResult from '@/components/assistant/TaskResult.vue'
+import ModelAdmissionPanel from '@/components/assistant/ModelAdmission.vue'
+const expenseGoalAdvice = ref<{openForm:()=>void}|null>(null)
+import ExpenseGoalAdvice from '@/components/assistant/ExpenseGoalAdvice.vue'
+import ScenarioQueries from '@/components/assistant/ScenarioQueries.vue'
 import PreparationConfirmation from '@/components/agents/PreparationConfirmation.vue'
 import MonthlyPlanConfirmation from '@/components/agents/MonthlyPlanConfirmation.vue'
 import ExecutionDialog from '@/components/ExecutionDialog.vue'
@@ -56,6 +67,37 @@ const s = useSession(),
   ui = useUI(),
   accounts = useAccounts()
 const historyKind = ref<'langgraph' | 'legacy'>('langgraph')
+const admission = ref<ModelAdmission | null>(null)
+const admissionError = ref(''), admissionLoading = ref(false)
+const admissionReason = ref('')
+const admissionState = computed(() => modelAdmissionState(admission.value))
+let admissionGeneration = 0
+async function checkAdmission() {
+  const generation = ++admissionGeneration, epoch = s.sessionEpoch
+  admissionLoading.value = true; admission.value = null; admissionError.value = ''; admissionReason.value = ''
+  try {
+    const snapshot = await request<ModelAdmission>('/api/v1/model-admission', { timeoutMs: 8000 })
+    if (generation !== admissionGeneration || epoch !== s.sessionEpoch || !s.connected) return false
+    const state = modelAdmissionState(snapshot)
+    admission.value = state.snapshot
+    if (!state.available) {
+      admissionError.value = state.reason
+      return false
+    }
+    return true
+  } catch (error) {
+    if (generation === admissionGeneration && epoch === s.sessionEpoch && s.connected) {
+      admissionReason.value = (error as {reason?:string}).reason || ''
+      admissionError.value = modelFailureMessage((error as {code?: string}).code || '', admissionReason.value)
+    }
+    return false
+  } finally { if (generation === admissionGeneration) admissionLoading.value = false }
+}
+watch(() => [s.connected, s.sessionEpoch], () => {
+  admissionGeneration++; admission.value = null; admissionError.value = ''; admissionReason.value = ''; admissionLoading.value = false
+  if (s.connected) void checkAdmission()
+}, { immediate: true })
+onUnmounted(() => { admissionGeneration++ })
 const legacy = useJob(),
   agent = useAgentJob(
     () => s.selectedAgentTask,
@@ -64,7 +106,8 @@ const legacy = useJob(),
 const selectedId = computed(() =>
   historyKind.value === 'langgraph' ? s.selectedAgentTask : s.selectedJob,
 )
-const historyIds = computed(() => (historyKind.value === 'langgraph' ? s.agentTaskIds : s.jobIds))
+const historyIds = computed(() => historyKind.value === 'langgraph'
+  ? [...new Set([...history.items.value.map((t) => t.task_id), ...s.agentTaskIds])] : s.jobIds)
 const currentTask = computed(() =>
   historyKind.value === 'langgraph' ? agent.task.data.value : undefined,
 )
@@ -114,13 +157,44 @@ const input = ref(''),
   inspectorOpen = ref(true),
   mobileDetails = ref(false)
 const inputMode = ref<'monthly' | 'general'>('monthly')
+const analysisMonth = ref(currentMonth())
+let restoringConversation=false
+watch(()=>[s.connected,s.user?.id,s.accountId,s.sessionEpoch].join(':'),()=>{
+ restoringConversation=true
+ const draft=s.readAssistantDraft()?.conversation
+ // Confirmation replies are deliberately never restored against a challenge.
+ input.value=draft&&!monthlyDecision(draft.input)?draft.input:''
+ inputMode.value=draft?.mode||'monthly'
+ analysisMonth.value=draft?.analysisMonth||currentMonth()
+ restoringConversation=false
+},{immediate:true,flush:'sync'})
+watch([input,inputMode,analysisMonth],()=>{
+ if(!restoringConversation)s.saveAssistantDraft({conversation:{input:monthlyDecision(input.value)?'':input.value,mode:inputMode.value,analysisMonth:analysisMonth.value}})
+},{flush:'sync'})
+const displayedScope = computed(() => {
+  const persisted = currentTask.value?.request
+  if (persisted?.monthly_goal)
+    return { label: '任务目标月份', value: persisted.monthly_goal.period }
+  if (persisted || selectedId.value)
+    return { label: '任务分析区间', value: analysisPeriodLabel(persisted?.bindings) }
+  return inputMode.value === 'monthly'
+    ? { label: '目标月份', value: currentMonthlyGoal().period }
+    : { label: '分析区间', value: analysisMonth.value || '请选择月份' }
+})
 const replyBinding = ref<MonthlyConfirmationBinding | null>(null)
 const instructions = ref<Record<string, string>>({}),
   taskInput = ref<HTMLTextAreaElement>()
 const executionDialog = ref<InstanceType<typeof ExecutionDialog>>()
 const pendingSubmission = ref<{ serialized: string; key: string }>()
+const history = useTaskHistory(() => historyKind.value === 'langgraph')
+watch(historyOpen, value => { if (value && historyKind.value === 'langgraph') void history.refetch() })
+const historyById = computed(() => new Map(history.items.value.map((t) => [t.task_id, t])))
 const shortcuts = [
-  { title: '分析我的近期账单', instruction: '分析我的近期账单。', icon: ReceiptText },
+  { title: '分析我的近期账单', instruction: '分析当前所选账户的近期账单，列明依据和数据局限。', icon: ReceiptText },
+  { title: '了解转账与收款人范围', instruction: '查看当前所选账户的转账准备信息、已保存收款人引用及限制；不选择收款人，不创建转账意向。', icon: ArrowRight },
+  { title: '比较模拟理财产品', instruction: '查询当前所选账户可查看的模拟理财产品与风险范围；不替我填写风险问卷，不申购或赎回。', icon: Landmark },
+  { title: '查看卡片与交易限额', instruction: '查询当前所选账户的卡片状态和交易限额；不修改额度、锁卡或挂失。', icon: CreditCard },
+  { title: '查看已登记的生日安排', instruction: '查询我明确登记的临近生日及安排限制，不推断关系，不预留资金或订购。', icon: Gift },
   {
     title: '检查我的订阅支出',
     instruction: '检查我的订阅支出，找出可能重复的代扣。',
@@ -151,8 +225,21 @@ const failed = computed(
   () => job.data.value?.job.status === 'failed' || tasks.value.some((t) => t.status === 'failed'),
 )
 const resultTasks = computed(() => tasks.value.filter((t) => Object.keys(t.output).length))
+async function prepareSuggestion(task: TaskRow, value: OperationSuggestion) {
+  const id = task.task_id, epoch = sessionVersion(), owner = s.user?.id
+  if (!id || !s.connected) return
+  try {
+    const key = await operationPreparationKey(id, value)
+    if (epoch !== sessionVersion() || owner !== s.user?.id || !s.connected || !resultTasks.value.some(item => item.task_id === id)) return
+    await executionDialog.value?.prepare(value.kind, value.parameters, value.expires_in_seconds, key)
+  } catch (error) {
+    if (epoch === sessionVersion() && owner === s.user?.id && s.connected) ui.notify((error as Error).message)
+  }
+}
 const stepNames = roleNames
-const controls = computed(() => taskControls(currentTask.value?.status || ''))
+const controls = computed(() => taskControls(currentTask.value?.status || '', currentTask.value?.error_code || ''))
+const canSend = computed(() => admissionState.value.available ||
+  inputMode.value === 'monthly' && monthlyConfirmation.value && !!monthlyDecision(input.value))
 const stage = computed(
   () =>
     ({
@@ -197,9 +284,14 @@ function editMonthlyGoal() {
   input.value = goal
 }
 function selectHistory(id: string) {
-  if (historyKind.value === 'langgraph') s.selectedAgentTask = id
+  if (historyKind.value === 'langgraph') s.saveAgentTask(id)
   else s.selectedJob = id
   historyOpen.value = false
+}
+function selectQuery(id:string){
+  historyKind.value='langgraph'
+  s.saveAgentTask(id)
+  inputMode.value='general'
 }
 function retryTask() {
   void job.refetch()
@@ -307,8 +399,12 @@ async function submit() {
   busy.value = true
   error.value = ''
   try {
-    const p = period(currentMonth()),
-      bindings = {
+    const p = inputMode.value === 'general' ? period(analysisMonth.value) : null
+    if (!(await checkAdmission()) || ownEpoch !== sessionVersion()) {
+      if (ownEpoch === sessionVersion()) error.value = admissionError.value || admissionState.value.reason
+      return
+    }
+    const bindings = {
         ...(s.accountId ? { account_id: s.accountId } : {}),
         ...(s.planId ? { financial_plan_id: s.planId } : {}),
         ...(s.lifestyleGoalId ? { lifestyle_goal_id: s.lifestyleGoalId } : {}),
@@ -319,9 +415,10 @@ async function submit() {
       ? monthlyGoalSubmission(input.value, bindings)
       : {
         instruction: input.value.trim(),
+        max_attempts: 1,
         bindings: {
-          from: p.from,
-          to: p.to,
+          from: p!.from,
+          to: p!.to,
           ...bindings,
         },
         timeout_ms: 180000,
@@ -337,7 +434,7 @@ async function submit() {
     s.saveAgentTask(result.task_id)
     input.value = ''
     pendingSubmission.value = undefined
-    ui.notify(body.monthly_goal ? '本月目标已提交，AI 将根据账户数据提出建议，等待你最终确认' : '任务已提交，专业 Agent 正在查询真实银行数据')
+    ui.notify(body.monthly_goal ? '本月目标已提交，方案需由你最终确认' : '任务已持久化，正在请求专业分析；请以服务端任务状态为准')
     await agent.run(result.version)
   } catch (e) {
     if (ownEpoch === sessionVersion() && (!submittedId || submittedId === selectedId.value))
@@ -349,10 +446,14 @@ async function submit() {
 </script>
 <template>
   <div class="page assistant-page">
+  <ModelAdmissionPanel v-if="s.connected" :snapshot="admission" :loading="admissionLoading" :error="admissionError" :reason="admissionReason" :completed-task="currentTask" @refresh="checkAdmission" @goal="expenseGoalAdvice?.openForm()" />
+  <ScenarioQueries v-if="s.connected" @selected="selectQuery" />
+  <ExpenseGoalAdvice v-if="s.connected" ref="expenseGoalAdvice" />
+
     <div class="workbench-heading">
       <div>
         <h1>智能金融任务工作台</h1>
-        <p>账单、订阅与目标金，围绕你的账户开展任务。</p>
+        <p>账单、转账、理财、卡片、订阅和生日计划，围绕所选账户提供分析与操作建议。</p>
       </div>
       <Button variant="outline" :disabled="busy" @click="newTask"><Plus :size="16" />新任务</Button>
     </div>
@@ -363,12 +464,12 @@ async function submit() {
         aria-controls="task-history"
         @click="historyOpen = !historyOpen"
       >
-        <History :size="16" />任务历史<span>{{ historyIds.length }}</span
+        <History :size="16" />任务历史<span>{{ historyKind === 'langgraph' ? (history.total.value ?? '…') : historyIds.length }}</span
         ><ChevronDown :size="14" :class="{ rotated: historyOpen }" /></button
       ><span v-if="account" class="workbench-account"
         >{{ account.display_name }}<b>{{ money(account.balance_minor) }}</b></span
       ><span v-else class="workbench-account">{{
-        s.connected ? '已登录 · 可提交金融任务' : '登录后开始金融任务'
+        s.connected ? '已登录 · 请先选择账户' : '登录后开始金融任务'
       }}</span>
     </div>
     <div v-if="historyOpen" id="task-history" class="workbench-history">
@@ -379,7 +480,11 @@ async function submit() {
           历史任务
         </button>
       </div>
-      <p v-if="!historyIds.length">
+      <p v-if="historyKind === 'langgraph' && history.isLoading.value">正在查询服务器任务历史…</p>
+      <p v-if="historyKind === 'langgraph' && history.error.value" class="form-error" role="alert">
+        {{ history.error.value.message }} <Button variant="outline" @click="history.refetch()">重试任务历史</Button>
+      </p>
+      <p v-if="!historyIds.length && !history.isLoading.value && !history.error.value">
         当前账户暂无任务记录。仅保存任务编号，业务结果从服务端重新查询。
       </p>
       <button
@@ -389,13 +494,15 @@ async function submit() {
         @click="selectHistory(id)"
       >
         <History :size="15" /><span
-          >{{ instructions[id] || '金融协同任务' }}<small>{{ id }}</small></span
-        ><ArrowRight :size="15" />
+          >{{ historyById.get(id)?.display_title || historyById.get(id)?.instruction || instructions[id] || '金融协同任务' }}<small>{{ id }}</small></span
+        ><Status v-if="historyKind === 'langgraph' && historyById.has(id)" :value="historyById.get(id)!.status" /><ArrowRight :size="15" />
       </button>
+      <Button v-if="historyKind === 'langgraph' && history.hasNextPage.value" variant="outline"
+        :disabled="history.isFetchingNextPage.value" @click="history.fetchNextPage()">加载更多任务</Button>
     </div>
     <div class="p6-task-bindings">
       <span
-        >{{ inputMode === 'monthly' ? '目标月份' : '分析区间' }} <b>{{ inputMode === 'monthly' ? currentMonthlyGoal().period : currentMonth() }}</b></span
+        >{{ displayedScope.label }} <b>{{ displayedScope.value }}</b></span
       ><span
         >生活目标 <b>{{ s.lifestyleGoalId ? '已关联' : '待选择' }}</b></span
       ><span
@@ -417,6 +524,7 @@ async function submit() {
                 ><ArrowRight :size="15" />
               </button>
             </div>
+            <p class="task-capability-note">卡片、转账、理财与生日业务目前为模拟。查询不产生金融执行；操作前仍须本人核对并独立授权。生日只读取你明确登记的日期，不读取联系人或推断关系。</p>
             <div class="task-guidance">
               <h3>任务如何执行</h3>
               <ol>
@@ -490,6 +598,7 @@ async function submit() {
                 :epoch="s.sessionEpoch"
                 @confirm="confirm"
                 @edit="editMonthlyGoal"
+                @goal="expenseGoalAdvice?.openForm()"
               />
               <PreparationConfirmation
                 v-else-if="confirmation"
@@ -511,14 +620,14 @@ async function submit() {
                 >
               </div>
               <p v-if="currentTask?.status === 'interrupted'" class="p6-outcome-note">
-                任务已中断；可查询状态或恢复任务。已完成结果会由服务端检查点保留。
+                {{ controls.run ? '任务已中断；可查询状态或恢复任务。已完成结果会由服务端检查点保留。' : '上次调用结果尚未确认，请先核查原请求，不要重复发起。' }}
               </p>
               <p v-if="currentTask?.error_code" class="form-error" role="alert">
-                {{ currentTask.error_code }}
+                {{ modelFailureMessage(currentTask.error_code) }}
               </p>
               <div v-if="failed" class="task-feedback error-feedback" role="alert">
                 <h3>任务未完成</h3>
-                <p>请核对服务端返回的错误和执行事件，再决定是否恢复任务。</p>
+                <p>{{ controls.run ? '请先检查模型服务和当前审批，再核对任务状态。' : '请保留已有任务与费用状态，先核查原请求结果。' }}</p>
                 <button class="details-toggle mobile-details" @click="mobileDetails = true">
                   查看失败详情
                 </button>
@@ -576,16 +685,23 @@ async function submit() {
                   :key="t.task_id"
                   :task="t"
                   @inspect="executionDialog?.inspect($event)"
+                  @prepare="prepareSuggestion(t, $event)"
+                  @goal="expenseGoalAdvice?.openForm()"
                 />
               </div>
             </template>
           </div>
         </div>
         <form class="workbench-composer composer" @submit.prevent="submit">
+          <p class="small-muted">本次会话的临时草稿可在页面间返回；刷新、退出或切换账户会清除，不会自动提交。</p>
           <div class="composer-modes" role="group" aria-label="任务类型">
             <button type="button" :aria-pressed="inputMode === 'monthly'" :disabled="busy" @click="inputMode = 'monthly'">本月目标</button>
             <button type="button" :aria-pressed="inputMode === 'general'" :disabled="busy" @click="inputMode = 'general'">一般任务</button>
           </div>
+          <label v-if="inputMode === 'general'" class="analysis-month-field">
+            新任务分析月份（北京时间）
+            <input v-model="analysisMonth" type="month" aria-label="新任务分析月份" :disabled="busy" required />
+          </label>
           <label for="task-input">{{ inputMode === 'monthly' ? monthlyConfirmation ? '回复方案，或输入新的本月目标' : '描述你的本月目标' : selectedId ? '发起新的金融任务' : '描述你的金融需求' }}</label
           ><textarea
             id="task-input"
@@ -604,7 +720,7 @@ async function submit() {
               ><ShieldCheck :size="14" />金融操作需单独授权<span class="keyboard-hint">
                 · Ctrl / ⌘ + Enter</span
               ></span
-            ><Button type="submit" :disabled="busy || !input.trim()"
+            ><Button type="submit" :disabled="busy || admissionLoading || !input.trim() || !canSend"
               ><Send :size="15" />{{ busy ? '提交中' : '发送' }}</Button
             >
           </div>
@@ -651,6 +767,8 @@ async function submit() {
 .composer-modes button { border: 1px solid #dbe4ea; border-radius: 7px; background: #fff; color: #475569; padding: 7px 14px; cursor: pointer; font-size: 14px; }
 .composer-modes button[aria-pressed="true"] { background: #e6f4ee; border-color: #8abca6; color: #116449; }
 .composer-modes button:disabled { opacity: .55; cursor: default; }
+.analysis-month-field { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; color: #475569; }
+.analysis-month-field input { border: 1px solid #dbe4ea; border-radius: 6px; padding: 5px 8px; background: #fff; color: #172033; }
 .assistant-page {
   padding: 24px 28px !important;
   max-width: 1600px;

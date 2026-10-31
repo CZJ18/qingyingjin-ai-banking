@@ -92,21 +92,48 @@ func TestLifestyleMySQLAPI(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	t.Run("expense preview does not turn record-only observations into savings", func(t *testing.T) {
+		loc, e := time.LoadLocation("Asia/Shanghai")
+		if e != nil {
+			t.Fatal(e)
+		}
+		now := time.Now().In(loc)
+		next := time.Date(now.Year(), now.Month()+1, 1, 0, 0, 0, 0, loc).Format("2006-01")
+		r := h.call(t, "POST", "/api/v2/lifestyle-goals/expense-reduction-preview", "", lifestyle.ExpensePreviewInput{
+			BillingReportID: report.ID, TargetPeriod: next, TargetMinor: 50000, AdjustableCategories: []string{"shopping"}}, 200)
+		var preview lifestyle.ExpensePreview
+		if e := json.Unmarshal(r.Data, &preview); e != nil {
+			t.Fatal(e)
+		}
+		if preview.Result.Status != "needs_information" || len(preview.Result.Options) != 0 ||
+			preview.HistoricalExpenseMinor != 130000 || len(preview.EvidenceTransactionIDs) != 2 || preview.Result.FinancialExecutionEnabled {
+			t.Fatal(string(r.Data))
+		}
+	})
 	compile := lifestyle.CompileInput{ExpectedVersion: 1, BudgetID: budget.ID, BillingReportID: report.ID}
 	compileKey := uuid.NewString()
 	r = h.call(t, "POST", path+"/compile", compileKey, compile, 201)
 	var plan lifestyle.PlanView
 	json.Unmarshal(r.Data, &plan)
-	t.Run("protected meals and multi goal conflict", func(t *testing.T) {
+	t.Run("unverified record-only coverage produces no forecast", func(t *testing.T) {
 		var result lifestyle.Result
-		json.Unmarshal(plan.Plan.ResultJSON, &result)
-		if result.Status != "conflict" || result.ReductionGapMinor != 40000 || len(plan.Recommendations) != 3 {
+		if e := json.Unmarshal(plan.Plan.ResultJSON, &result); e != nil {
+			t.Fatal(e)
+		}
+		var snapshot lifestyle.Snapshot
+		if e := json.Unmarshal(plan.Plan.SnapshotJSON, &snapshot); e != nil {
+			t.Fatal(e)
+		}
+		if result.Status != "needs_information" || len(result.Options) != 0 || len(plan.Recommendations) != 0 ||
+			result.ReductionGapMinor != 0 || result.FinancialExecutionEnabled || snapshot.CompleteMonth {
 			t.Fatal(string(r.Data))
 		}
-		for _, opt := range result.Options {
-			if opt.Categories[0].ProposedMinor != 80000 || opt.SavingsMonthlyMinor != 0 {
-				t.Fatal(opt)
-			}
+		foundMissingCoverage := false
+		for _, missing := range result.MissingInformation {
+			foundMissingCoverage = foundMissingCoverage || missing == "complete_historical_month_billing_report"
+		}
+		if !foundMissingCoverage || len(snapshot.EvidenceTransactionIDs) != 2 || len(snapshot.Categories) != 2 || snapshot.Categories[0].ObservedMinor != 70000 {
+			t.Fatalf("missing coverage warning or recorded observations: %+v %+v", result, snapshot)
 		}
 	})
 	t.Run("idempotent compilation", func(t *testing.T) {
@@ -135,7 +162,31 @@ func TestLifestyleMySQLAPI(t *testing.T) {
 	t.Run("unconfigured model returns truthful error", func(t *testing.T) {
 		h.call(t, "POST", "/api/v2/lifestyle-goals/parse", "", lifestyle.ParseInput{Text: "我要健康生活"}, 503)
 	})
-	rec := plan.Recommendations[2]
+	// These zero-amount records exercise the retained recommendation lifecycle
+	// independently from the compiler's needs_information result. They assert no
+	// verified coverage, savings estimate, or financial execution authority.
+	seedSyntheticLifecycleRecommendations := func(p lifestyle.Plan) []lifestyle.Recommendation {
+		t.Helper()
+		recommendations := []lifestyle.Recommendation{}
+		for _, name := range []string{"conservative", "balanced", "active"} {
+			option, e := json.Marshal(lifestyle.Option{Name: name, Categories: []lifestyle.Allocation{},
+				Explanation: "Synthetic lifecycle fixture only; no savings estimate or statement coverage claim."})
+			if e != nil {
+				t.Fatal(e)
+			}
+			rec := lifestyle.Recommendation{Base: entity.Base{UserID: h.uid}, GoalID: p.GoalID, PlanID: p.ID,
+				Type: "lifestyle_budget_" + name, ImpactPeriod: "synthetic_lifecycle_fixture", Confidence: "synthetic_lifecycle_fixture",
+				Explanation: "Synthetic lifecycle fixture only; no savings estimate or statement coverage claim.",
+				Status:      "pending", Version: 1, ExpiresAt: p.ExpiresAt, RuleVersion: "lifestyle-2", OptionJSON: option}
+			if e := h.conn.DB.Create(&rec).Error; e != nil {
+				t.Fatal(e)
+			}
+			recommendations = append(recommendations, rec)
+		}
+		return recommendations
+	}
+	syntheticRecommendations := seedSyntheticLifecycleRecommendations(plan.Plan)
+	rec := syntheticRecommendations[2]
 	decision := lifestyle.DecisionInput{ExpectedVersion: rec.Version, Decision: "accept", PlanDigest: plan.Plan.InputDigest}
 	dp := fmt.Sprintf("/api/v2/recommendations/%d/decisions", rec.ID)
 	t.Run("agent cannot confirm user preferences", func(t *testing.T) {
@@ -184,8 +235,12 @@ func TestLifestyleMySQLAPI(t *testing.T) {
 			t.Fatal("advisory compile replay", e)
 		}
 		var view lifestyle.PlanView
-		if e = json.Unmarshal(first.Result, &view); e != nil || len(view.Recommendations) != 3 {
+		if e = json.Unmarshal(first.Result, &view); e != nil || len(view.Recommendations) != 0 {
 			t.Fatal(e, view)
+		}
+		var result lifestyle.Result
+		if e = json.Unmarshal(view.Plan.ResultJSON, &result); e != nil || result.Status != "needs_information" || len(result.Options) != 0 {
+			t.Fatal(e, result)
 		}
 		call.AgentType = "billing"
 		if _, e = executor.Run(ctx, call); e == nil {
@@ -248,8 +303,9 @@ func TestLifestyleMySQLAPI(t *testing.T) {
 		r := h.call(t, "POST", path+"/compile", uuid.NewString(), compile, 201)
 		var newer lifestyle.PlanView
 		json.Unmarshal(r.Data, &newer)
+		synthetic := seedSyntheticLifecycleRecommendations(newer.Plan)
 		h.conn.DB.Model(&entity.BudgetCategory{}).Where("user_id=? AND budget_id=? AND category='shopping'", h.uid, budget.ID).Update("allocated_minor", 119999)
-		p := fmt.Sprintf("/api/v2/recommendations/%d/decisions", newer.Recommendations[0].ID)
+		p := fmt.Sprintf("/api/v2/recommendations/%d/decisions", synthetic[0].ID)
 		h.call(t, "POST", p, uuid.NewString(), lifestyle.DecisionInput{ExpectedVersion: 1, Decision: "accept", PlanDigest: newer.Plan.InputDigest}, 409)
 	})
 	t.Run("optimistic concurrent goal update", func(t *testing.T) {
@@ -309,12 +365,13 @@ func TestLifestyleMySQLAPI(t *testing.T) {
 		r := h.call(t, "POST", path+"/compile", uuid.NewString(), freshInput, 201)
 		var p lifestyle.PlanView
 		json.Unmarshal(r.Data, &p)
-		expired := p.Recommendations[0]
+		synthetic := seedSyntheticLifecycleRecommendations(p.Plan)
+		expired := synthetic[0]
 		if e := h.conn.DB.Model(&lifestyle.Recommendation{}).Where("id=?", expired.ID).Update("expires_at", time.Now().Add(-time.Minute).UnixMilli()).Error; e != nil {
 			t.Fatal(e)
 		}
 		h.call(t, "POST", fmt.Sprintf("/api/v2/recommendations/%d/decisions", expired.ID), uuid.NewString(), lifestyle.DecisionInput{ExpectedVersion: 1, Decision: "accept", PlanDigest: p.Plan.InputDigest}, 409)
-		rejected := p.Recommendations[1]
+		rejected := synthetic[1]
 		h.call(t, "POST", fmt.Sprintf("/api/v2/recommendations/%d/decisions", rejected.ID), uuid.NewString(), lifestyle.DecisionInput{ExpectedVersion: 1, Decision: "reject", PlanDigest: p.Plan.InputDigest}, 200)
 	})
 	// Non-secret isolated fixture IDs for subsequent real Docker/restart checks.

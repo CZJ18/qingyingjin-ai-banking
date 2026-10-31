@@ -1,6 +1,22 @@
 # 轻融金 Banking Agent Service：P4 产品 API 与 P5 LangGraph
 
+2026-10-20：新增 migration003 和默认关闭的持久后台调度器。隔离库已执行新调度范围 114 项测试，实际 Python 重启后恢复租约并通过真实 Go 只读工具持久化结果；未知工具结果不会自动重放。以下 P4/P5 记录保留各阶段范围，当前费用桥接、后台 Worker 和完整模型链路限制见[本轮验收](../../docs/ai-closure-20261020.md)。
+
 当前版本为 0.5.0。P5 增加五角色 LangGraph、Skill 绑定、PostgreSQL 检查点、用户准备确认、journal 与重启恢复，详细设计与接口见 [P5.md](P5.md)。账户与账本继续使用 Go/MySQL；P5 不取得资金执行权限。P5 本轮模型验收状态及实际测试日志见 `output/p5/`，历史 P4 验收不代替 P5 验收。
+
+## 2026-10-19：持久化后台调度
+
+新增增量迁移 `003_background_scheduler.sql`，保留 001/002 历史与 checksum。迁移完成后，显式设置 `BANKING_AGENT_BACKGROUND_WORKER=true`、独立 `BANKING_AGENT_SERVICE_KEY`；可选 `BANKING_AGENT_BACKGROUND_POLL_SECONDS` 为 0.05–60 秒，默认 1 秒。FastAPI lifespan 启停真实队列 Worker，`/readyz` 的 `background_worker` 显示 ready/disabled/unavailable；默认关闭时仍可使用原 `/run`。旧业务库和现有容器不会由源码变更自动迁移或替换。
+
+提交任务后，Python 使用当前认证用户向固定 Go `/api/v1/langgraph/background-delegations` 申请任务与请求摘要绑定、最长 24 小时的加密 `bgt1` capability。只在独立租户 RLS 表 `agent_background_credentials` 持久化该密文；用户 bearer 不落库，capability 不进入任务、检查点、事件、结果或日志。Worker 只能携服务密钥向固定 Go `/langgraph/delegations` 兑换原有短时节点 READ/PLAN/PREPARE 权限；不能执行金融授权或资金操作。Go 每次兑换重新核对用户 active、撤销版本及任务范围。等待本人确认时停止调度，`/resume` 先用当前认证用户续发受限 delegation，再持久化绑定决定并排队。
+
+数据库固定无参数扫描函数只返回最多 32 条队列 owner/task 元数据。函数所有者是无登录、无 BYPASSRLS 的 `banking_agent_scheduler`，只授予必要元数据列读取权；不能读取请求、结果、检查点和 capability。运行角色不得成为其成员，所有租户表继续 ENABLE/FORCE RLS。实际执行、领取、续租、journal 及检查点操作始终使用原 owner 事务上下文。
+
+内部 `POST /internal/model-task-context` 仅接受独立 `X-Banking-Agent-Key`，以常量时间比较密钥。服务端在 owner RLS 事务内核对根任务仍 running、租约未过期、对应节点 journal 仍 running，才返回 owner/task、请求摘要、任务版本及租约 SHA256 指纹；不返回原租约、capability 或任务内容。模型网关应在每次签发和使用调用权限时请求该固定内部 origin，绑定版本和租约指纹，以便取消、租约失效或重新领取后拒绝旧权限。该接口不授予金融执行或用户身份能力。
+
+领取使用事务行锁，每次运行拥有不可复用租约，默认 30 秒并每 10 秒续租；旧租约不能提交结果。已过期且没有未完成调用的任务可自动恢复。任何 `running/unknown` 调用均转为 `interrupted/TOOL_OUTCOME_UNKNOWN`，保留审计等待核验，不自动重发。模型 supervisor 与 `use_coze` 调用也不因传输异常盲目重试。仅已知失败且可幂等重放的只读/准备调用、明确 `BANKING_UNAVAILABLE/DEPENDENCY_UNAVAILABLE` 才在同一完成事务内安排 2/4 秒退避；每个连续执行阶段最多 3 次后台领取，正常本人确认开始新的阶段。永久错误、未知模型结果、超时及已撤权不会自动重试。capability 到期明确失败并要求新的认证请求。
+
+新隔离 PostgreSQL 的调度、租约、并发领取、有限重试与检查点测试证据见 `output/ai-closure-20261019/agent-checks-*.json` 及对应日志。确定性工具 fixture 不代表真实付费模型验收；完整进程、浏览器、供应商费用与现有部署状态须以本轮交付报告的实际证据为准。
 
 ## 2026-10-18：本月目标建议与本人最终确认
 

@@ -12,6 +12,30 @@ import (
 	"testing"
 )
 
+func TestLifestyleNarrationMustRetainSafetyConclusion(t *testing.T) {
+	for _, required := range []string{"plan.missing_information", "plan.conflict"} {
+		t.Run(required, func(t *testing.T) {
+			findings := []groundedFinding{
+				{ID: "goal.reduction_target", Text: "这是用户的目标，不代表已经实现。", EvidenceIDs: []string{"7"}},
+				{ID: required, Text: "当前证据不能证明目标可行。", EvidenceIDs: []string{"7"}},
+			}
+			out := AgentOutput{Evidence: []Evidence{{Type: "plan", ID: "7"}}}
+			if e := renderLifestyleFindings([]string{"goal.reduction_target"}, findings, &out); entity.Code(e) != "MODEL_OUTPUT_INVALID" {
+				t.Fatalf("model hid mandatory %s: %+v %v", required, out, e)
+			}
+			if out.Explanation != "" || len(out.ExplanationFindingIDs) != 0 {
+				t.Fatal("rejected explanation must not become a successful narration")
+			}
+			if e := renderLifestyleFindings([]string{"goal.reduction_target", required}, findings, &out); e != nil {
+				t.Fatal(e)
+			}
+			if !strings.Contains(out.Explanation, "不能证明目标可行") || out.FinancialExecutionEnabled {
+				t.Fatal("warning disappeared or narration granted execution", out)
+			}
+		})
+	}
+}
+
 func TestLifestyleConclusionsAreDerivedFromActualVerifiedPlan(t *testing.T) {
 	snap := lifestyle.Snapshot{Goal: lifestyle.Spec{SchemaVersion: "2.0", Currency: "CNY", PeriodMonths: 3, ExpenseReductionMonthlyMinor: 100000, AdjustableCategories: []string{"shopping"}, ProtectedCategories: []string{}, ProhibitedOperations: []string{}}, BudgetMinor: 200000, CompleteMonth: true, Categories: []lifestyle.Category{{Name: "dining", AllocatedMinor: 80000, EssentialReserveMinor: 80000, ObservedMinor: 70000}, {Name: "shopping", AllocatedMinor: 120000, ObservedMinor: 60000}}, EvidenceTransactionIDs: []string{"actual-tx"}}
 	result, e := lifestyle.Calculate(snap)
@@ -26,6 +50,16 @@ func TestLifestyleConclusionsAreDerivedFromActualVerifiedPlan(t *testing.T) {
 	findings, e := lifestyleFindings(c, &out)
 	if e != nil {
 		t.Fatal(e)
+	}
+	byID := map[string]groundedFinding{}
+	for _, f := range findings {
+		byID[f.ID] = f
+	}
+	if !strings.Contains(byID["goal.reduction_target"].Text, "1000.00元") ||
+		!strings.Contains(byID["plan.action.balanced.1"].Text, "购物") ||
+		!strings.Contains(byID["plan.action.balanced.1"].Text, "450.00元") ||
+		!strings.Contains(byID["plan.action.balanced.1"].Text, "150.00元") {
+		t.Fatalf("goal/action facts must come from the actual calculated plan: %+v", byID)
 	}
 	if e = renderLifestyleFindings([]string{"plan.conflict", "plan.necessary_expenses", "plan.historical_evidence"}, findings, &out); e != nil {
 		t.Fatal(e)

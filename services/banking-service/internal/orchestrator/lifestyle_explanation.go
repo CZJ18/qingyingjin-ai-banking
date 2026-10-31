@@ -3,6 +3,8 @@ package orchestrator
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"github.com/qingyingjin/banking-service/internal/billing"
 	"github.com/qingyingjin/banking-service/internal/coze"
 	"github.com/qingyingjin/banking-service/internal/entity"
 	"github.com/qingyingjin/banking-service/internal/lifestyle"
@@ -37,6 +39,29 @@ func lifestyleFindings(c Call, out *AgentOutput) ([]groundedFinding, error) {
 		return nil, invalidOutput()
 	}
 	ids := []string{stringID(v.Plan.ID)}
+	yuan := func(n int64) string { return fmt.Sprintf("%d.%02d元", n/100, n%100) }
+	if snap.Goal.ExpenseReductionMonthlyMinor > 0 {
+		add("goal.reduction_target", "你的目标是每月少花"+yuan(snap.Goal.ExpenseReductionMonthlyMinor)+"；这是减少支出目标，不等同于已经存下这笔钱。", ids)
+	}
+	if snap.Goal.SavingsMonthlyMinor > 0 {
+		add("goal.savings_target", "你的每月储蓄目标为"+yuan(snap.Goal.SavingsMonthlyMinor)+"，实际可安排金额仍由必要生活预留和安全资金约束决定。", ids)
+	}
+	categoryNames := map[string]string{"shopping": "购物", "subscriptions": "订阅", "sports": "运动", "other": "其他非必要开支"}
+	optionNames := map[string]string{"conservative": "保守方案", "balanced": "平衡方案", "active": "积极方案"}
+	for _, option := range result.Options {
+		name, known := optionNames[option.Name]
+		if !known {
+			continue
+		}
+		for i, allocation := range option.Categories {
+			category, ok := billing.CanonicalCategory(allocation.Category)
+			label := categoryNames[category]
+			if !ok || label == "" || allocation.Protected || allocation.ProposedMinor < 0 || allocation.HistoricalMinor <= allocation.ProposedMinor {
+				continue
+			}
+			add(fmt.Sprintf("plan.action.%s.%d", option.Name, i), name+"："+label+"的历史月支出为"+yuan(allocation.HistoricalMinor)+"，参考上限为"+yuan(allocation.ProposedMinor)+"，预计少花"+yuan(allocation.HistoricalMinor-allocation.ProposedMinor)+"。每周核对实际消费；必要支出增加时重新规划，不自动取消订阅或执行资金操作。", ids)
+		}
+	}
 	if len(result.Options) == 3 {
 		add("plan.options", "已生成保守、平衡和积极三种生活消费方案，供用户比较确认。", ids)
 	}
@@ -99,6 +124,13 @@ func renderLifestyleFindings(selected []string, findings []groundedFinding, out 
 				used[ev] = true
 				ids = append(ids, ev)
 			}
+		}
+	}
+	// The Coze path must retain the same mandatory caveats as the direct
+	// adapter. Selecting only an appealing target/action may hide a known gap.
+	for _, required := range []string{"plan.missing_information", "plan.conflict"} {
+		if _, exists := allowed[required]; exists && !seen[required] {
+			return entity.Fail("MODEL_OUTPUT_INVALID", "model omitted a mandatory planning limitation")
 		}
 	}
 	out.Explanation = strings.Join(text, "")

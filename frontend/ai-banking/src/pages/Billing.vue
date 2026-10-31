@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { billingFindingText } from '@/lib/business-copy'
+import { categoryLabel, canonicalCategory, transactionKindLabel } from '@/lib/categories'
 import { ref, computed, watch, nextTick } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
+import { useRoute, useRouter } from 'vue-router'
 import { Search, ChevronLeft, ChevronRight, ArrowUpRight, AlertTriangle, X } from 'lucide-vue-next'
 import {
   DialogRoot,
@@ -12,14 +15,16 @@ import {
   DialogClose,
 } from 'reka-ui'
 import { useSession } from '@/lib/store'
-import { request, type Schema } from '@/api/client'
+import { ApiError, request, type Schema } from '@/api/client'
 import { period, currentMonth } from '@/lib/queries'
+import {billDates,validBillRange,type BillMode} from '@/lib/billing-period'
 import { money, date } from '@/lib/utils'
 import State from '@/components/State.vue'
 import Button from '@/components/ui/button/Button.vue'
 import JsonDetails from '@/components/JsonDetails.vue'
 import ExpenseTrends from '@/components/billing/ExpenseTrends.vue'
 import CategoryBreakdown from '@/components/billing/CategoryBreakdown.vue'
+import StatementImport from '@/components/billing/StatementImport.vue'
 const s = useSession(),
   month = ref(currentMonth()),
   category = ref(''),
@@ -29,25 +34,59 @@ const s = useSession(),
   detailId = ref(''),
   relatedIds = ref<string[]>([]),
   tableRoot = ref<HTMLElement>()
+const route=useRoute(),router=useRouter()
+const billMode=ref<BillMode>('month'),year=ref(Number(currentMonth().slice(0,4)))
+function viewImportedMonth(value: string) {
+  if (!s.connected || !s.accountId || !/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) return
+  billMode.value = 'month'
+  month.value = value
+  resetDates()
+  category.value = ''
+  search.value = ''
+  appliedSearch.value = ''
+  relatedIds.value = []
+  page.value = 0
+}
+const linkedReportId=computed(()=>typeof route.query.report_id==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(route.query.report_id)?route.query.report_id:'')
+const snapshotRequested=computed(()=>route.query.report_id!==undefined)
+watch(()=>route.query.month,value=>{if(typeof value==='string'&&/^\d{4}-(0[1-9]|1[0-2])$/.test(value)&&value<=currentMonth())month.value=value},{immediate:true})
+const linkedReport=useQuery({
+ queryKey:computed(()=>['linked-billing-report',s.sessionEpoch,linkedReportId.value,s.user?.id,s.accountId]),
+ enabled:computed(()=>s.connected&&!!linkedReportId.value),
+ queryFn:({signal})=>request<Schema<'BillingReport'>>('/api/v1/billing/reports/'+linkedReportId.value,{signal}),
+})
+const sourceLinkError=computed(()=>{
+ if(!snapshotRequested.value)return ''
+ if(!linkedReportId.value)return '报告链接无效，请返回账单查询或从原任务重新打开。'
+ const source=linkedReport.data.value
+ if(!source)return ''
+ if(source.report_id!==linkedReportId.value||source.user_id!==s.user?.id||
+  (s.accountId&&(source.accounts.length!==1||source.accounts[0]?.id!==s.accountId)))
+  return '这份账单依据不属于当前用户或所选账户，请切换到保存时的账户再查看。'
+ const selected=route.query.category
+ if(selected!==undefined&&(typeof selected!=='string'||!['','dining','transport','shopping','sports','subscriptions','housing','medical','education','other','uncategorized'].includes(selected)))
+  return '报告中的类别链接无效，请从原报告重新选择。'
+ return ''
+})
+const savedReport=computed(()=>s.connected&&snapshotRequested.value&&!sourceLinkError.value&&linkedReport.data.value?.report_id===linkedReportId.value?linkedReport.data.value:undefined)
 const start = ref(''),
   end = ref('')
 function resetDates() {
-  if (!/^\d{4}-\d{2}$/.test(month.value)) {
-    start.value = ''
-    end.value = ''
+  if(savedReport.value){
+    start.value=new Date(Date.parse(savedReport.value.analysis_period.from)+8*3600000).toISOString().slice(0,10)
+    end.value=new Date(Date.parse(savedReport.value.analysis_period.to)-1+8*3600000).toISOString().slice(0,10)
     return
   }
-  start.value = month.value + '-01'
-  end.value =
-    month.value +
-    '-' +
-    String(
-      new Date(Number(month.value.slice(0, 4)), Number(month.value.slice(5)), 0).getDate(),
-    ).padStart(2, '0')
+  const dates=billDates(billMode.value,month.value,year.value)
+  start.value=dates.start;end.value=dates.end
 }
 resetDates()
-watch(month, resetDates)
+watch([month,year,billMode], resetDates)
 const range = computed(() => {
+  if(savedReport.value){
+    const from=Date.parse(savedReport.value.analysis_period.from),to=Date.parse(savedReport.value.analysis_period.to)
+    return {from,to,valid:Number.isFinite(from)&&Number.isFinite(to)&&from<to}
+  }
   const from = Date.parse(start.value + 'T00:00:00+08:00'),
     to = Date.parse(end.value + 'T00:00:00+08:00') + 86400000
   return {
@@ -57,13 +96,12 @@ const range = computed(() => {
       Number.isFinite(from) &&
       Number.isFinite(to) &&
       to > from &&
-      start.value.startsWith(month.value) &&
-      end.value.startsWith(month.value),
+      validBillRange(billMode.value,month.value,year.value,start.value,end.value),
   }
 })
-const report = useQuery({
+const liveReport = useQuery({
   queryKey: computed(() => ['billing-analysis', range.value.from, range.value.to, s.accountId]),
-  enabled: computed(() => s.connected && range.value.valid),
+  enabled: computed(() => s.connected && range.value.valid && !snapshotRequested.value),
   queryFn: ({ signal }) =>
     request<Schema<'BillingReport'>>('/api/v1/billing/generate_billing_report', {
       method: 'POST',
@@ -78,6 +116,26 @@ const report = useQuery({
       },
     }),
 })
+const report={
+ data:computed(()=>snapshotRequested.value?savedReport.value:liveReport.data.value),
+ isLoading:computed(()=>snapshotRequested.value?linkedReport.isLoading.value:liveReport.isLoading.value),
+ isFetching:computed(()=>snapshotRequested.value?linkedReport.isFetching.value:liveReport.isFetching.value),
+ error:computed(()=>snapshotRequested.value?linkedReport.error.value:liveReport.error.value),
+ refetch:()=>snapshotRequested.value?linkedReport.refetch():liveReport.refetch(),
+}
+watch(()=>[savedReport.value,route.query.category,s.accountId,s.sessionEpoch],()=>{
+ relatedIds.value=[];detailId.value='';page.value=0
+ if(!savedReport.value)return
+ const from=new Date(savedReport.value.analysis_period.from)
+ month.value=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit'}).format(from)
+ year.value=Number(month.value.slice(0,4))
+ billMode.value=range.value.to-range.value.from>32*86400000?'year':'month'
+ category.value=typeof route.query.category==='string'?route.query.category:''
+ appliedSearch.value='';search.value='';resetDates()
+},{immediate:true,flush:'sync'})
+function leaveSnapshot(){
+ return router.replace({path:'/billing',query:{month:month.value}})
+}
 watch(
   () => report.data.value?.report_id,
   (id) => {
@@ -89,6 +147,8 @@ watch([start, end, () => s.accountId], () => (relatedIds.value = []))
 const transactions = useQuery({
   queryKey: computed(() => [
     'billing-transactions',
+    s.sessionEpoch,
+    snapshotRequested.value?linkedReportId.value:'live',
     range.value.from,
     range.value.to,
     s.accountId,
@@ -97,8 +157,19 @@ const transactions = useQuery({
     page.value,
     relatedIds.value,
   ]),
-  enabled: computed(() => s.connected && range.value.valid),
+  enabled: computed(() => s.connected && range.value.valid && (!snapshotRequested.value||!!savedReport.value)),
   queryFn: async ({ signal }) => {
+    if(snapshotRequested.value){
+      const source=savedReport.value
+      if(!source)throw new Error('请先核对原报告所属账户')
+      const allowed=new Set(source.evidence_transaction_ids)
+      const ids=[...new Set(relatedIds.value.length?relatedIds.value:
+        category.value?(source.category_breakdown.filter(row=>canonicalCategory(row.category)===category.value).flatMap(row=>row.transaction_ids)):
+        source.evidence_transaction_ids)].filter(id=>allowed.has(id))
+      return {items:await Promise.all(ids.slice(page.value*10,page.value*10+10).map(id=>
+        request<Schema<'Transaction'>>('/api/v1/transactions/'+encodeURIComponent(id),{signal}))),
+        total:ids.length,limit:10,offset:page.value*10}
+    }
     if (relatedIds.value.length) {
       const ids = relatedIds.value.slice(page.value * 10, page.value * 10 + 10)
       return {
@@ -121,7 +192,7 @@ const transactions = useQuery({
       to: String(range.value.to),
     })
     if (s.accountId) q.set('bank_account_id', s.accountId)
-    if (category.value) q.set('category', category.value)
+    if (category.value) q.set('canonical_category', category.value)
     if (appliedSearch.value) q.set('merchant', appliedSearch.value)
     return request<Schema<'TransactionPage'>>('/api/v1/transactions?' + q, { signal })
   },
@@ -134,6 +205,17 @@ const detail = useQuery({
       signal,
     }),
 })
+const sourceOpen = ref(false)
+watch(detailId, () => (sourceOpen.value = false), { flush: 'sync' })
+const source = useQuery({
+  queryKey: computed(() => ['statement-source', s.sessionEpoch, detailId.value]),
+  enabled: computed(() => s.connected && !!detailId.value && sourceOpen.value),
+  retry: false,
+  queryFn: ({ signal }) => request<Schema<'StatementSource'>>(
+    `/api/v1/transactions/${encodeURIComponent(detailId.value)}/source`, { signal },
+  ),
+})
+const noUploadSource = computed(() => source.error.value instanceof ApiError && source.error.value.status === 404)
 const detailOpen = computed({
   get: () => !!detailId.value,
   set: (open: boolean) => {
@@ -141,9 +223,9 @@ const detailOpen = computed({
   },
 })
 const budgets = computed(
-  () => report.data.value?.budget_status?.filter((b) => b.month === month.value) || [],
+  () => report.data.value?.budget_status?.filter((b) => billMode.value==='year'?b.month.startsWith(String(year.value)+'-'):b.month === month.value) || [],
 )
-const budget = computed(() => budgets.value[0])
+const budget = computed(() => billMode.value==='month'?budgets.value[0]:undefined)
 const anomalyIds = computed(() => [
   ...new Set(
     report.data.value?.anomalies?.flatMap((a) => a.evidence.map((t) => t.transaction_id)) || [],
@@ -156,8 +238,8 @@ const filterCategories = computed(() =>
     ...new Set([
       ...(report.data.value?.category_breakdown || []).map((c) => c.category),
       ...(report.data.value?.transactions || []).map((t) => t.category),
-    ]),
-  ].filter(Boolean),
+    ].filter(Boolean).map(canonicalCategory)),
+  ],
 )
 function findingExpense(ids: string[]) {
   const evidence = report.data.value?.transactions || []
@@ -213,6 +295,7 @@ function showRelated(ids: string[]) {
   scrollTable()
 }
 function applySearch() {
+  if(snapshotRequested.value)return
   relatedIds.value = []
   appliedSearch.value = search.value
   page.value = 0
@@ -280,8 +363,10 @@ const integrity = computed(() => {
         <h1>智能账单分析</h1>
         <p>支出结构、预算执行与每一笔资金记录。</p>
       </div>
-      <label class="month-control"
-        >账单月份<input type="month" v-model="month" aria-label="账单月份"
+      <label class="month-control">报表周期<select v-model="billMode" :disabled="snapshotRequested" aria-label="报表周期"><option value="month">月度账单</option><option value="year">年度账单</option></select></label>
+      <label v-if="billMode==='year'" class="month-control">账单年份<input type="number" v-model.number="year" :disabled="snapshotRequested" min="1971" :max="Number(currentMonth().slice(0,4))" aria-label="账单年份" /></label>
+      <label v-else class="month-control"
+        >账单月份<input type="month" v-model="month" :disabled="snapshotRequested" aria-label="账单月份"
       /></label>
     </div>
     <div class="range-toolbar">
@@ -291,29 +376,40 @@ const integrity = computed(() => {
           >开始日期<input
             type="date"
             v-model="start"
-            :min="month + '-01'"
+            :disabled="snapshotRequested"
+            :min="billDates(billMode,month,year).start"
             :max="end"
             aria-label="开始日期" /></label
         ><span>—</span
         ><label
-          >结束日期<input type="date" v-model="end" :min="start" aria-label="结束日期"
+          >结束日期<input type="date" v-model="end" :disabled="snapshotRequested" :min="start" aria-label="结束日期"
         /></label>
       </div>
     </div>
+    <p class="transaction-scope-note">账单分析可使用本人上传记录，未经银行核验；模拟账户余额不代表真实银行余额。</p>
     <p v-if="!range.valid" class="range-error" role="alert">
-      请选择同一账单月份内有效的开始和结束日期。
+      请选择所选报表周期内有效的开始和结束日期。
     </p>
-    <div class="financial-summary" :aria-busy="report.isFetching.value">
+    <p v-if="sourceLinkError" role="alert" class="range-error">{{sourceLinkError}}</p>
+    <p v-else-if="linkedReport.error.value" role="alert" class="range-error">保存时的账单依据暂时无法读取，请返回试行记录重新查询。</p>
+    <section v-if="snapshotRequested" class="saved-report-context" aria-label="保存时的账单快照">
+      <div><strong>保存时的账单快照</strong><p>报告 {{ linkedReportId || '链接无效' }}。收支、期间和证据沿用原报告，不自动生成新报告；交易详情用于核对原始记录。</p></div>
+      <Button variant="outline" @click="leaveSnapshot">返回账单查询</Button>
+    </section>
+    <StatementImport v-else :initial-open="route.query.import==='1'" @view-month="viewImportedMonth" />
+    <p v-if="billMode==='year'" class="range-note">年度账单仅汇总已记录交易；本年尚未结束时不是完整年度报告。没有记录不代表没有消费，各月预算独立展示，不合并为可用资金。</p>
+    <div v-if="!snapshotRequested||savedReport" class="financial-summary" :aria-busy="report.isFetching.value">
       <div class="expense-metric">
         <span>周期支出</span><strong>{{ money(report.data.value?.total_expense) }}</strong
         ><small>{{ start }} — {{ end }} · {{ s.accountId ? '当前账户' : '全部账户' }}</small>
       </div>
       <div class="budget-metric">
-        <span>剩余预算</span
+        <span>{{billMode==='year'?'年度各月预算':'剩余预算'}}</span
         ><strong :class="{ negative: (budget?.remaining_minor ?? 0) < 0 }">{{
-          money(budget?.remaining_minor)
+          billMode==='year'?'按月查看':money(budget?.remaining_minor)
         }}</strong>
-        <div class="mini-budget">
+        <p v-if="billMode==='year'">{{budgets.length}} 个月有预算记录</p>
+        <div v-else class="mini-budget">
           <div class="budget-track">
             <i :style="{ width: width(budget?.spent_minor ?? 0, budget?.total_minor ?? 0) }" />
           </div>
@@ -321,7 +417,7 @@ const integrity = computed(() => {
             budget ? percent(budget.spent_minor, budget.total_minor) + ' 已用' : '尚无预算'
           }}</small>
         </div>
-        <small>全部账户 · 完整 UTC 月</small>
+        <small>{{billMode==='year'?'见下方各月明细，非全年剩余额度':'全部账户 · 完整 UTC 月'}}</small>
       </div>
       <div class="supporting-metrics">
         <div>
@@ -383,7 +479,7 @@ const integrity = computed(() => {
                   @click="filterCategory(c.category)"
                 >
                   <div>
-                    <b>{{ c.category }}</b
+                    <b>{{ categoryLabel(c.category) }}</b
                     ><span :class="{ negative: c.spent_minor > c.allocated_minor }"
                       >{{ percent(c.spent_minor, c.allocated_minor) }} <ArrowUpRight :size="13"
                     /></span>
@@ -419,7 +515,7 @@ const integrity = computed(() => {
               description="存在可追溯的分析或预算偏差时，在此展示。"
             >
               <article v-for="f in findings" :key="f.finding_id" class="insight-item">
-                <p>{{ f.description }}</p>
+                <p>{{ billingFindingText(f,report.data.value) }}</p>
                 <p v-if="findingExpense(f.transaction_ids)" class="finding-amount">
                   关联支出 {{ money(findingExpense(f.transaction_ids)) }} ·
                   {{
@@ -440,7 +536,7 @@ const integrity = computed(() => {
               </article>
               <article v-for="c in overruns" :key="c.budgetId + c.category" class="insight-item">
                 <p>
-                  <b>{{ c.category }}</b
+                  <b>{{ categoryLabel(c.category) }}</b
                   >支出超过分类预算 <b>{{ money(c.spent_minor - c.allocated_minor) }}</b
                   >，已用 {{ percent(c.spent_minor, c.allocated_minor) }}。
                 </p>
@@ -491,7 +587,7 @@ const integrity = computed(() => {
         </section>
       </template>
     </State>
-    <section ref="tableRoot" class="billing-surface transaction-table">
+    <section v-if="!snapshotRequested||savedReport" ref="tableRoot" class="billing-surface transaction-table">
       <header>
         <div>
           <h2>交易流水</h2>
@@ -499,23 +595,26 @@ const integrity = computed(() => {
         </div>
         <span>人民币 CNY</span>
       </header>
+      <p class="transaction-scope-note">收支统计只计入外部交易；流水还包含期初余额和账户内部转账，因此笔数与金额合计可能不同。</p>
       <div v-if="relatedIds.length" class="related-context">
-        <span>关联证据 · 按交易 ID 查询，可能包含账单范围外记录</span
+        <span>{{snapshotRequested?'原报告中的关联证据 · 不读取原报告以外的交易':'关联证据 · 按交易 ID 查询，可能包含账单范围外记录'}}</span
         ><button @click="clearRelated">返回账单列表 <X :size="14" /></button>
       </div>
       <form class="billing-filters" @submit.prevent="applySearch">
         <label class="billing-search"
           ><Search :size="16" /><input
             v-model="search"
+            :disabled="snapshotRequested"
             placeholder="搜索商户名称"
             aria-label="搜索商户" /></label
         ><select v-model="category" @change="categoryChanged" aria-label="消费分类">
           <option value="">全部分类</option>
           <option v-for="c in filterCategories" :key="c" :value="c">
-            {{ c }}
+            {{ categoryLabel(c) }}
           </option></select
-        ><Button variant="outline" type="submit">搜索</Button>
+        ><Button variant="outline" type="submit" :disabled="snapshotRequested">搜索</Button>
       </form>
+      <p v-if="snapshotRequested" class="transaction-scope-note">快照按原报告证据分页，支持分类筛选；搜索新交易或导入账单请先返回账单查询。</p>
       <State
         :connected="s.connected && range.valid"
         :loading="transactions.isLoading.value"
@@ -542,8 +641,9 @@ const integrity = computed(() => {
                   <button class="merchant-button" @click="detailId = t.id">
                     {{ t.merchant_name || t.description || '银行交易' }}</button
                   ><small class="transaction-id">ID {{ t.id }}</small>
+                  <small v-if="t.kind !== 'external'" class="transaction-id">{{ transactionKindLabel(t.kind) }}</small>
                 </td>
-                <td>{{ t.category || '未分类' }}</td>
+                <td>{{ categoryLabel(t.category) }}</td>
                 <td>{{ accountName(t.bank_account_id) }}</td>
                 <td>{{ date(t.occurred_at) }}</td>
                 <td class="text-right ledger-amount" :class="{ income: t.direction === 'income' }">
@@ -589,7 +689,7 @@ const integrity = computed(() => {
           ><div class="dialog-heading">
             <div>
               <DialogTitle>交易详情</DialogTitle
-              ><DialogDescription>模拟银行交易记录 · 服务端数据</DialogDescription>
+              ><DialogDescription>账单记录 · 服务端留存，上传记录未经银行核验</DialogDescription>
             </div>
             <DialogClose class="icon-button" aria-label="关闭交易详情"
               ><X :size="18"
@@ -614,11 +714,11 @@ const integrity = computed(() => {
               <dt>时间</dt>
               <dd>{{ fullDate(detail.data.value?.occurred_at) }}</dd>
               <dt>分类</dt>
-              <dd>{{ detail.data.value?.category || '未分类' }}</dd>
+              <dd>{{ categoryLabel(detail.data.value?.category) }}</dd>
               <dt>账户</dt>
               <dd>{{ accountName(detail.data.value?.bank_account_id || '') }}</dd>
               <dt>交易类型</dt>
-              <dd>{{ detail.data.value?.kind }}</dd>
+              <dd>{{ transactionKindLabel(detail.data.value?.kind) }}</dd>
               <dt>描述</dt>
               <dd>{{ detail.data.value?.description || '—' }}</dd>
               <dt>审计编号</dt>
@@ -626,11 +726,40 @@ const integrity = computed(() => {
             </dl>
             <JsonDetails
               :value="detail.data.value"
-              label="查看完整交易记录" /></State></DialogContent></DialogPortal
+              label="查看完整交易记录" />
+            <section class="statement-source" aria-label="账单来源追溯">
+              <Button variant="outline" :disabled="source.isFetching.value" @click="sourceOpen = true">
+                查看 CSV 导入来源
+              </Button>
+              <template v-if="sourceOpen">
+                <p v-if="source.isFetching.value" role="status">正在查询留存来源…</p>
+                <p v-else-if="noUploadSource">该笔交易没有留存的 CSV 上传来源。</p>
+                <p v-else-if="source.error.value" role="alert">
+                  {{ source.error.value.message }}
+                  <Button variant="ghost" @click="source.refetch()">重试来源查询</Button>
+                </p>
+                <template v-else-if="source.data.value">
+                  <p>用户上传的未核验 CSV 记录，不代表银行或供应商对账证据；补录不改变账户余额。</p>
+                  <dl class="billing-detail-grid">
+                    <dt>原始文件 SHA256</dt><dd>{{ source.data.value.file_sha256 }}</dd>
+                    <dt>原始行 / 行摘要</dt><dd>{{ source.data.value.row_number }} / {{ source.data.value.row_sha256 }}</dd>
+                    <dt>导入时区</dt><dd>{{ source.data.value.timezone }}</dd>
+                  </dl>
+                  <JsonDetails :value="source.data.value.raw_record" label="查看原始 CSV 行" />
+                  <JsonDetails :value="source.data.value.columns" label="查看字段映射" />
+                </template>
+              </template>
+            </section>
+            </State></DialogContent></DialogPortal
     ></DialogRoot>
   </div>
 </template>
 <style scoped>
+.saved-report-context{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 20px;border:1px solid #cbdedb;background:#f2f8f7;border-radius:10px;overflow-wrap:anywhere}
+.saved-report-context strong{color:#142d4e}.saved-report-context p{font-size:13px;line-height:1.7;margin:6px 0 0;color:#52657b}
+@media(max-width:700px){.saved-report-context{align-items:flex-start;flex-direction:column;padding:14px}}
+.statement-source { margin-top: 16px; overflow-wrap: anywhere; }
+.statement-source p { margin: 12px 0; }
 .billing-page {
   display: flex;
   flex-direction: column;

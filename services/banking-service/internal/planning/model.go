@@ -16,6 +16,7 @@ type Settings struct {
 	Period                  string     `json:"period,omitempty"`
 	AccountIDs              []int64    `json:"account_ids"`
 	SavingsGoalIDs          []int64    `json:"savings_goal_ids"`
+	GoalPriorityIDs         []int64    `json:"goal_priority_ids,omitempty"`
 	LifeGoalIDs             []int64    `json:"life_goal_ids"`
 	LivingRemainingMinor    *int64     `json:"living_remaining_minor,omitempty"`
 	EssentialRemainingMinor *int64     `json:"essential_remaining_minor,omitempty"`
@@ -137,6 +138,7 @@ type GoalFunds struct {
 	MonthlyMinor             int64 `json:"monthly_minor"`
 	DepositedThisPeriodMinor int64 `json:"deposited_this_period_minor"`
 	Eligible                 bool  `json:"eligible"`
+	EndsAt                   int64 `json:"ends_at,omitempty"`
 }
 type Source struct {
 	Type    string `json:"type"`
@@ -157,10 +159,13 @@ type Snapshot struct {
 	ReviewNotes            []string    `json:"review_notes"`
 }
 type Allocation struct {
-	GoalID      int64 `json:"goal_id,string"`
-	AmountMinor int64 `json:"amount_minor"`
-	UnmetMinor  int64 `json:"unmet_minor"`
-	ProgressBPS int64 `json:"progress_bps"`
+	GoalID               int64 `json:"goal_id,string"`
+	AmountMinor          int64 `json:"amount_minor"`
+	UnmetMinor           int64 `json:"unmet_minor"`
+	ProgressBPS          int64 `json:"progress_bps"`
+	DeadlineAt           int64 `json:"deadline_at,omitempty"`
+	RequiredMonthlyMinor int64 `json:"required_monthly_minor,omitempty"`
+	DeadlineRisk         bool  `json:"deadline_risk,omitempty"`
 }
 type Option struct {
 	Feasible      bool         `json:"feasible"`

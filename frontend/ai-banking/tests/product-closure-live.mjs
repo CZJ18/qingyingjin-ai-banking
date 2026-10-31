@@ -126,12 +126,12 @@ try{
     await region.getByRole('button',{name:'编译生活资金方案',exact:true}).click()
     const cr=await compiled,cv=await cr.json();assert.equal(cr.status(),201,JSON.stringify(cv))
     await writeFile(out+'/C-goal-actual.json',JSON.stringify({parsed:v.data,compiled:cv.data},null,2))
-    assert.equal(cv.data.plan.result.status,'ready',JSON.stringify(cv.data.plan.result))
-    assert.equal(cv.data.plan.result.options.length,3)
-    for(const option of cv.data.plan.result.options){
-      assert.equal(option.savings_monthly_minor,100000)
-      assert.equal(option.categories.find(c=>c.category==='food'||c.name==='food').proposed_minor,80000)
-    }
+    assert.equal(cv.data.plan.result.status,'needs_information',JSON.stringify(cv.data.plan.result))
+    assert.equal(cv.data.plan.result.options.length,0)
+    assert.ok(cv.data.plan.result.missing_information.includes('complete_historical_month_billing_report'))
+    assert.equal(cv.data.plan.snapshot.complete_month,false)
+    assert.equal(cv.data.recommendations.length,0)
+    assert.equal(cv.data.plan.result.financial_execution_enabled,false)
     await page.screenshot({path:out+'/C-goal.png',fullPage:true});return {parsed:v.data,compiled:cv.data}
   })
   await scenario('D_cross_agent',async()=>{

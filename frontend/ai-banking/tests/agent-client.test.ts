@@ -24,6 +24,39 @@ afterEach(() => {
 })
 
 describe('LangGraph task contract', () => {
+  it('reads persisted paginated history without dispatching or requesting an owner override', async () => {
+    const item = { task_id: id, status: 'failed', version: 2, instruction: '分析账单',
+      error_code: 'MODEL_APPROVAL_REQUIRED', created_at: task().created_at, updated_at: task().updated_at }
+    const fetch = vi.fn().mockResolvedValue(reply({ items: [item], total: 31, limit: 10, offset: 20 }))
+    vi.stubGlobal('fetch', fetch)
+    const page = await agentApi.history(10, 20)
+    expect(page.items[0]?.task_id).toBe(id)
+    expect(fetch.mock.calls[0][0]).toBe('/product/api/v1/agent-tasks?limit=10&offset=20')
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+  it('rejects invalid history limits and malformed page responses', async () => {
+    const fetch = vi.fn().mockResolvedValue(reply({ items: [{ task_id: 'foreign-format' }], total: 1, limit: 20, offset: 0 }))
+    vi.stubGlobal('fetch', fetch)
+    await expect(agentApi.history(0)).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' })
+    expect(fetch).not.toHaveBeenCalled()
+    await expect(agentApi.history()).rejects.toMatchObject({ code: 'INVALID_RESPONSE' })
+  })
+  it('keeps original instructions separate from optional generated display titles and rejects malformed titles',async()=>{
+    const item={task_id:id,status:'succeeded',version:3,instruction:'',display_title:'只读查询：卡片管理',error_code:'',created_at:task().created_at,updated_at:task().updated_at}
+    const fetch=vi.fn().mockResolvedValue(reply({items:[item],total:1,limit:20,offset:0}))
+    vi.stubGlobal('fetch',fetch)
+    expect((await agentApi.history()).items[0]).toMatchObject({instruction:'',display_title:item.display_title})
+    for(const invalid of [7,{},'😀'.repeat(513)]){
+      fetch.mockResolvedValue(reply({items:[{...item,display_title:invalid}],total:1,limit:20,offset:0}))
+      await expect(agentApi.history()).rejects.toMatchObject({code:'INVALID_RESPONSE'})
+    }
+  })
+  it('accepts the server’s 512-character Unicode summaries without treating surrogate pairs as extra characters', async () => {
+    const item = { task_id: id, status: 'failed', version: 2, instruction: '😀'.repeat(512),
+      error_code: 'COZE_UNAVAILABLE', created_at: task().created_at, updated_at: task().updated_at }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(reply({ items: [item], total: 1, limit: 20, offset: 0 })))
+    expect((await agentApi.history()).items[0]?.instruction).toBe(item.instruction)
+  })
   it('submits once with a stable key to the product service and never starts execution implicitly', async () => {
     const fetch = vi.fn().mockResolvedValue(reply(task(), 202))
     vi.stubGlobal('fetch', fetch)

@@ -24,6 +24,7 @@ import (
 // silently replace a persisted pool: administrative policy amendments require
 // a separate audited workflow.
 type Service struct {
+	approval     *Approval
 	db           *gorm.DB
 	policy       Policy
 	policyHash   string
@@ -72,7 +73,7 @@ func ledgerError(err error) error {
 	if err == nil {
 		return nil
 	}
-	for _, expected := range []error{ErrPolicy, ErrQuota, ErrConflict, ErrUnknown, ErrUnavailable, ErrBoundExceeded} {
+	for _, expected := range []error{ErrApproval, ErrApprovalQuota, ErrPolicy, ErrQuota, ErrUserQuota, ErrConflict, ErrUnknown, ErrUnavailable, ErrBoundExceeded} {
 		if errors.Is(err, expected) {
 			return expected
 		}
@@ -101,18 +102,23 @@ func (s *Service) lockPool(tx *gorm.DB) (Pool, error) {
 }
 
 type eventSnapshot struct {
-	Policy         Policy      `json:"policy"`
-	Before         Pool        `json:"before"`
-	After          Pool        `json:"after"`
-	PreviousStatus string      `json:"previous_status,omitempty"`
-	InputHash      string      `json:"input_hash,omitempty"`
-	Usage          *Usage      `json:"usage,omitempty"`
-	UsageUnknown   bool        `json:"usage_unknown,omitempty"`
-	ResponseDigest string      `json:"response_sha256,omitempty"`
-	ReportedModel  string      `json:"reported_model,omitempty"`
-	ModelDigest    string      `json:"model_sha256,omitempty"`
-	Settlement     *Settlement `json:"settlement,omitempty"`
-	Reason         string      `json:"reason,omitempty"`
+	Approval       *Approval        `json:"approval,omitempty"`
+	Workflow       *WorkflowBinding `json:"workflow,omitempty"`
+	ProviderOrigin string           `json:"provider_origin,omitempty"`
+	UserBefore     *UserWindow      `json:"user_before,omitempty"`
+	UserAfter      *UserWindow      `json:"user_after,omitempty"`
+	Policy         Policy           `json:"policy"`
+	Before         Pool             `json:"before"`
+	After          Pool             `json:"after"`
+	PreviousStatus string           `json:"previous_status,omitempty"`
+	InputHash      string           `json:"input_hash,omitempty"`
+	Usage          *Usage           `json:"usage,omitempty"`
+	UsageUnknown   bool             `json:"usage_unknown,omitempty"`
+	ResponseDigest string           `json:"response_sha256,omitempty"`
+	ReportedModel  string           `json:"reported_model,omitempty"`
+	ModelDigest    string           `json:"model_sha256,omitempty"`
+	Settlement     *Settlement      `json:"settlement,omitempty"`
+	Reason         string           `json:"reason,omitempty"`
 }
 
 func snapshotJSON(snapshot eventSnapshot) (string, error) {
@@ -132,7 +138,17 @@ func (s *Service) Reserve(ctx context.Context, key, digest string) (out Attempt,
 	if err = s.policy.Validate(time.Now()); err != nil {
 		return out, ErrPolicy
 	}
+	if err = s.checkApprovalContext(ctx); err != nil {
+		return out, err
+	}
 	requestKey := hashText(key)
+	user := userFrom(ctx)
+	if user < 0 {
+		return out, ErrUnavailable
+	}
+	if user > 0 {
+		requestKey = hashText(fmt.Sprintf("user:%d\x00%s", user, key))
+	}
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		now := time.Now().UnixMilli()
 		candidate := Pool{ProjectID: s.policy.ProjectID, Currency: s.policy.Currency, PolicyHash: s.policyHash, LimitUnits: s.limitUnits, CreatedAt: now, UpdatedAt: now}
@@ -147,6 +163,21 @@ func (s *Service) Reserve(ctx context.Context, key, digest string) (out Attempt,
 		e = tx.Where("project_id=? AND request_key=?", p.ProjectID, requestKey).Take(&existing).Error
 		if e == nil {
 			out = existing
+			if s.approval != nil {
+				var count int64
+				if e := tx.Model(&Event{}).Where("attempt_id=? AND kind='reserve' AND evidence_digest=?", existing.ID, s.approval.Fingerprint()).Count(&count).Error; e != nil {
+					return e
+				}
+				if count != 1 {
+					return ErrApproval
+				}
+			}
+			if user > 0 {
+				var binding AttemptOwner
+				if e := tx.Where("id=? AND user_id=?", existing.ID, user).Take(&binding).Error; e != nil {
+					return e
+				}
+			}
 			if existing.RequestHash != digest || existing.PolicyHash != s.policyHash {
 				return ErrConflict
 			}
@@ -158,10 +189,27 @@ func (s *Service) Reserve(ctx context.Context, key, digest string) (out Attempt,
 		if !errors.Is(e, gorm.ErrRecordNotFound) {
 			return e
 		}
+		if s.approval != nil {
+			window, e := s.approvalWindow(tx)
+			if e != nil {
+				return e
+			}
+			remaining, _ := ParseMoney(window.RemainingBudget)
+			if window.RemainingRequests < 1 || window.RemainingConcurrent < 1 || remaining < s.reserveUnits {
+				return ErrApprovalQuota
+			}
+		}
 		if p.Frozen || p.UsedUnits > p.LimitUnits || p.HeldUnits > p.LimitUnits-p.UsedUnits || s.reserveUnits > p.LimitUnits-p.UsedUnits-p.HeldUnits {
 			return ErrQuota
 		}
 		before := p
+		var userBefore, userAfter *UserWindow
+		if user > 0 {
+			userBefore, userAfter, e = s.reserveUser(tx, user, now)
+			if e != nil {
+				return e
+			}
+		}
 		p.HeldUnits += s.reserveUnits
 		p.UpdatedAt = now
 		if e := tx.Save(&p).Error; e != nil {
@@ -171,11 +219,24 @@ func (s *Service) Reserve(ctx context.Context, key, digest string) (out Attempt,
 		if e := tx.Create(&a).Error; e != nil {
 			return e
 		}
-		snapshot, e := snapshotJSON(eventSnapshot{Policy: s.policy, Before: before, After: p})
+		if userAfter != nil {
+			if e := tx.Create(&AttemptOwner{ID: a.ID, UserID: user, WindowID: userAfter.ID}).Error; e != nil {
+				return e
+			}
+		}
+		providerOrigin, _ := ctx.Value(providerKey{}).(string)
+		snapshot, e := snapshotJSON(eventSnapshot{Approval: s.approval, Policy: s.policy, Before: before, After: p, UserBefore: userBefore, UserAfter: userAfter, ProviderOrigin: providerOrigin, Workflow: workflowBindingFrom(ctx)})
 		if e != nil {
 			return e
 		}
 		event := Event{ID: uuid.NewString(), ProjectID: p.ProjectID, AttemptID: a.ID, Kind: "reserve", DedupeKey: eventKey("reserve", a.ID), RequestHash: digest, AmountUnits: a.ReservedUnits, SnapshotJSON: snapshot, CreatedAt: now}
+		if s.approval != nil {
+			event.EvidenceDigest = s.approval.Fingerprint()
+			binding := Event{ID: uuid.NewString(), ProjectID: p.ProjectID, AttemptID: a.ID, Kind: "approval_binding", DedupeKey: approvalBindingKey(*s.approval), RequestHash: s.approval.Fingerprint(), EvidenceDigest: s.approval.Fingerprint(), SnapshotJSON: snapshot, CreatedAt: now}
+			if e := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&binding).Error; e != nil {
+				return e
+			}
+		}
 		if e = tx.Create(&event).Error; e != nil {
 			return e
 		}

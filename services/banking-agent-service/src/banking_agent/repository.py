@@ -119,10 +119,12 @@ class Repository:
         self.pool.close()
 
     @contextmanager
-    def _transaction(self, user_id: str) -> Iterator[psycopg.Connection]:
+    def _transaction(self, user_id: str, *, readonly: bool = False) -> Iterator[psycopg.Connection]:
         _text(user_id, "user_id")
         with self.pool.connection() as connection:
             with connection.transaction():
+                if readonly:
+                    connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
                 connection.execute("SELECT set_config('app.user_id', %s, true)", (user_id,))
                 yield connection
 
@@ -150,13 +152,20 @@ class Repository:
                 ).fetchone()
                 if any(privileged.values()):
                     return False
+                scheduler = connection.execute(
+                    "SELECT pg_has_role(current_user,'banking_agent_scheduler','MEMBER') AS member, "
+                    "EXISTS(SELECT 1 FROM pg_roles WHERE rolname='banking_agent_scheduler' "
+                    "AND (rolcanlogin OR rolsuper OR rolbypassrls OR rolcreatedb OR rolcreaterole OR rolreplication)) AS privileged"
+                ).fetchone()
+                if any(scheduler.values()):
+                    return False
                 schema = connection.execute(
                     "SELECT count(*) AS n, bool_and(c.relrowsecurity AND c.relforcerowsecurity) AS rls "
                     "FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace "
                     "WHERE n.nspname='public' AND c.relname = ANY(%s)",
-                    (["agent_identities", "agent_financial_profiles", "agent_projection_resources", "agent_projection_receipts", "agent_tasks", "agent_tool_calls", "agent_confirmations", "agent_task_events", "agent_checkpoints", "agent_checkpoint_writes"],),
+                    (["agent_identities", "agent_financial_profiles", "agent_projection_resources", "agent_projection_receipts", "agent_tasks", "agent_tool_calls", "agent_confirmations", "agent_task_events", "agent_checkpoints", "agent_checkpoint_writes", "agent_background_credentials"],),
                 ).fetchone()
-                if schema["n"] != 10 or schema["rls"] is not True:
+                if schema["n"] != 11 or schema["rls"] is not True:
                     return False
                 rights = connection.execute(
                     "SELECT has_schema_privilege(current_user, 'public', 'CREATE') AS ddl, "
@@ -170,7 +179,7 @@ class Repository:
                 migration = connection.execute(
                     "SELECT max(version) AS version FROM public.agent_schema_migrations"
                 ).fetchone()
-                return migration["version"] == 2
+                return migration["version"] == 3
         except (psycopg.Error, RuntimeError):
             return False
 

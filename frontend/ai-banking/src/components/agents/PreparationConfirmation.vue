@@ -34,6 +34,7 @@ const kind = computed(
       cancel_subscription: '取消模拟订阅',
       savings_deposit: '存入目标金',
       savings_withdrawal: '取出目标金',
+      card_manage: '管理模拟卡片', recipient_transfer: '找人模拟转账', aa_payment: '支付模拟AA', scheduled_transfer: '定时模拟转账', investment_assessment: '模拟风险测评', investment_order: '模拟理财申赎', occasion_plan: '预留生日资金', occasion_order: '模拟生日订购', occasion_release: '退回生日剩余预留',
     })[String(input.value.kind)] || String(spec.value.tool || '任务建议'),
 )
 </script>
@@ -44,7 +45,7 @@ const kind = computed(
       {{
         adviceOnly
           ? '本次确认仅表示同意继续任务，不授予金融操作权限。'
-          : '本次确认仅允许继续任务并生成操作意向。资金划转或订阅取消仍需在金融授权窗口单独核对并授权。'
+          : '本次确认仅允许继续准备。部分操作会先返回待核对建议，需本人进入金融窗口完成账户与风控校验；实际执行始终需要单独授权。'
       }}
     </p>
     <dl class="detail-grid">

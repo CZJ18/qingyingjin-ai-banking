@@ -11,7 +11,7 @@ import Button from '@/components/ui/button/Button.vue'
 import JsonDetails from '@/components/JsonDetails.vue'
 import TaskResult from '@/components/assistant/TaskResult.vue'
 const props = defineProps<{ task: unknown; busy: boolean; epoch: number }>()
-const emit = defineEmits<{ confirm: [decision: 'approve' | 'reject', binding: MonthlyConfirmationBinding]; edit: [] }>()
+const emit = defineEmits<{ confirm: [decision: 'approve' | 'reject', binding: MonthlyConfirmationBinding]; edit: []; goal: [] }>()
 const view = computed(() => monthlyPlanView(props.task))
 const challenge = computed(() => record(record(props.task).confirmation))
 const entries = computed(() => monthlySuggestionRows(props.task).map((row) => ({
@@ -55,7 +55,7 @@ function decide(decision: 'approve' | 'reject') {
             <template v-if="parameters.source_account_id"><dt>付款账户</dt><dd>{{ parameters.source_account_id }}</dd></template>
             <template v-if="parameters.target_account_id"><dt>收款账户</dt><dd>{{ parameters.target_account_id }}</dd></template>
           </dl>
-          <TaskResult v-if="Object.keys(row.output).length" :task="{ ...row, tool: roleNames[row.agent_type] || '任务建议' }" />
+          <TaskResult v-if="Object.keys(row.output).length" :task="{ ...row, tool: roleNames[row.agent_type] || '任务建议' }" @goal="$emit('goal')" />
           <p v-else>该项尚未执行。接受方案后，如需准备金融操作，将继续单独核对。</p>
           <JsonDetails :value="row.parameters" label="核对完整参数、账户与约束" />
         </article>

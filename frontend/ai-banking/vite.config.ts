@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { fileURLToPath, URL } from 'node:url'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const productViaBanking = env.AGENT_PROXY_VIA_BANKING === 'true'
   return {
     plugins: [vue(), tailwindcss()],
     resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
@@ -12,9 +13,11 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       proxy: {
         '/product': {
-          target: env.AGENT_PROXY_TARGET || 'http://127.0.0.1:8091',
+          target: productViaBanking
+            ? env.BANKING_PROXY_TARGET || 'http://127.0.0.1:8090'
+            : env.AGENT_PROXY_TARGET || 'http://127.0.0.1:8091',
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/product/, ''),
+          rewrite: (path) => productViaBanking ? path : path.replace(/^\/product/, ''),
           timeout: 210000,
           proxyTimeout: 210000,
         },

@@ -4,7 +4,7 @@ import { chromium } from '@playwright/test'
 
 // No response interception: every business assertion reads the Go service.
 const base = process.env.BANKING_LIVE_URL || 'http://127.0.0.1:5178'
-const token = process.env.BANKING_LIVE_JWT
+let token = process.env.BANKING_LIVE_JWT
 const userId = process.env.BANKING_LIVE_USER_ID
 const phone = process.env.BANKING_LIVE_PHONE
 const password = process.env.BANKING_LIVE_PASSWORD
@@ -54,7 +54,7 @@ assert.ok(savings.length, 'Seed the isolated test user before running')
 pass('JWT identity, real account ownership and simulated funds')
 
 const browser = await chromium.launch({ headless: true, executablePath: process.env.BANKING_TEST_BROWSER })
-const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
+const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, storageState: process.env.BANKING_LIVE_STORAGE_STATE })
 page.on('pageerror', e => runtimeErrors.push(e.message))
 page.on('response', async response => {
   if (response.status() >= 400 && new URL(response.url()).pathname.startsWith('/api/v1/'))
@@ -65,7 +65,10 @@ async function nav(name) {
   if (await page.getByRole('button', { name: '打开导航', exact: true }).isVisible())
     await page.getByRole('button', { name: '打开导航', exact: true }).click()
   await page.getByRole('link', { name, exact: true }).click()
-  await page.locator('h1').waitFor()
+  const title = { 'AI Banking 总览': '账户总览', 'AI 智能金融助手': '智能金融任务工作台',
+    '可信执行与安全': '可信执行与安全中心', '订阅与代扣': '订阅与代扣管理',
+    '多智能体协同':'多智能体协同中心' }[name] || name
+  await page.getByRole('heading', {name:title,exact:true}).waitFor()
 }
 async function confirmDialog() {
   const dialog = page.getByRole('dialog')
@@ -78,7 +81,15 @@ async function confirmDialog() {
   await dialog.getByRole('button', { name: '关闭', exact: true }).last().click()
 }
 try {
+  const restoringSession = process.env.BANKING_LIVE_STORAGE_STATE
+    ? page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/auth/refresh') : null
   await page.goto(base)
+  if (restoringSession) {
+    const restored = await (await restoringSession).json()
+    assert.equal(restored.code, 'OK')
+    assert.equal(restored.data.user.id, userId)
+    token = restored.data.access_token
+  } else {
   await page.getByRole('button', { name: '登录 / 注册', exact: true }).click()
   await page.getByLabel('手机号', { exact: true }).fill(phone)
   await page.getByLabel('密码', { exact: true }).fill(password)
@@ -87,13 +98,16 @@ try {
   const login = await (await loginResponse).json()
   assert.equal(login.code, 'OK', 'Live browser phone login failed')
   assert.equal(login.data.user.id, userId, 'Phone credentials must belong to the seeded isolated user')
+  token = login.data.access_token
   assert.equal(JSON.parse(Buffer.from(login.data.access_token.split('.')[1], 'base64url').toString()).sub, userId)
+  }
   await page.getByText('已登录', { exact: true }).waitFor()
   await page.locator('.toolbar-actions select').selectOption(source.id)
-  await page.locator('.balance-amount').filter({ hasText: (source.balance_minor / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }).waitFor()
+  await page.locator('.primary-amount').filter({ hasText: (source.balance_minor / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }).waitFor()
   pass('Browser connects through Vite proxy and displays server account balance')
 
   await nav('可信执行与安全')
+  await page.locator('summary').filter({ hasText: '模拟账户管理' }).click()
   await page.getByRole('button', { name: '创建模拟账户', exact: true }).click()
   const accountName = `联调收款账户 ${stamp}`
   await page.getByLabel('账户名称', { exact: true }).fill(accountName)
@@ -129,30 +143,44 @@ try {
   await page.getByRole('button', { name: '搜索', exact: true }).click()
   await page.locator('.transaction-table tbody tr').filter({ hasText: '模拟日常餐食' }).waitFor()
   await page.getByRole('button', { name: /^查看交易 / }).first().click()
-  await page.locator('.transaction-detail .detail-grid').waitFor()
+  await page.getByRole('dialog').getByRole('heading', { name: '交易详情', exact: true }).waitFor()
+  await page.getByRole('dialog').getByRole('button', { name: '关闭交易详情', exact: true }).click()
   pass('Real billing charts, merchant search and transaction detail')
 
   await nav('动态资金规划')
+  if (!await page.getByLabel('正常生活开支预留 / 元', { exact: true }).isVisible())
+    await page.getByRole('button', { name: '调整规划约束', exact: true }).click()
   await page.locator('.planning-goal-selection input[type="checkbox"]').first().check()
   for (const [label, value] of [['正常生活开支预留 / 元', '100'], ['必要支出预留 / 元', '200'], ['安全储备 / 元', '100'], ['现金缓冲 / 元', '100'], ['基准月收入 / 元', '1000']]) await page.getByLabel(label, { exact: true }).fill(value)
+  const saving = page.waitForResponse(r => r.request().method() === 'PUT' && /\/financial-plans\/\d+\/settings$/.test(new URL(r.url()).pathname)
+    || r.request().method() === 'POST' && new URL(r.url()).pathname === '/api/v1/financial-plans')
   await page.getByRole('button', { name: '保存并计算方案', exact: true }).click()
-  await page.locator('.planning-options .plan-option').first().waitFor()
-  const planId = await page.evaluate(() => localStorage.getItem('qingyingjin.plan'))
+  const saveResponse = await saving
+  if (saveResponse.status() === 409) {
+    assert.equal((await saveResponse.json()).code,'VERSION_CONFLICT')
+    await page.getByText('服务端规划已更新，已保留你的修改。请核对最新资金和版本后再次保存。',{exact:true}).first().waitFor()
+    const secondSave = page.waitForResponse(r => r.request().method() === 'PUT' && /\/financial-plans\/\d+\/settings$/.test(new URL(r.url()).pathname))
+    await page.getByRole('button', { name: '保存并计算方案', exact: true }).click()
+    assert.equal((await secondSave).status(),200)
+  } else assert([200,201].includes(saveResponse.status()))
+  await page.locator('.option-list button').first().waitFor()
+  const planId = await page.evaluate(id => JSON.parse(localStorage.getItem('qingrongjin.refs.v1.' + id) || '{}').plan, userId)
   const planBefore = await api(`/api/v1/financial-plans/${planId}`)
   await executeIntent('transfer', { source_account_id: source.id, target_account_id: target.id, amount_minor: 31, currency: 'CNY', description: '独立联调动态规划事件' })
-  const planAfter = await eventually(() => api(`/api/v1/financial-plans/${planId}`), p => p.plan.current_version > planBefore.plan.current_version, 'automatic financial replan')
+  const planAfter = await eventually(() => api(`/api/v1/financial-plans/${planId}`), p => p.plan.current_version > planBefore.plan.current_version && p.result.balance_minor < planBefore.result.balance_minor, 'automatic financial replan')
   assert.ok(planAfter.result.balance_minor < planBefore.result.balance_minor)
-  await page.getByText(`规划版本 ${planAfter.plan.current_version - 1} → ${planAfter.plan.current_version}`, { exact: true }).waitFor()
+  await page.locator('.timeline-title b').filter({ hasText: new RegExp(`^v${planAfter.plan.current_version}(?:最新)?$`) }).first().waitFor()
   pass('Financial plan persists; ledger event automatically updates plan version and browser timeline')
 
   await nav('健康目标与目标金')
+  await page.getByRole('button', { name: '新建生活目标', exact: true }).click()
   await page.getByLabel('用自然语言描述你的健康生活计划').fill(expectCoze ? '未来3个月每月储蓄100元，保持正常饮食与规律运动，每月必要开支200元，每月生活预算300元，每月收入1000元。' : `正常饮食与规律运动，三个月储蓄计划 ${stamp}`)
   await page.getByRole('button', { name: '保存生活目标', exact: true }).click()
-  await page.getByRole('heading', { name: '目标解析与约束', exact: true }).waitFor()
+  await page.getByRole('heading', { name: '健康生活目标', exact: true }).waitFor()
   await page.getByRole('button', { name: '解析目标', exact: true }).click()
   if (expectCoze) {
     await page.locator('.parsed-goal').waitFor({ timeout: 90000 })
-    const lifeId = await page.evaluate(() => JSON.parse(localStorage.getItem('qingyingjin.goals'))[0])
+    const lifeId = await page.evaluate(id => JSON.parse(localStorage.getItem('qingrongjin.refs.v1.' + id) || '{}').goals[0], userId)
     const parsed = (await api(`/api/v1/goals/${lifeId}`)).version.parsed
     assert.equal(parsed.period_months, 3)
     assert.equal(parsed.savings_monthly_minor, 10000)
@@ -175,7 +203,7 @@ try {
   await executeIntent('subscription_manage', { subscription_id: subscription.id, input: { expected_version: subscription.version, confirm_local_simulation: true } })
   await nav('订阅与代扣')
   await page.getByLabel('搜索订阅', { exact: true }).fill(merchant)
-  await page.getByRole('button', { name: '取消订阅', exact: true }).click()
+  await page.getByRole('button', { name: '取消模拟订阅', exact: true }).click()
   await confirmDialog()
   subscription = (await api(`/api/v1/subscriptions/${subscription.id}`)).subscription
   assert.equal(subscription.status, 'cancelled')
@@ -197,34 +225,28 @@ try {
   await nav('多智能体协同')
   await page.getByLabel('任务编号', { exact: true }).fill(jobId)
   await page.getByRole('button', { name: '查询任务', exact: true }).click()
-  await page.locator('.flow-node').first().waitFor()
-  await page.locator('.flow-node').first().click()
+  await page.locator('.dependency-node').first().waitFor()
+  await page.locator('.dependency-node').first().click()
   await page.getByText('真实工具返回结果', { exact: true }).waitFor()
   pass('Real worker executes parallel/dependent tasks; SSE replay and browser node detail')
 
   await nav('AI 智能金融助手')
+  await page.getByRole('button', { name: '一般任务', exact: true }).click()
   await page.getByLabel('金融任务指令', { exact: true }).fill(expectCoze ? '分析本月消费，只需一个账单分析任务，不执行金融操作。' : '分析我的消费，制定三个月健康储蓄计划。')
-  const naturalLanguageResponse = page.waitForResponse(r => new URL(r.url()).pathname === '/api/v1/orchestrations' && r.request().method() === 'POST')
+  const naturalLanguageResponse = page.waitForResponse(r => new URL(r.url()).pathname === '/product/api/v1/agent-tasks' && r.request().method() === 'POST')
   await page.getByRole('button', { name: '发送', exact: true }).click()
   const naturalLanguage = await naturalLanguageResponse
   const naturalEnvelope = await naturalLanguage.json()
+  assert.equal(naturalLanguage.status(), 202)
+  const naturalTask = await eventually(() => api(`/product/api/v1/agent-tasks/${naturalEnvelope.data.task_id}`),
+    t => ['succeeded', 'failed', 'interrupted'].includes(t.status), 'persisted LangGraph Supervisor task')
   if (expectCoze) {
-    assert.equal(naturalLanguage.status(), 201)
-    const final = await eventually(() => api(`/api/v1/orchestrations/${naturalEnvelope.data.job.id}`), j => ['succeeded', 'failed'].includes(j.job.status), 'real Coze model orchestration')
-    assert.equal(final.job.status, 'succeeded', JSON.stringify(final.tasks.map(t => ({ status: t.status, error: t.error_code, message: t.error_message }))))
-    assert.ok(final.tasks.some(t => t.agent_type === 'billing' && t.status === 'succeeded'))
-    const modelResult = await api(`/api/v1/orchestrations/${naturalEnvelope.data.job.id}/result`)
-    await writeFile(`${out}/coze-orchestration.json`, JSON.stringify(modelResult, null, 2))
-    await page.screenshot({ path: `${out}/coze-assistant.png`, fullPage: true })
-    pass('Real model compiles a task; bank worker executes it and browser receives SSE state')
-  } else if (naturalLanguage.status() === 503) {
-    assert.equal(naturalEnvelope.code, 'COZE_UNAVAILABLE')
-    await page.locator('.composer .form-error').filter({ hasText: /Supervisor|Coze/i }).waitFor()
+    assert.equal(naturalTask.status, 'succeeded')
+    await writeFile(`${out}/coze-orchestration.json`, JSON.stringify(naturalTask, null, 2))
   } else {
-    assert.equal(naturalLanguage.status(), 201)
-    const failed = await eventually(() => api(`/api/v1/orchestrations/${naturalEnvelope.data.job.id}`), j => j.job.status === 'failed', 'unconfigured Coze worker error')
-    assert.ok(failed.tasks.some(t => t.error_code === 'COZE_UNAVAILABLE'))
-    await page.locator('.agent-message').filter({ hasText: 'COZE_UNAVAILABLE' }).waitFor()
+    assert.equal(naturalTask.status, 'failed')
+    assert.equal(naturalTask.error_code, 'COZE_UNAVAILABLE')
+    await page.locator('.form-error').filter({ hasText: 'COZE_UNAVAILABLE' }).first().waitFor()
   }
   if (!expectCoze) pass('Natural-language assistant reports real COZE_UNAVAILABLE without fabricated model output')
 
@@ -244,4 +266,7 @@ try {
   await page.screenshot({ path: `${out}/failure.png`, fullPage: true })
   console.error('Visible service error:', await page.locator('.form-error, .toast').allTextContents())
   throw error
-} finally { await browser.close() }
+} finally {
+  if (process.env.BANKING_LIVE_STORAGE_STATE) await page.context().storageState({ path: process.env.BANKING_LIVE_STORAGE_STATE })
+  await browser.close()
+}

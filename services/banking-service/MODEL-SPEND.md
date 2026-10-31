@@ -1,5 +1,7 @@
 # 项目模型金额预算与账单核对
 
+2026-10-19：schema021新增用户月度金额窗口及可信身份网关，见[用户月度额度说明](MODEL-USER-MONTHLY.md)。Coze金额/身份桥接未完成，真实工作流出站被明确阻断，`ApplyDirectUnbudgeted`已拒绝。以下保留2026-10-18项目累计池的历史范围，不代表当前真实模型出口已完成验收。
+
 2026-10-18，schema020。功能与模拟银行账户、金融授权、用户调用数/Token配额分开。**本轮仅在隔离环境用合成价格验证，未部署、未调用付费模型、未完成真实供应商账单对账。**
 
 ## 控制范围
@@ -31,7 +33,7 @@
 
 ## 迁移、权限及启动
 
-1. 备份目标库，由迁移身份执行当前migrate到020，再部署；本轮未迁移业务库。001–019 SQL/checksum兼容。新增`banking_model_spend_pools/attempts/events`，离线存储清单为52表。
+1. 备份目标库，由迁移身份执行当前migrate到021，再部署；本轮未迁移业务库。001–020 SQL/checksum兼容。新增`banking_model_spend_pools/attempts/events`，当前离线存储清单为55表（含021用户月度三表）。
 2. PostgreSQL采用事务DDL；MySQL若020中断留下未登记新表，下次会拒绝自动接纳，须保留现场人工核对，不自动DROP/清空。
 3. 普通Banking/Agent角色不授予金额表权限。PG迁移撤销新表默认继承给非owner的权限，再给专用gateway/操作员角色显式授予pool/attempt必要SELECT、INSERT、UPDATE及events SELECT、INSERT；gateway/操作员还需banking_schema_migrations只读，gateway另需banking_storage_control只读（不授UPDATE）。事件禁止UPDATE/DELETE，PG也禁止TRUNCATE。MySQL必须收敛schema ALL且无DROP/ALTER/TRIGGER，TRUNCATE不触发DML触发器。DBA/owner仍是可信管理边界。
 4. 使用[网关私有环境模板](../../deploy/banking/model-gateway.env.example)，不加入操作员管理凭据。Coze只保存独立出口Token，不保存供应商Key；部署人限制文件ACL。
@@ -90,8 +92,10 @@ reserved调用可能仍执行，独立确认停止后才可设`confirm_no_active
 
 ## 尚未验收或实现的边界
 
+2026-10-20：以下为项目池初版的历史限制。schema021 已补齐用户月度金额窗，本轮又补齐任务能力桥接和一次真实网关调用；当前状态以 [用户月度说明](MODEL-USER-MONTHLY.md)及[本轮验收](../../docs/ai-closure-20261020.md)为准。真实供应商对账仍 BLOCKED，旧部署和完整 Coze 链路尚未验收。
+
 - 专用Key、付费出口无旁路、旧凭据移除/轮换和真实Coze Generate/Stream部署兼容尚未验证。
-- 真实价格、计价/思考上限、账单样本及实际对账缺少外部证据；合成账单不能关闭真实对账风险。
-- 每用户金额归属未实现，需可信签名执行上下文；现有用户Token/调用数限制继续保护。
-- 本版仅有项目累计池，没有自动日/月金额窗、汇率兑换、自动调价/增额/解冻或账单更正。
+- 本轮已保留一次真实调用时的官方价格/上界审核证据；其短期策略已过期，继续付费需重新审核。账单样本及实际对账仍缺少外部证据；合成账单不能关闭真实对账风险。
+- schema021 已实现每用户月度金额归属；本轮加入真实任务/版本/租约与受控 Coze 身份桥接。完整 Coze 实例、所有部署出口仍未验收。
+- 当前有项目累计池和 Asia/Shanghai 用户月窗；没有汇率兑换、自动调价/增额/解冻或账单更正。
 - 项目外消费或供应商违反已确认上界不受本地承诺覆盖；停止新请求不能撤销已发出的收费。超界会冻结并完整保留债务，不能泛称整个供应商账户绝不超额。

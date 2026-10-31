@@ -1,9 +1,41 @@
 package recipients
 
 import (
+	"database/sql"
 	"github.com/qingyingjin/banking-service/internal/entity"
+	"strings"
 	"testing"
 )
+
+func TestPrivateRemarkQueries(t *testing.T) {
+	v, err := NormalizeQuery(SearchInput{Kind: "remark", Query: " 房东 "})
+	if err != nil || v != "房东" {
+		t.Fatalf("private exact remark rejected: %q %v", v, err)
+	}
+	for _, query := range []string{"", "\n", "房\n东", strings.Repeat("长", 33)} {
+		if _, err := NormalizeQuery(SearchInput{Kind: "remark", Query: query}); entity.Code(err) != "INVALID_ARGUMENT" {
+			t.Fatalf("invalid remark accepted: %q", query)
+		}
+	}
+}
+
+func TestPersistedPrivateRemarksMustBeBoundedAndCanonical(t *testing.T) {
+	for _, raw := range []string{
+		`{"version":1,"remarks":{"房东":"0"}}`,
+		`{"version":1,"remarks":{"房东":"01"}}`,
+		`{"version":1,"remarks":{"房东":"-2"}}`,
+		`{"version":1,"remarks":{"房东":"9223372036854775808"}}`,
+		`{"version":1,"remarks":{" 房东 ":"2"}}`,
+		`{"version":1,"remarks":{"房\n东":"2"}}`,
+	} {
+		if _, err := settings(sql.NullString{Valid: true, String: raw}); entity.Code(err) != "DEPENDENCY_UNAVAILABLE" {
+			t.Fatalf("invalid persisted alias accepted: %s", raw)
+		}
+	}
+	if _, err := settings(sql.NullString{Valid: true, String: `{"version":1,"remarks":{"房东":"2"}}`}); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestExactRecipientQueries(t *testing.T) {
 	for _, raw := range []string{"13800138000", "+8613800138000", " 13800138000 "} {

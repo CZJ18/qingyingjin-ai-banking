@@ -1,0 +1,41 @@
+{
+  "status": "PASS_BOUNDED_REAL_BILLING_CHAIN_ADVICE_AND_ENABLED_PERIOD",
+  "verified_utc": "2026-10-31T17:46:07.462869+00:00",
+  "verified_Asia_Shanghai": "2026-11-01T01:46:07.462886+08:00",
+  "task_id": "lg-8cd2747a-6ce7-4899-b9c9-bd16866a07fb",
+  "current_revision_real_requests": 2,
+  "all_current_project_real_requests": 4,
+  "all_project_tokens": 2956,
+  "valid_until": "2026-11-01T11:58:19Z",
+  "formal_supplier_bill_reconciled": false,
+  "financial_execution_simulated": true,
+  "model_alias_is_mutable": true,
+  "source_runtime_difference": "Shared direct-provider prompt constant changed in source but current core binary unchanged; real Coze path uses newly published exactBillingv0.0.9 prompt. No schema/API/authorization changes.",
+  "data_kind": "synthetic",
+  "records": 61,
+  "report_income_CNY": "5000.00",
+  "report_expense_CNY": "3900.00",
+  "current_v9_tokens": 1529,
+  "current_v9_reserved_USD": "0.00491520",
+  "current_v9_estimated_USD": "0.00062661",
+  "combined_project_reserved_USD": "0.00983040",
+  "combined_project_estimated_USD": "0.00120479",
+  "official_settled_amount": null,
+  "quality_scope": "One exact readonly billing case; not actual500CNY saved or all arbitrary questions",
+  "model_response": "结论：按已记录的交易，支出类别为餐饮和购物，收入与支出均有记录，但账单完整性尚未核实。依据：权威结果给出餐饮与购物两类支出及总收入、总支出，证据为账单报告。局限：记录的总计不是可用账户余额，账单完整性未核实，未来节省未验证。建议：行动：将用户确认的购物类可选购买推迟到复核时再决定，先区分必要餐饮与可调整项目；替代：优先使用或修复现有物品；复核：每周记录所选类别的支出、必要购买与未满足需求，据此保留或调整该行动。",
+  "published_workflows": [
+    {
+      "file": "supervisor-v0.0.10.canvas.json",
+      "raw_canvas_sha256": "5490489e99aee70fdda45582162884960039a67df1dd59dafe191021fbcb92b4",
+      "scope": "readonly synthetic billing only",
+      "authorization_included": false
+    },
+    {
+      "file": "billing-v0.0.9.canvas.json",
+      "raw_canvas_sha256": "8a03f48aae45d8c9a78932f93084f07601d161d0b64dda96cbebbe87ef52ebe3",
+      "scope": "readonly synthetic billing only",
+      "authorization_included": false
+    }
+  ],
+  "permission_or_approval_included": false
+}

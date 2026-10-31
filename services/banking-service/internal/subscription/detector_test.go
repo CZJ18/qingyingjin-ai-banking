@@ -6,6 +6,25 @@ import (
 	"time"
 )
 
+func TestSupportedCadencesHaveThreeIndependentObservations(t *testing.T) {
+	for interval, dates := range map[string][]string{
+		"weekly":    {"2026-09-01", "2026-09-08", "2026-09-15"},
+		"monthly":   {"2026-01-31", "2026-02-28", "2026-03-31"},
+		"quarterly": {"2026-01-31", "2026-04-30", "2026-07-31"},
+		"annual":    {"2024-02-29", "2025-02-28", "2026-02-28"},
+	} {
+		rows := []entity.Transaction{}
+		for i, date := range dates {
+			at, _ := time.Parse("2006-01-02", date)
+			rows = append(rows, entity.Transaction{Base: entity.Base{ID: int64(i + 1), UserID: 42}, BankAccountID: 1, Kind: "external", Direction: "expense", Currency: "CNY", MerchantName: "Explicit cadence fixture", AmountMinor: 1000, OccurredAt: at.UnixMilli()})
+		}
+		result, err := Detect(rows)
+		if err != nil || len(result) != 1 || result[0].Interval != interval {
+			t.Fatalf("%s: %+v %v", interval, result, err)
+		}
+	}
+}
+
 func TestRecurringEvidence(t *testing.T) {
 	rows := []entity.Transaction{}
 	for i, day := range []string{"2026-01-31", "2026-02-28", "2026-03-31"} {

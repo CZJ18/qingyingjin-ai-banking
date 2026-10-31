@@ -2,6 +2,7 @@
 
 import json
 import math
+from copy import deepcopy
 from typing import Any
 from uuid import UUID
 
@@ -23,9 +24,38 @@ from .source import canonical_numeric_id, normalize_resource
 _POST_PATHS = frozenset(
     {
         "/api/v1/langgraph/delegations",
+        "/api/v1/langgraph/background-delegations",
         "/api/v1/langgraph/run",
         "/api/v1/langgraph/plan",
         "/api/v1/execution/operations",
+    }
+)
+_HUMAN_PREPARATION_KINDS = frozenset(
+    {
+        "card_manage",
+        "recipient_transfer",
+        "aa_payment",
+        "scheduled_transfer",
+        "investment_assessment",
+        "investment_order",
+        "occasion_plan",
+        "occasion_order",
+        "occasion_release",
+    }
+)
+_PREPARATION_KINDS = _HUMAN_PREPARATION_KINDS | frozenset(
+    {
+        "transfer",
+        "savings_deposit",
+        "savings_withdrawal",
+        "cancel_subscription",
+        "budget_rule_update",
+        "account_status",
+        "open_account",
+        "import_transaction",
+        "create_budget",
+        "create_savings_goal",
+        "subscription_manage",
     }
 )
 _SECRET_KEYS = frozenset(
@@ -34,6 +64,8 @@ _SECRET_KEYS = frozenset(
         "access_token",
         "refresh_token",
         "agent_token",
+        "capability",
+        "background_capability",
         "bearer",
         "authorization",
         "authorization_id",
@@ -174,6 +206,61 @@ def _owned_output(
     elif type(value) is list:
         for item in value:
             _owned_output(item, user_id, spec, path)
+
+
+def _scenario_overview_output(value: Any, user_id: str, spec: AgentTaskSpec) -> None:
+    """Validate the bounded native read contract; this never grants resource access."""
+    fields = {"scenario", "account_id", "user_id", "is_simulated", "items", "limitations", "truncated"}
+    if (
+        type(value) is not dict or set(value) != fields
+        or value["scenario"] != spec.parameters["scenario"]
+        or value["account_id"] != spec.parameters["account_id"]
+        or value["user_id"] != user_id or value["is_simulated"] is not True
+        or type(value["truncated"]) is not bool
+        or type(value["items"]) is not list or len(value["items"]) > 50
+        or value["truncated"] and len(value["items"]) != 50
+        or type(value["limitations"]) is not list
+        or not 1 <= len(value["limitations"]) <= 16
+        or any(type(text) is not str or not text.strip() or len(text.encode("utf-8")) > 2048 for text in value["limitations"])
+    ):
+        raise _invalid_output()
+    required = {"id", "kind", "status"}
+    optional = {
+        "label", "currency", "amount_minor", "version", "credit_limit_minor",
+        "credit_available_minor", "transaction_limit_minor", "minimum_minor", "risk_level",
+        "lock_days", "billing_interval", "next_billing_at", "month_day", "next_date", "days_until",
+    }
+    kinds = {
+        "transfer": {"source_account", "saved_recipient_reference"},
+        "cards": {"card"}, "investment": {"investment_product"},
+        "subscriptions": {"subscription"}, "birthday": {"registered_birthday"},
+    }
+    integer_fields = {"version", "risk_level", "lock_days", "next_billing_at", "days_until"}
+    seen = set()
+    for item in value["items"]:
+        if (
+            type(item) is not dict or not required <= set(item)
+            or set(item) - required - optional
+            or any(type(item[field]) is not str or not item[field] or len(item[field].encode("utf-8")) > 128 for field in required)
+            or item["kind"] not in kinds[value["scenario"]]
+            or (item["kind"], item["id"]) in seen
+            or "currency" in item and item["currency"] != "CNY"
+        ):
+            raise _invalid_output()
+        seen.add((item["kind"], item["id"]))
+        for field, content in item.items():
+            if field.endswith("_minor"):
+                if type(content) is not int or not 0 <= content <= 1_000_000_000_000:
+                    raise _invalid_output()
+            elif field in integer_fields:
+                if type(content) is not int or not 0 <= content <= 9_223_372_036_854_775_807:
+                    raise _invalid_output()
+            elif type(content) is not str or len(content.encode("utf-8")) > 128:
+                raise _invalid_output()
+        if item.get("label") and item["kind"] != "investment_product":
+            raise _invalid_output()
+        if item["kind"] == "source_account" and item["id"] != spec.parameters["account_id"]:
+            raise _invalid_output()
 
 
 class AgentBankingClient(BankingClient):
@@ -321,6 +408,8 @@ class AgentBankingClient(BankingClient):
         # Preserve only known business codes and local messages. Never reflect
         # provider text, credentials or an unbounded error response into a task.
         failures = {
+            (403, "MODEL_APPROVAL_REQUIRED"): "Fresh approval for this task scope is required",
+            (429, "MODEL_APPROVAL_LIMIT_EXCEEDED"): "Approved request, concurrency or cost limit is exhausted",
             (422, "INPUT_REQUIRED"): "Additional task inputs are required",
             (409, "MODEL_OUTCOME_UNKNOWN"): "Model outcome is unknown; inspect this task before retrying",
             (409, "MODEL_REQUEST_CONFLICT"): "Model request conflicts with its persisted invocation",
@@ -329,6 +418,10 @@ class AgentBankingClient(BankingClient):
             (429, "MODEL_QUOTA_EXCEEDED"): "Model call allowance is exhausted",
             (503, "COZE_UNAVAILABLE"): "Configured model workflow is unavailable",
             (503, "MODEL_BUDGET_UNAVAILABLE"): "Model allowance tracking is unavailable",
+            (503, "MODEL_MONETARY_ADMISSION_REQUIRED"): "Trusted task monetary admission is required",
+            (503, "MODEL_EXECUTION_CONFIRMATION_REQUIRED"): "Separate confirmation of the exact execution plan is required",
+            (429, "MODEL_USER_MONTHLY_QUOTA_EXCEEDED"): "User monthly monetary allowance is exhausted",
+            (429, "MODEL_SPEND_QUOTA_EXCEEDED"): "Project monetary allowance is exhausted",
         }
         try:
             payload = bytearray()
@@ -366,6 +459,19 @@ class AgentBankingClient(BankingClient):
             raise _invalid_output()
         return token
 
+    async def background_delegation(self, user_token, task_id, request_digest, trace_id):
+        data = await self._request(
+            "POST", "/api/v1/langgraph/background-delegations", user_token, trace_id,
+            {"task_id": task_id, "request_digest": request_digest},
+        )
+        if (data.get("task_id") != task_id or data.get("request_digest") != request_digest
+                or not isinstance(data.get("capability"), str)
+                or not data["capability"].startswith("bgt1.")
+                or type(data.get("expires_in_seconds")) is not int
+                or not 1 <= data["expires_in_seconds"] <= 86400):
+            raise _invalid_output()
+        return data
+
     async def execute(
         self,
         user_token: str,
@@ -399,6 +505,7 @@ class AgentBankingClient(BankingClient):
             if (
                 set(body) - {"kind", "parameters", "expires_in_seconds"}
                 or type(body.get("kind")) is not str
+                or body["kind"] not in _PREPARATION_KINDS
                 or type(body.get("parameters")) is not dict
                 or (
                     "expires_in_seconds" in body
@@ -410,6 +517,11 @@ class AgentBankingClient(BankingClient):
             ):
                 raise DomainError(
                     "INVALID_ARGUMENT", "A typed operation preparation is required", 400
+                )
+            if body["kind"] in _HUMAN_PREPARATION_KINDS:
+                return _clean(
+                    self._proposal_output(bound_id, spec, body),
+                    (self._service_key, user_token),
                 )
             token = await self._delegate(user_token, bound_id, spec.agent_type, trace_id)
             data = await self._request(
@@ -439,7 +551,36 @@ class AgentBankingClient(BankingClient):
             )
             out = self._agent_output(data, bound_id, spec)
             _owned_output(out, user_id, spec)
+            if spec.tool == "get_scenario_overview":
+                _scenario_overview_output(out["result"], user_id, spec)
         return _clean(out, (self._service_key, user_token, token))
+
+    @staticmethod
+    def _proposal_output(task_id: str, spec: AgentTaskSpec, body: dict) -> dict:
+        # These are unverified model suggestions. The human user's preparation
+        # request must still pass Go ownership, parameter and risk validation.
+        return {
+            "skill_id": spec.skill_id,
+            "skill_version": spec.skill_version,
+            "rule_version": "1",
+            "task_id": task_id,
+            "agent_type": spec.agent_type,
+            "status": "succeeded",
+            "result": {
+                "operation_proposal": deepcopy(body),
+                "requires_user_preparation": True,
+                "server_validated": False,
+                "authorization_granted": False,
+            },
+            "evidence": [],
+            "errors": [],
+            "next_actions": [
+                {"type": "review_operation_proposal", "requires_confirmation": True}
+            ],
+            "explanation": "",
+            "workflow_execute_id": "",
+            "financial_execution_enabled": False,
+        }
 
     @staticmethod
     def _agent_output(data: dict, task_id: str, spec: AgentTaskSpec) -> dict:
@@ -569,7 +710,7 @@ class AgentBankingClient(BankingClient):
                 if task.get("dependencies") is None:
                     task["dependencies"] = []
                 native_tasks.append(task)
-            tasks = AgentSubmit(tasks=native_tasks).tasks
+            tasks = AgentSubmit(tasks=native_tasks, bindings=submitted.bindings).tasks
         except (ValidationError, ValueError, TypeError, RecursionError):
             raise _invalid_output() from None
         return _clean(

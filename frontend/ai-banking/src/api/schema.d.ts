@@ -4,6 +4,104 @@
  */
 
 export interface paths {
+    "/api/v2/expense-trials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * list expense trials
+         * @description User-only persistent advisory trial. Existing ownership, idempotency, audit and storage fencing apply. No model or financial execution. Recorded expenses and personal observations do not establish savings.
+         */
+        get: operations["list_expense_trials"];
+        put?: never;
+        /**
+         * start expense trial
+         * @description User-only persistent advisory trial. Existing ownership, idempotency, audit and storage fencing apply. No model or financial execution. Recorded expenses and personal observations do not establish savings.
+         */
+        post: operations["start_expense_trial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/expense-trials/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * get expense trial
+         * @description User-only persistent advisory trial. Existing ownership, idempotency, audit and storage fencing apply. No model or financial execution. Recorded expenses and personal observations do not establish savings.
+         */
+        get: operations["get_expense_trial"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/expense-trials/{id}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * review expense trial
+         * @description User-only persistent advisory trial. Existing ownership, idempotency, audit and storage fencing apply. No model or financial execution. Recorded expenses and personal observations do not establish savings.
+         */
+        post: operations["review_expense_trial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/lifestyle-goals/expense-reduction-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description User-only, read-only what-if advice for next Shanghai month from an owned stored report. Uses existing deterministic lifestyle rules, never a model call, persisted recommendation or financial authorization. Partial months remain needs_information. Forecast reductions are not available cash. */
+        post: operations["preview_expense_reduction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/model-admission": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Read-only authenticated owner's fee snapshot. Never grants workflow scope, reserves funds, or authorizes financial execution. Simulation is explicitly labelled. */
+        get: operations["getModelAdmissionSnapshot"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -227,6 +325,40 @@ export interface paths {
         put?: never;
         /** @description Legacy financial mutation blocked with GATEWAY_REQUIRED when module8 gateway is configured. Prepare, authorize and execute through /api/v1/execution/operations. */
         post: operations["importTransaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/transactions/import/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description User-uploaded unverified CSV preview only. Requires an owned account. No balance or transaction changes; records must enter prepare, authorize and execute individually. Pending/reversed/failed rows are skipped; conflicting external IDs reject the whole preview. */
+        post: operations["previewStatementCSV"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/transactions/{id}/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Owned retained CSV source. User-supplied evidence, never bank verification. */
+        get: operations["getStatementSource"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1154,7 +1286,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** @description User only. Owned plan summaries ordered by updated_at/id descending. Listing does not select advice, change account scope or authorize execution. */
+        get: operations["list_owned_financial_plans"];
         put?: never;
         /** @description Advice only; all amounts are deterministic integer CNY cents. Never deposits forecast income/avoided subscription costs or executes transfers. UTC calendar-month period. Necessary cashflows are ADDITIONAL obligations outside living budget; do not enter the same expense twice. Tools cannot change settings or select advice. Snapshots and versions preserve evidence; decisions require exact version and data digest. */
         post: operations["create_financial_plan"];
@@ -1624,6 +1757,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/execution/readiness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Authenticated user only. Checks all six required execution policies without creating intents or authorizations. Missing/disabled/incompatible policies return503. */
+        get: operations["get_execution_readiness"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/execution/risk-rules": {
         parameters: {
             query?: never;
@@ -1716,7 +1866,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** @description User only. Latest persisted version per owned goal, ordered by updated_at/id descending. Caller user_id is never authority. */
+        get: operations["list_owned_lifestyle_goals"];
         put?: never;
         /** @description Suggestions only. Accepting a recommendation never authorizes execution. Missing data stays explicit. */
         post: operations["create_lifestyle_goal"];
@@ -1864,6 +2015,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/langgraph/background-delegations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Server-to-server only. Requires BOTH the authenticated user's Bearer JWT and X-Banking-Agent-Key. The persisted user must be active and the user session must remain valid. Specialist agent, tool and background actors cannot issue this grant. The caller supplies the canonical persisted task root and immutable request digest for that authenticated owner; user_id is never accepted as authority. The returned opaque capability is bound to this owner, task and digest for up to 24 hours, and can only request child specialist delegations through /api/v1/langgraph/delegations. It cannot call ordinary user APIs or authorize financial execution. Store as a secret; never expose in browser/model content or log request credentials, response capability, or the complete response body. */
+        post: operations["langgraph_background_delegations"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/langgraph/delegations": {
         parameters: {
             query?: never;
@@ -1890,7 +2058,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Signed specialist plus server key; role/user/task derived from JWT. Native Skill/DTO/evidence validation; READ/PLAN only. Sensitive preparation uses the separate existing gateway. */
+        /** @description Signed specialist plus server key; role/user/task derived from JWT. Native Skill/DTO/evidence validation; READ/PLAN only. Sensitive preparation uses the separate existing gateway. Supervisor may additionally run the exact deterministic get_scenario_overview tool with use_coze=false. This does not enable financial preparation or execution. */
         post: operations["langgraph_run"];
         delete?: never;
         options?: never;
@@ -2291,6 +2459,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications/birthdays": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Human-only private birthday calendar and read-only upcoming occurrences in Shanghai. Dates are explicitly supplied by the user. No inferred relationships, financial intents, authorization, reservation or merchant requests. Feb29 occurs only in a true leap year. */
+        get: operations["getBirthdayCalendar"];
+        /** @description Replace the user's private calendar with explicit version CAS; missing entries are removed from future reminders only. Existing financial plans and histories are unchanged. */
+        put: operations["updateBirthdayCalendar"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/recipients/remarks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Human-only private exact remark. Requires explicit recipient selection from an exact name/phone lookup, recipient version and own settings version. Applies the existing lookup rate limit. No arbitrary ID discovery, public alias, transfer intent or money movement. */
+        put: operations["saveRecipientRemark"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/recipients/search": {
         parameters: {
             query?: never;
@@ -2342,10 +2545,300 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/execution/scenarios": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Human-owned simulated catalog, principal holdings and exact persisted operations. No model request or real bank/merchant integration. */
+        get: operations["getSimulatedScenarios"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/execution/operations/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Cancel an owned already-authorized schedule. decision must be reject, digest and nonce must match. Cannot undo a completed posting or mutate fee state. */
+        post: operations["cancelScheduledSimulation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/scenarios/get_scenario_overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Registered task_planning v1 / supervisor / read_only tool. Requires an owned selected simulated CNY account. The signed task identity supplies the user. Returns at most50 fixed redacted records and explicit truncation. Does not relax the original human-only card, recipient or scenario endpoints. */
+        post: operations["getScenarioOverview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ExpenseTrialInput: {
+            statement_check?: components["schemas"]["ExpenseStatementCheck"];
+            /** Format: int64 */
+            expected_reduction_minor?: number;
+            account_id: string;
+            billing_report_id: string;
+            target_period: string;
+            /** Format: int64 */
+            target_minor: number;
+            /** @enum {string} */
+            category: "shopping" | "subscriptions" | "sports" | "other";
+        };
+        ExpenseTrial: {
+            id: string;
+            user_id: string;
+            account_id: string;
+            billing_report_id: string;
+            baseline_digest: string;
+            target_period: string;
+            /** Format: int64 */
+            target_minor: number;
+            /** @enum {string} */
+            category: "shopping" | "subscriptions" | "sports" | "other";
+            /** Format: int64 */
+            started_at: number;
+            /** Format: int64 */
+            ends_at: number;
+            /** @enum {string} */
+            status: "active" | "completed";
+            /** Format: int64 */
+            version: number;
+            /** Format: int64 */
+            created_at: number;
+            /** Format: int64 */
+            updated_at: number;
+        };
+        ExpenseTrialProgress: {
+            /** Format: int64 */
+            from: number;
+            /** Format: int64 */
+            to: number;
+            /** Format: int64 */
+            total_expense_minor: number;
+            /** Format: int64 */
+            category_expense_minor: number;
+            evidence_transaction_ids: string[];
+            window_complete: boolean;
+            /**
+             * Format: int64
+             * @description Always null. Recorded spending is not independently verified savings.
+             */
+            confirmed_savings_minor: number | null;
+        };
+        ExpenseTrialReviewInput: {
+            /** Format: int64 */
+            expected_version: number;
+            /** @description At most 2000 UTF-8 bytes; personal observation, never a financial amount claim. */
+            note: string;
+        };
+        ExpenseTrialReview: {
+            /** Format: int64 */
+            observed_at: number;
+            note: string;
+            progress: components["schemas"]["ExpenseTrialProgress"];
+        };
+        ExpenseTrialBaseline: {
+            category: string;
+            /** Format: int64 */
+            expense_minor: number;
+            transaction_ids: string[];
+        };
+        ExpenseTrialView: {
+            plan?: components["schemas"]["ExpenseTrialPlan"];
+            comparison?: components["schemas"]["ExpenseTrialComparison"];
+            trial: components["schemas"]["ExpenseTrial"];
+            baseline: components["schemas"]["ExpenseTrialBaseline"];
+            baseline_period: {
+                /** Format: date-time */
+                from: string;
+                /** Format: date-time */
+                to: string;
+                timezone: string;
+            };
+            baseline_complete: boolean;
+            progress: components["schemas"]["ExpenseTrialProgress"];
+            review: components["schemas"]["ExpenseTrialReview"] | null;
+            /** @enum {boolean} */
+            financial_execution_enabled: false;
+        };
+        ExpenseTrialResponse: {
+            code: string;
+            message: string;
+            request_id: string;
+            trace_id: string;
+            data: components["schemas"]["ExpenseTrialView"];
+        };
+        ExpenseTrialListResponse: {
+            code: string;
+            message: string;
+            request_id: string;
+            trace_id: string;
+            data: components["schemas"]["ExpenseTrialView"][];
+        };
+        /** @description User-entered full-month statement totals checked against one owned report. Not bank authenticity, verified coverage, savings, funds or authorization. */
+        ExpenseStatementCheck: {
+            /** @enum {boolean} */
+            full_month_confirmed: true;
+            /** Format: int64 */
+            transaction_count: number;
+            /** Format: int64 */
+            income_minor: number;
+            /** Format: int64 */
+            expense_minor: number;
+        };
+        ExpenseTrialPlan: {
+            /** Format: int64 */
+            expected_reduction_minor: number;
+            /** Format: int64 */
+            monthly_limit_minor: number;
+            statement_check: components["schemas"]["ExpenseStatementCheck"];
+        };
+        /** @description Two equal seven-day windows, snapshot membership and source totals checked. Recorded differences are reference only and never confirmed savings. */
+        ExpenseTrialComparison: {
+            /** @enum {string} */
+            status: "recorded_reference_only" | "source_changed";
+            baseline_period: {
+                /** Format: date-time */
+                from: string;
+                /** Format: date-time */
+                to: string;
+                timezone: string;
+            };
+            /** Format: int64 */
+            category_expense_minor: number;
+            /** Format: int64 */
+            total_expense_minor: number;
+            /** Format: int64 */
+            category_difference_minor: number | null;
+            /** Format: int64 */
+            total_difference_minor: number | null;
+        };
+        ExpensePreviewInput: {
+            statement_check?: components["schemas"]["ExpenseStatementCheck"];
+            billing_report_id: string;
+            /** @description Next Asia/Shanghai calendar month only */
+            target_period: string;
+            /** Format: int64 */
+            target_minor: number;
+            adjustable_categories: string[];
+        };
+        ExpensePreview: {
+            /**
+             * @description Matching user-declared totals only; not bank-verified completeness.
+             * @enum {string}
+             */
+            baseline_status?: "unverified" | "user_reconciled";
+            statement_check?: components["schemas"]["ExpenseStatementCheck"];
+            /** @enum {string} */
+            source: "deterministic_lifestyle_rules";
+            billing_report_id: string;
+            baseline_period: {
+                /** Format: date-time */
+                from: string;
+                /** Format: date-time */
+                to: string;
+                timezone: string;
+            };
+            target_period: string;
+            /** Format: int64 */
+            target_minor: number;
+            /** Format: int64 */
+            historical_expense_minor: number;
+            evidence_transaction_ids: string[];
+            result: components["schemas"]["LifestyleResult"];
+        };
+        ExpensePreviewResponse: {
+            /** @enum {string} */
+            code: "OK";
+            message: string;
+            request_id: string;
+            trace_id: string;
+            data: components["schemas"]["ExpensePreview"];
+        };
+        StatementSource: {
+            /** @enum {string} */
+            kind: "unverified_csv_upload";
+            /** @enum {string} */
+            timezone: "UTC" | "Asia/Shanghai";
+            columns: {
+                [key: string]: string;
+            };
+            file_sha256: string;
+            row_sha256: string;
+            row_number: number;
+            raw_record: {
+                [key: string]: string;
+            };
+        };
+        StatementPreviewInput: {
+            account_id: string;
+            csv: string;
+            /** @enum {string} */
+            timezone: "UTC" | "Asia/Shanghai";
+            columns: {
+                external_id: string;
+                occurred_at: string;
+                amount: string;
+                direction: string;
+                currency: string;
+                status: string;
+                merchant?: string;
+                category?: string;
+                kind?: string;
+            };
+        };
+        StatementRecord: {
+            external_transaction_id: string;
+            /** @enum {string} */
+            direction: "income" | "expense";
+            /** Format: int64 */
+            amount_minor: number;
+            /** @enum {string} */
+            currency: "CNY";
+            category: string;
+            merchant_name: string;
+            /** Format: int64 */
+            occurred_at: number;
+            /** @enum {string} */
+            effect_mode: "record_only";
+            source: components["schemas"]["StatementSource"];
+        };
+        StatementPreview: {
+            file_sha256: string;
+            records: components["schemas"]["StatementRecord"][];
+            skipped: number;
+            warnings: string[];
+            /** @enum {boolean} */
+            financial_execution_enabled: false;
+        };
         Actor: {
             /** @enum {string} */
             kind: "user" | "agent" | "tool";
@@ -2387,7 +2880,7 @@ export interface components {
             updated_at: number;
             display_name: string;
             /** @enum {string} */
-            account_type: "checking" | "savings";
+            account_type: "checking" | "savings" | "investment" | "occasion";
             masked_account_number: string;
             /**
              * @default CNY
@@ -2745,6 +3238,7 @@ export interface components {
             status: "active" | "frozen" | "inactive" | "closed";
         };
         TransactionInput: {
+            source?: components["schemas"]["StatementSource"];
             /** @description Canonical positive int64 decimal string */
             bank_account_id: string;
             external_transaction_id: string;
@@ -2788,6 +3282,11 @@ export interface components {
              */
             currency: "CNY";
             description?: string;
+            /**
+             * Format: uuid
+             * @description Optional debit card initiation, owned by the source account. Enforced at preparation and execution; locked/lost/unbound and over-limit cards are rejected. No credit spending.
+             */
+            card_id?: string;
         };
         ApprovalInput: {
             /** @enum {string} */
@@ -3752,6 +4251,11 @@ export interface components {
             cancelled_at?: number | null;
         };
         SubscriptionDetectionInput: {
+            /**
+             * @description RFC3339 timestamps define instants; default history is 1096 days before to or now.
+             * @enum {string}
+             */
+            timezone?: "UTC" | "Asia/Shanghai";
             /** Format: date-time */
             from?: string;
             /** Format: date-time */
@@ -3822,6 +4326,8 @@ export interface components {
             due_at: number;
         };
         PlanningSettings: {
+            /** @description Optional explicit priority, an exact permutation of savings_goal_ids; empty means proportional allocation. */
+            goal_priority_ids?: number[];
             period?: string;
             account_ids: number[];
             savings_goal_ids: number[];
@@ -3881,6 +4387,8 @@ export interface components {
             ends_at: number;
         };
         PlanningGoalFunds: {
+            /** Format: int64 */
+            ends_at?: number;
             id: string;
             /** Format: int64 */
             target_minor: number;
@@ -3917,6 +4425,11 @@ export interface components {
             review_notes: string[];
         };
         PlanningAllocation: {
+            /** Format: int64 */
+            deadline_at?: number;
+            /** Format: int64 */
+            required_monthly_minor?: number;
+            deadline_risk?: boolean;
             goal_id: string;
             /** Format: int64 */
             amount_minor: number;
@@ -4382,8 +4895,8 @@ export interface components {
         };
         ExecutionPrepareInput: {
             /** @enum {string} */
-            kind: "transfer" | "savings_deposit" | "savings_withdrawal" | "cancel_subscription" | "budget_rule_update" | "account_status" | "open_account" | "import_transaction" | "create_budget" | "create_savings_goal" | "subscription_manage" | "card_manage" | "aa_payment" | "recipient_transfer";
-            /** @description Typed by kind. recipient_transfer uses RecipientTransferInput (human-only, recipient account resolved by server); aa_payment uses AAPaymentInput. Other kinds unchanged. */
+            kind: "transfer" | "savings_deposit" | "savings_withdrawal" | "cancel_subscription" | "budget_rule_update" | "account_status" | "open_account" | "import_transaction" | "create_budget" | "create_savings_goal" | "subscription_manage" | "card_manage" | "aa_payment" | "recipient_transfer" | "scheduled_transfer" | "investment_assessment" | "investment_order" | "occasion_plan" | "occasion_order" | "occasion_release";
+            /** @description Typed by kind. recipient_transfer uses RecipientTransferInput (human-only, recipient account resolved by server); aa_payment uses AAPaymentInput. Other kinds unchanged. Scenarios: scheduled_transfer=ExecutionScheduledTransferParameters; investment_assessment=ExecutionInvestmentAssessmentParameters; investment_order=ExecutionInvestmentOrderParameters; occasion_plan=ExecutionOccasionPlanParameters; occasion_order=ExecutionOccasionOrderParameters; occasion_release=ExecutionOccasionReleaseParameters. Human-only simulated execution; existing approval and ledger apply. */
             parameters: {
                 [key: string]: unknown;
             };
@@ -4423,6 +4936,11 @@ export interface components {
              */
             currency: "CNY";
             description?: string;
+            /**
+             * Format: uuid
+             * @description Optional debit card initiation, owned by the source account. Enforced at preparation and execution; locked/lost/unbound and over-limit cards are rejected. No credit spending.
+             */
+            card_id?: string;
         };
         ExecutionCancelSubscriptionParameters: {
             subscription_id: string;
@@ -4572,15 +5090,15 @@ export interface components {
             created_at: number;
             /** Format: int64 */
             updated_at: number;
-            /** @description Typed by kind. recipient_transfer uses RecipientTransferInput (human-only, recipient account resolved by server); aa_payment uses AAPaymentInput. Other kinds unchanged. */
+            /** @description Typed by kind. recipient_transfer uses RecipientTransferInput (human-only, recipient account resolved by server); aa_payment uses AAPaymentInput. Other kinds unchanged. Scenarios: scheduled_transfer=ExecutionScheduledTransferParameters; investment_assessment=ExecutionInvestmentAssessmentParameters; investment_order=ExecutionInvestmentOrderParameters; occasion_plan=ExecutionOccasionPlanParameters; occasion_order=ExecutionOccasionOrderParameters; occasion_release=ExecutionOccasionReleaseParameters. Human-only simulated execution; existing approval and ledger apply. */
             parameters: {
                 [key: string]: unknown;
             };
-            /** @description Typed by kind. recipient_transfer uses RecipientTransferInput (human-only, recipient account resolved by server); aa_payment uses AAPaymentInput. Other kinds unchanged. */
+            /** @description Typed by kind. recipient_transfer uses RecipientTransferInput (human-only, recipient account resolved by server); aa_payment uses AAPaymentInput. Other kinds unchanged. Scenarios: scheduled_transfer=ExecutionScheduledTransferParameters; investment_assessment=ExecutionInvestmentAssessmentParameters; investment_order=ExecutionInvestmentOrderParameters; occasion_plan=ExecutionOccasionPlanParameters; occasion_order=ExecutionOccasionOrderParameters; occasion_release=ExecutionOccasionReleaseParameters. Human-only simulated execution; existing approval and ledger apply. */
             snapshot: {
                 [key: string]: unknown;
             };
-            /** @description Typed by kind. recipient_transfer uses RecipientTransferInput (human-only, recipient account resolved by server); aa_payment uses AAPaymentInput. Other kinds unchanged. */
+            /** @description Typed by kind. recipient_transfer uses RecipientTransferInput (human-only, recipient account resolved by server); aa_payment uses AAPaymentInput. Other kinds unchanged. Scenarios: scheduled_transfer=ExecutionScheduledTransferParameters; investment_assessment=ExecutionInvestmentAssessmentParameters; investment_order=ExecutionInvestmentOrderParameters; occasion_plan=ExecutionOccasionPlanParameters; occasion_order=ExecutionOccasionOrderParameters; occasion_release=ExecutionOccasionReleaseParameters. Human-only simulated execution; existing approval and ledger apply. */
             result: {
                 [key: string]: unknown;
             };
@@ -4625,7 +5143,7 @@ export interface components {
             risk_level: string;
             decision: string;
             error_code: string;
-            /** @description Typed by kind. recipient_transfer uses RecipientTransferInput (human-only, recipient account resolved by server); aa_payment uses AAPaymentInput. Other kinds unchanged. */
+            /** @description Typed by kind. recipient_transfer uses RecipientTransferInput (human-only, recipient account resolved by server); aa_payment uses AAPaymentInput. Other kinds unchanged. Scenarios: scheduled_transfer=ExecutionScheduledTransferParameters; investment_assessment=ExecutionInvestmentAssessmentParameters; investment_order=ExecutionInvestmentOrderParameters; occasion_plan=ExecutionOccasionPlanParameters; occasion_order=ExecutionOccasionOrderParameters; occasion_release=ExecutionOccasionReleaseParameters. Human-only simulated execution; existing approval and ledger apply. */
             evidence: {
                 [key: string]: unknown;
             };
@@ -5206,7 +5724,7 @@ export interface components {
             /** @enum {string} */
             currency: "CNY";
             /** @enum {string} */
-            status: "active" | "unbound";
+            status: "active" | "locked" | "lost" | "unbound";
             is_default: boolean;
             /** @enum {boolean} */
             is_simulated: true;
@@ -5220,8 +5738,13 @@ export interface components {
             created_at: number;
             /** Format: int64 */
             updated_at: number;
+            /**
+             * Format: int64
+             * @description Optional legacy field. Zero explicitly blocks card-initiated transfers; absence retains account risk policy. Not a cash balance.
+             */
+            transaction_limit_minor?: number;
         };
-        /** @description User-only. bind requires account_id,issuer,name,last_four,card_type; debit limit must be zero. unbind/set_default require only action and card_id. No PAN/CVV, no credit payments or repayments. */
+        /** @description User-only simulated metadata. apply/bind require account, issuer, name, four digits, card type. Other actions require card_id; adjust_limit requires an explicit positive credit_limit_minor, set_transaction_limit requires transaction_limit_minor including zero. Missing/zero credit adjustments are rejected. Lost cards cannot be unlocked; locked cards may be reported lost directly. All writes require prepare/authorize/execute; no PAN/CVV or bank integration. */
         ExecutionCardManageParameters: {
             account_id?: string;
             issuer?: string;
@@ -5232,9 +5755,11 @@ export interface components {
             /** Format: int64 */
             credit_limit_minor?: number;
             /** @enum {string} */
-            action: "bind" | "unbind" | "set_default";
+            action: "bind" | "apply" | "unbind" | "set_default" | "adjust_limit" | "set_transaction_limit" | "lock" | "unlock" | "report_lost";
             /** Format: uuid */
             card_id?: string;
+            /** Format: int64 */
+            transaction_limit_minor?: number;
         };
         CardResponse: components["schemas"]["Envelope"] & {
             data: components["schemas"]["BankCard"];
@@ -5413,11 +5938,53 @@ export interface components {
         AABillsResponse: components["schemas"]["Envelope"] & {
             data: components["schemas"]["AABillView"][];
         };
+        BirthdayEntry: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @description A real MM-DD calendar date validated in a leap reference year. */
+            month_day: string;
+        };
+        BirthdayUpcoming: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            month_day: string;
+            /** Format: date */
+            next_date: string;
+            days_until: number;
+        };
+        BirthdayCalendarInput: {
+            /** Format: int64 */
+            expected_version: number;
+            enabled: boolean;
+            lead_days: number;
+            entries: components["schemas"]["BirthdayEntry"][];
+        };
+        BirthdayCalendarView: {
+            /** Format: int64 */
+            version: number;
+            enabled: boolean;
+            lead_days: number;
+            entries: components["schemas"]["BirthdayEntry"][];
+            upcoming: components["schemas"]["BirthdayUpcoming"][];
+            /** @enum {string} */
+            timezone: "Asia/Shanghai";
+            /** @enum {string} */
+            leap_day_policy: "next_leap_year";
+        };
+        BirthdayCalendarResponse: components["schemas"]["Envelope"] & {
+            data?: components["schemas"]["BirthdayCalendarView"];
+        };
         RecipientSettings: {
             enabled: boolean;
             account_id: string;
             /** Format: int64 */
             version: number;
+            /** @description Own exact private labels (1..32 visible characters) mapped to recipient decimal IDs. Never included in public search results or financial recipient fingerprints. */
+            remarks?: {
+                [key: string]: string;
+            };
         };
         RecipientSettingsInput: {
             enabled: boolean;
@@ -5427,9 +5994,22 @@ export interface components {
         };
         RecipientSearchInput: {
             /** @enum {string} */
-            kind: "name" | "phone";
-            /** @description Exact registered display name (at least two characters), or full phone. Never put this field in a URL or log. */
+            kind: "name" | "phone" | "remark";
+            /** @description Exact registered display name (at least two characters), full phone, or own saved private remark (1..32 visible characters). Never put this field in a URL or log. */
             query: string;
+        };
+        RecipientRemarkInput: {
+            remark: string;
+            recipient_id: string;
+            /** Format: int64 */
+            recipient_version: number;
+            /** Format: int64 */
+            expected_version: number;
+            lookup: {
+                /** @enum {string} */
+                kind: "name" | "phone";
+                query: string;
+            };
         };
         RecipientView: {
             id: string;
@@ -5502,8 +6082,148 @@ export interface components {
         AAManualReviewResponse: components["schemas"]["Envelope"] & {
             data: components["schemas"]["AAManualReview"];
         };
+        ExecutionScheduledTransferParameters: {
+            source_account_id: string;
+            target_account_id: string;
+            /** Format: int64 */
+            amount_minor: number;
+            /**
+             * Format: int64
+             * @description Exact future Unix milliseconds within30 days; execution authorization expires15 minutes after this time. No funds post before due.
+             */
+            execute_at: number;
+            description: string;
+        };
+        ExecutionInvestmentAssessmentParameters: {
+            answers: number[];
+        };
+        ExecutionInvestmentOrderParameters: {
+            /** @enum {string} */
+            action: "buy" | "redeem";
+            /** @enum {string} */
+            product_id: "sim-cash-v1" | "sim-bond-v1" | "sim-equity-v1";
+            account_id: string;
+            /** Format: int64 */
+            amount_minor: number;
+            /** @description Owned completed assessment required for buying; not used as a substitute for financial authorization. */
+            assessment_id: string;
+        };
+        ExecutionOccasionPlanParameters: {
+            name: string;
+            /** Format: date */
+            birthday: string;
+            /**
+             * @description Shanghai local HH:MM on the calendar day exactly two days before the birthday. The immutable plan snapshot binds this time; scheduling still requires separate consent.
+             * @default 09:00
+             */
+            order_time: string;
+            account_id: string;
+            /** Format: int64 */
+            reserve_minor: number;
+            items: ("flowers" | "cake")[];
+        };
+        ExecutionOccasionOrderParameters: {
+            /** Format: uuid */
+            plan_id: string;
+            /**
+             * Format: int64
+             * @description Zero explicitly means immediate local simulated order. Nonzero must equal funded plan birthday-minus-two-days Shanghai due time (default09:00), within30 days.
+             */
+            execute_at: number;
+        };
+        ExecutionOccasionReleaseParameters: {
+            /** Format: uuid */
+            plan_id: string;
+            account_id: string;
+        };
+        InvestmentProduct: {
+            id: string;
+            name: string;
+            risk_level: number;
+            /** Format: int64 */
+            minimum_minor: number;
+            lock_days: number;
+            description: string;
+            /** @enum {boolean} */
+            is_simulated: true;
+        };
+        ScenarioState: {
+            products: components["schemas"]["InvestmentProduct"][];
+            positions: components["schemas"]["BankAccount"][];
+            operations: components["schemas"]["ExecutionOperation"][];
+            /** @enum {boolean} */
+            is_simulated: true;
+        };
+        ScenarioResponse: components["schemas"]["Envelope"] & {
+            data: components["schemas"]["ScenarioState"];
+        };
+        ScenarioOverviewInput: {
+            /** @enum {string} */
+            scenario: "transfer" | "cards" | "investment" | "subscriptions" | "birthday";
+            account_id: string;
+        };
+        ScenarioOverviewItem: {
+            id: string;
+            /** @enum {string} */
+            kind: "source_account" | "saved_recipient_reference" | "card" | "investment_product" | "subscription" | "registered_birthday";
+            /** @enum {string} */
+            status: "active" | "frozen" | "inactive" | "closed" | "requires_explicit_selection" | "unbound" | "locked" | "lost" | "catalog_only" | "candidate" | "cancelled" | "recorded" | "disabled";
+            /** @description System-owned simulated product name only; never customer names or merchant text. */
+            label?: string;
+            /** @enum {string} */
+            currency?: "CNY";
+            /** Format: int64 */
+            amount_minor?: number;
+            /** Format: int64 */
+            credit_limit_minor?: number;
+            /** Format: int64 */
+            credit_available_minor?: number;
+            /** Format: int64 */
+            transaction_limit_minor?: number;
+            /** Format: int64 */
+            minimum_minor?: number;
+            /** Format: int64 */
+            version?: number;
+            risk_level?: number;
+            lock_days?: number;
+            /** @enum {string} */
+            billing_interval?: "weekly" | "monthly" | "quarterly" | "annual";
+            /**
+             * Format: int64
+             * @description Exact existing Unix milliseconds; not an execution schedule.
+             */
+            next_billing_at?: number;
+            month_day?: string;
+            /** Format: date */
+            next_date?: string;
+            days_until?: number;
+        };
+        /** @description Server-owned limited read-only facts. No financial intent, grant, fee reservation, supplier request or execution is created. Saved recipient IDs are unverified references requiring explicit human selection; birthday dates come only from the user calendar. */
+        ScenarioOverview: {
+            /** @enum {string} */
+            scenario: "transfer" | "cards" | "investment" | "subscriptions" | "birthday";
+            account_id: string;
+            user_id: string;
+            /** @enum {boolean} */
+            is_simulated: true;
+            items: components["schemas"]["ScenarioOverviewItem"][];
+            limitations: string[];
+            truncated: boolean;
+        };
+        ScenarioOverviewResponse: components["schemas"]["Envelope"] & {
+            data: components["schemas"]["ScenarioOverview"];
+        };
     };
     responses: {
+        /** @description Invalid upload, unauthenticated or unowned resource, conflict or dependency failure. */
+        StatementError: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Envelope"];
+            };
+        };
         /** @description INVALID_ARGUMENT */
         InvalidArgument: {
             headers: {
@@ -5546,6 +6266,376 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_expense_trials: {
+        parameters: {
+            query: {
+                account_id: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Advisory record only */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseTrialListResponse"];
+                };
+            };
+            /** @description Invalid bounded input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description User-only; agents refused */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Owned resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Version or idempotency conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Dependency unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    start_expense_trial: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpenseTrialInput"];
+            };
+        };
+        responses: {
+            /** @description Advisory record only */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseTrialResponse"];
+                };
+            };
+            /** @description Invalid bounded input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description User-only; agents refused */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Owned resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Version or idempotency conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Dependency unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_expense_trial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Advisory record only */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseTrialResponse"];
+                };
+            };
+            /** @description Invalid bounded input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description User-only; agents refused */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Owned resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Version or idempotency conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Dependency unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    review_expense_trial: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpenseTrialReviewInput"];
+            };
+        };
+        responses: {
+            /** @description Advisory record only */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseTrialResponse"];
+                };
+            };
+            /** @description Invalid bounded input */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description User-only; agents refused */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Owned resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Version or idempotency conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Dependency unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    preview_expense_reduction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpensePreviewInput"];
+            };
+        };
+        responses: {
+            /** @description Grounded scenario or explicit missing information; never guaranteed savings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpensePreviewResponse"];
+                };
+            };
+            /** @description Invalid goal, period, category or body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description User authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Agents cannot use this user-only preview */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Source report not owned or not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Storage unavailable; no fallback data */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getModelAdmissionSnapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current approval limits and remaining monetary, request and concurrency snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description User authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description User outside approval scope (MODEL_APPROVAL_REQUIRED) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing monetary admission, execution confirmation or unavailable fee ledger (MODEL_MONETARY_ADMISSION_REQUIRED / MODEL_EXECUTION_CONFIRMATION_REQUIRED). When no admission provider is configured, data.reason is MODEL_ADMISSION_NOT_CONFIGURED; this diagnostic does not grant execution or imply exhausted funds. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
     getLiveness: {
         parameters: {
             query?: never;
@@ -6509,6 +7599,66 @@ export interface operations {
             };
         };
     };
+    previewStatementCSV: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatementPreviewInput"];
+            };
+        };
+        responses: {
+            /** @description Normalized unverified upload; no financial execution authority. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["StatementPreview"];
+                    };
+                };
+            };
+            400: components["responses"]["StatementError"];
+            401: components["responses"]["StatementError"];
+            403: components["responses"]["StatementError"];
+            404: components["responses"]["StatementError"];
+            409: components["responses"]["StatementError"];
+            503: components["responses"]["StatementError"];
+        };
+    };
+    getStatementSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Original row and source hashes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: components["schemas"]["StatementSource"];
+                    };
+                };
+            };
+            400: components["responses"]["StatementError"];
+            401: components["responses"]["StatementError"];
+            404: components["responses"]["StatementError"];
+            503: components["responses"]["StatementError"];
+        };
+    };
     listTransactions: {
         parameters: {
             query?: {
@@ -6519,6 +7669,8 @@ export interface operations {
                 direction?: "income" | "expense";
                 category?: string;
                 merchant?: string;
+                /** @description Shared Billing classification; raw category remains an exact filter. */
+                canonical_category?: "dining" | "transport" | "shopping" | "sports" | "subscriptions" | "housing" | "medical" | "education" | "other" | "uncategorized";
                 from?: number;
                 to?: number;
             };
@@ -11575,6 +12727,67 @@ export interface operations {
             };
         };
     };
+    list_owned_financial_plans: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owned read-only data; no approval, grant or financial effect */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data: components["schemas"]["FinancialPlan"][];
+                    };
+                };
+            };
+            /** @description Invalid input, missing identity, forbidden scope or unavailable dependency */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid input, missing identity, forbidden scope or unavailable dependency */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid input, missing identity, forbidden scope or unavailable dependency */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid input, missing identity, forbidden scope or unavailable dependency */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
     create_financial_plan: {
         parameters: {
             query?: never;
@@ -12585,7 +13798,7 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
+            /** @description MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -12675,7 +13888,7 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
+            /** @description MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -12765,7 +13978,7 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
+            /** @description MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -12858,7 +14071,7 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
+            /** @description MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -12948,7 +14161,7 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
+            /** @description MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -13038,7 +14251,7 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
+            /** @description MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -13128,7 +14341,7 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
+            /** @description MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -13222,7 +14435,7 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
+            /** @description MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -13316,7 +14529,7 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
+            /** @description MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -13407,7 +14620,7 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
+            /** @description MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -13499,7 +14712,7 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
+            /** @description MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -13591,7 +14804,7 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
+            /** @description MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -13681,7 +14894,7 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
+            /** @description MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -14247,6 +15460,67 @@ export interface operations {
             };
         };
     };
+    get_execution_readiness: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owned read-only data; no approval, grant or financial effect */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data: {
+                            /** @enum {boolean} */
+                            ready: true;
+                        };
+                    };
+                };
+            };
+            /** @description Invalid input, missing identity, forbidden scope or unavailable dependency */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid input, missing identity, forbidden scope or unavailable dependency */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid input, missing identity, forbidden scope or unavailable dependency */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid input, missing identity, forbidden scope or unavailable dependency */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
     get_execution_risk_rules: {
         parameters: {
             query?: never;
@@ -14636,6 +15910,67 @@ export interface operations {
                 };
             };
             /** @description INVALID_ARGUMENT / UNAUTHENTICATED / FORBIDDEN / NOT_FOUND / VERSION_CONFLICT / STATE_CONFLICT / MODEL_OUTPUT_INVALID / COZE_UNAVAILABLE */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    list_owned_lifestyle_goals: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Owned read-only data; no approval, grant or financial effect */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data: components["schemas"]["LifestyleGoalView"][];
+                    };
+                };
+            };
+            /** @description Invalid input, missing identity, forbidden scope or unavailable dependency */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid input, missing identity, forbidden scope or unavailable dependency */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid input, missing identity, forbidden scope or unavailable dependency */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid input, missing identity, forbidden scope or unavailable dependency */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -15617,6 +16952,83 @@ export interface operations {
             };
         };
     };
+    langgraph_background_delegations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Canonical task root without a specialist suffix. */
+                    task_id: string;
+                    /** @description SHA-256 digest of the persisted immutable task request. */
+                    request_digest: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Opaque task-bound background grant; sensitive response, never log. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"] & {
+                        data?: {
+                            /**
+                             * Format: password
+                             * @description Sensitive opaque credential; returned only to the trusted task service, never log or disclose to models/browser clients.
+                             */
+                            capability: string;
+                            task_id: string;
+                            request_digest: string;
+                            /** @enum {integer} */
+                            expires_in_seconds: 86400;
+                        };
+                    };
+                };
+            };
+            /** @description INVALID_ARGUMENT; canonical task root and lowercase SHA-256 required. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description UNAUTHENTICATED; both user Bearer and service key required, or session revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description FORBIDDEN; active user actor required, agent actors cannot issue grants. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description DEPENDENCY_UNAVAILABLE; bridge or authoritative account validation unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
     langgraph_delegations: {
         parameters: {
             query?: never;
@@ -15677,7 +17089,7 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
+            /** @description MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -15739,7 +17151,7 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description FORBIDDEN */
+            /** @description FORBIDDEN / MODEL_APPROVAL_REQUIRED */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15757,7 +17169,16 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
+            /** @description MODEL_APPROVAL_LIMIT_EXCEEDED / MODEL_QUOTA_EXCEEDED / MODEL_USER_MONTHLY_QUOTA_EXCEEDED / MODEL_SPEND_QUOTA_EXCEEDED */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -15819,7 +17240,7 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description FORBIDDEN */
+            /** @description FORBIDDEN / MODEL_APPROVAL_REQUIRED */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -15837,7 +17258,16 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
+            /** @description MODEL_APPROVAL_LIMIT_EXCEEDED / MODEL_QUOTA_EXCEEDED / MODEL_USER_MONTHLY_QUOTA_EXCEEDED / MODEL_SPEND_QUOTA_EXCEEDED */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -17799,6 +19229,101 @@ export interface operations {
             };
         };
     };
+    getBirthdayCalendar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current calendar and upcoming birthdays */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BirthdayCalendarResponse"];
+                };
+            };
+            /** @description Authentication, ownership, storage or invalid saved state error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    updateBirthdayCalendar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BirthdayCalendarInput"];
+            };
+        };
+        responses: {
+            /** @description Persisted calendar and upcoming birthdays */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BirthdayCalendarResponse"];
+                };
+            };
+            /** @description Authentication, ownership, version, input or storage error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    saveRecipientRemark: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecipientRemarkInput"];
+            };
+        };
+        responses: {
+            /** @description Own settings with private remarks */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipientSettingsResponse"];
+                };
+            };
+            /** @description Existing authentication, lookup, version and dependency errors */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
     searchRecipients: {
         parameters: {
             query?: never;
@@ -18065,6 +19590,256 @@ export interface operations {
                 };
             };
             /** @description Error */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getSimulatedScenarios: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScenarioResponse"];
+                };
+            };
+            /** @description Explicit denial */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Explicit denial */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Explicit denial */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Explicit denial */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Explicit denial */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Explicit denial */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Explicit denial */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    cancelScheduledSimulation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecutionAuthorizeInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecutionViewResponse"];
+                };
+            };
+            /** @description Explicit denial */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Explicit denial */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Explicit denial */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Explicit denial */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Explicit denial */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Explicit denial */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Explicit denial */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getScenarioOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScenarioOverviewInput"];
+            };
+        };
+        responses: {
+            /** @description Bounded read-only facts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScenarioOverviewResponse"];
+                };
+            };
+            /** @description Explicit refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Explicit refusal */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Explicit refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Explicit refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Explicit refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Explicit refusal */
             503: {
                 headers: {
                     [name: string]: unknown;

@@ -42,6 +42,7 @@ type DetectInput struct {
 	From      string `json:"from,omitempty"`
 	To        string `json:"to,omitempty"`
 	AccountID string `json:"account_id,omitempty"`
+	Timezone  string `json:"timezone,omitempty"`
 }
 type IDInput struct {
 	SubscriptionID string `json:"subscription_id"`
@@ -134,31 +135,11 @@ func (s *Service) Analyze(ctx context.Context, m service.Meta, tool string, in D
 		return out, entity.Fail("INVALID_ARGUMENT", "unknown subscription analysis tool")
 	}
 	now := time.Now().UTC()
-	from := now.AddDate(-3, 0, 0)
-	to := now
-	var account int64
-	if in.AccountID != "" {
-		account, err = ID(in.AccountID)
-		if err != nil {
-			return out, err
-		}
+	from, to, account, normalizeErr := NormalizeDetection(in, now)
+	if normalizeErr != nil {
+		return out, normalizeErr
 	}
-	if in.From != "" {
-		from, err = time.Parse(time.RFC3339, in.From)
-		if err != nil {
-			return out, entity.Fail("INVALID_ARGUMENT", "from must be RFC3339")
-		}
-	}
-	if in.To != "" {
-		to, err = time.Parse(time.RFC3339, in.To)
-		if err != nil {
-			return out, entity.Fail("INVALID_ARGUMENT", "to must be RFC3339")
-		}
-	}
-	if !to.After(from) || to.Sub(from) > 1096*24*time.Hour || from.Year() < 1971 || to.Year() > 2100 {
-		return out, entity.Fail("INVALID_ARGUMENT", "detection period must be positive and <=1096 days, years 1971..2100")
-	}
-	if tool != "detect_subscriptions" && (in.From != "" || in.To != "" || in.AccountID != "") {
+	if tool != "detect_subscriptions" && (in.From != "" || in.To != "" || in.AccountID != "" || in.Timezone != "") {
 		return out, entity.Fail("INVALID_ARGUMENT", "cost and suggestions cover all currently linked payment evidence; period fields are detection only")
 	}
 	err = s.repo.Transaction(ctx, m.UserID, func(tx *repository.Tx) error {
@@ -200,14 +181,26 @@ func (s *Service) Analyze(ctx context.Context, m service.Meta, tool string, in D
 			}
 			out.Candidates = candidates
 		}
-		subs, e := tx.SubscriptionList()
+		var subs []entity.Subscription
+		var e error
+		if tool == "detect_subscriptions" {
+			out.Scope = "selected_detection_account_and_payment_period; half-open interval; forecasts are conditional and not available funds"
+			subs, e = tx.DetectionSubscriptions(from.UnixMilli(), to.UnixMilli(), account)
+		} else {
+			subs, e = tx.SubscriptionList()
+		}
 		if e != nil {
 			return e
 		}
 		seen := map[int64]bool{}
 		totalEvidence := 0
 		for _, sub := range subs {
-			d, e := detail(tx, sub, now.UnixMilli())
+			var d Detail
+			if tool == "detect_subscriptions" {
+				d, e = detectionDetail(tx, sub, now.UnixMilli(), from.UnixMilli(), to.UnixMilli())
+			} else {
+				d, e = detail(tx, sub, now.UnixMilli())
+			}
 			if e != nil {
 				return e
 			}
@@ -281,12 +274,28 @@ func addForecast(a *ForecastResult, b ForecastResult) {
 	a.AnnualMinor += b.AnnualMinor
 }
 func detail(tx *repository.Tx, sub entity.Subscription, now int64) (Detail, error) {
-	d := Detail{Subscription: sub, UsageStatus: "unknown", UsageEvidence: "No service-usage evidence; bank payments are not usage records"}
-	var e error
-	d.Payments, e = tx.SubscriptionPayments(sub.ID)
+	payments, e := tx.SubscriptionPayments(sub.ID)
 	if e != nil {
-		return d, e
+		return Detail{}, e
 	}
+	history, e := tx.SubscriptionHistory(sub.ID)
+	if e != nil {
+		return Detail{}, e
+	}
+	return detailWithEvidence(sub, payments, history, now)
+}
+
+func detectionDetail(tx *repository.Tx, sub entity.Subscription, now, from, to int64) (Detail, error) {
+	payments, e := tx.DetectionSubscriptionPayments(sub.ID, from, to)
+	if e != nil {
+		return Detail{}, e
+	}
+	// Detection returns scoped payment evidence, not unrelated action history.
+	return detailWithEvidence(sub, payments, []entity.SubscriptionActionIntent{}, now)
+}
+
+func detailWithEvidence(sub entity.Subscription, payments []entity.SubscriptionPayment, history []entity.SubscriptionActionIntent, now int64) (Detail, error) {
+	d := Detail{Subscription: sub, Payments: payments, OperationHistory: history, UsageStatus: "unknown", UsageEvidence: "No service-usage evidence; bank payments are not usage records"}
 	amounts := map[int64]bool{}
 	for _, p := range d.Payments {
 		amounts[p.AmountMinor] = true
@@ -299,10 +308,7 @@ func detail(tx *repository.Tx, sub entity.Subscription, now int64) (Detail, erro
 	if sub.Status == entity.SubscriptionCancelled {
 		d.NextChargeStatus = "locally_cancelled_no_merchant_guarantee"
 	}
-	d.OperationHistory, e = tx.SubscriptionHistory(sub.ID)
-	if e != nil {
-		return d, e
-	}
+	var e error
 	d.Forecast, e = Forecast(sub.AmountMinor, sub.BillingInterval)
 	if sub.Status == entity.SubscriptionActive {
 		d.Forecast.Kind = "conditional_if_cancelled"

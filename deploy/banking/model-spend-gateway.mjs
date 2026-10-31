@@ -32,6 +32,7 @@ export async function verifyGateway(config,fetcher=fetch) {
   let body
   try{body=JSON.parse(text)}catch{fail('MODEL_GATEWAY_PROOF_INVALID')}
   const proof=body.model_spend_enforcement
+  if(proof?.user_monthly_identity_required!==true)fail('MODEL_GATEWAY_USER_MONTHLY_REQUIRED')
   if(!Array.isArray(body.data)||body.data.length!==1||body.data[0]?.id!==config.model||proof?.mode!=='conservative_project_lifetime'||!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/.test(proof.project_id)||!/^[a-f0-9]{64}$/.test(proof.policy_sha256)||!Number.isSafeInteger(proof.max_output_tokens)||config.maxTokens>proof.max_output_tokens)fail('MODEL_GATEWAY_PROOF_INVALID')
   return proof
 }

@@ -10,6 +10,8 @@ export type AgentTask = Omit<AgentSchema<'AgentTaskView'>, 'confirmation' | 'req
   confirmation: AgentConfirmation | null
   request: AgentSchema<'AgentSubmit'> & { monthly_goal?: MonthlyGoal | null }
 }
+export type AgentTaskSummary = AgentSchema<'AgentTaskSummary'>
+export type AgentTaskPage = AgentSchema<'AgentTaskPage'>
 export type AgentSubmit = Omit<
   AgentSchema<'AgentSubmit'>,
   'instruction' | 'max_attempts' | 'timeout_ms' | 'tasks'
@@ -122,6 +124,27 @@ async function taskRequest(path: string, options: Parameters<typeof request>[1] 
   return validateTask(await request<AgentTask>(path, options), id)
 }
 export const agentApi = {
+  history: async (limit = 20, offset = 0, signal?: AbortSignal): Promise<AgentTaskPage> => {
+    integer(limit, 1)
+    integer(offset, 0)
+    if (limit > 100 || offset > 1000000)
+      throw new ApiError('INVALID_ARGUMENT', '任务历史分页超出范围')
+    const page = await request<AgentTaskPage>(`${base}/agent-tasks?limit=${limit}&offset=${offset}`, { signal })
+    if (!page || !Array.isArray(page.items) || page.items.length > limit ||
+        !Number.isSafeInteger(page.total) || page.total < 0 || page.limit !== limit || page.offset !== offset)
+      invalidResponse()
+    const seen = new Set<string>()
+    for (const item of page.items) {
+      if (!item || !taskPattern.test(item.task_id) || seen.has(item.task_id) ||
+          !statuses.has(item.status) || !Number.isSafeInteger(item.version) || item.version < 1 ||
+          typeof item.instruction !== 'string' || Array.from(item.instruction).length > 512 ||
+          (item.display_title !== undefined && (typeof item.display_title !== 'string' || Array.from(item.display_title).length > 512)) ||
+          typeof item.error_code !== 'string' || !Number.isFinite(Date.parse(item.created_at)) ||
+          !Number.isFinite(Date.parse(item.updated_at))) invalidResponse()
+      seen.add(item.task_id)
+    }
+    return page
+  },
   submit: (body: AgentSubmit, key: string) =>
     taskRequest(`${base}/agent-tasks`, { method: 'POST', body, key }),
   task: async (id: string, signal?: AbortSignal) => taskRequest(taskPath(id), { signal }, id),

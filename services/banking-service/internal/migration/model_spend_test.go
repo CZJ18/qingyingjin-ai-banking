@@ -16,8 +16,8 @@ import (
 )
 
 func TestModelSpend020SchemaContract(t *testing.T) {
-	if CurrentVersion != 20 {
-		t.Errorf("schema version = %d, want additive 020", CurrentVersion)
+	if CurrentVersion < 21 {
+		t.Errorf("schema version = %d, require additive 021 or later (020 retained)", CurrentVersion)
 	}
 	for _, dialect := range []string{"mysql", "postgres"} {
 		t.Run(dialect, func(t *testing.T) {

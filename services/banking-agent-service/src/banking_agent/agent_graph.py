@@ -133,17 +133,33 @@ async def journal_call(context, node, parameters, mode, operation, *, idempotent
     await context.db("call_start", context.lease, node, request_digest, mode)
     for attempt in range(context.max_attempts if idempotent else 1):
         await context.active()
+        if attempt > 0:
+            await context.db("call_start", context.lease, node, request_digest, mode)
         try:
             result = await operation()
             await context.db("call_finish", node, request_digest, result, lease_token=context.lease)
             return result
         except DomainError as error:
+            # These trusted Go codes are refusals before model dispatch. Only
+            # read-only work can be classified as a known failure here; advice
+            # and financial preparation may already have persisted side effects.
+            # Existing unknown journals are rejected above and never rewritten.
+            admission_refused = mode == "read_only" and error.code in {
+                "MODEL_BUDGET_UNAVAILABLE",
+                "MODEL_MONETARY_ADMISSION_REQUIRED",
+                "MODEL_EXECUTION_CONFIRMATION_REQUIRED",
+                "MODEL_APPROVAL_REQUIRED",
+                "MODEL_APPROVAL_LIMIT_EXCEEDED",
+                "MODEL_SPEND_QUOTA_EXCEEDED",
+                "MODEL_USER_MONTHLY_QUOTA_EXCEEDED",
+                "MODEL_QUOTA_EXCEEDED",
+            }
             await context.db(
                 "call_fail",
                 node,
                 request_digest,
                 error.code,
-                status="failed" if idempotent else "unknown",
+                status="failed" if idempotent or admission_refused else "unknown",
                 lease_token=context.lease,
             )
             if (
@@ -188,11 +204,11 @@ async def supervisor(state: GraphState, runtime: Runtime[RunContext]):
                 request["bindings"],
                 context.trace,
             ),
-            idempotent=True,
+            idempotent=False,
         )
         try:
             parsed = AgentSubmit.model_validate(
-                {"tasks": raw["tasks"], "monthly_goal": request.get("monthly_goal")}
+                {"tasks": raw["tasks"], "bindings": request["bindings"], "monthly_goal": request.get("monthly_goal")}
             )
         except (ValueError, KeyError):
             raise DomainError(
@@ -220,7 +236,7 @@ async def supervisor(state: GraphState, runtime: Runtime[RunContext]):
                 params = {
                     key: value
                     for key, value in task["parameters"].items()
-                    if key in {"from", "to", "account_id"}
+                    if key in {"from", "to", "account_id", "timezone"}
                 }
                 params = resolve_parameters(params, {k: outputs[k] for k in task["dependencies"]})
                 addition = AgentTaskSpec(
@@ -416,9 +432,9 @@ async def specialist(state: GraphState, runtime: Runtime[RunContext]):
         lambda: context.tools.execute(
             context.bearer, context.user_id, context.task_id, item, context.trace
         ),
-        idempotent=mode == "read_only"
-        or mode == "intent"
-        or item["tool"] == "compile_lifestyle_plan",
+        idempotent=not item["use_coze"] and item["tool"] != "model_smoke" and (
+            mode == "read_only" or mode == "intent" or item["tool"] == "compile_lifestyle_plan"
+        ),
     )
     return {"outputs": {node: result}}
 
@@ -440,12 +456,13 @@ class LangGraphOrchestrator:
     def __init__(self, repository, tools, *, saver_factory=TenantCheckpointSaver):
         self.repository, self.tools, self.saver_factory = repository, tools, saver_factory
 
-    async def run(self, user_id, task_id, bearer, trace, *, expected_version=None, resume=None):
+    async def run(self, user_id, task_id, bearer, trace, *, expected_version=None, resume=None,
+                  lease=None, lease_seconds=30):
         task = await asyncio.to_thread(self.repository.get, user_id, task_id)
         if task["status"] in ("succeeded", "cancelled"):
             return task
         request = task["request"]
-        lease = await asyncio.to_thread(
+        lease = lease or await asyncio.to_thread(
             self.repository.claim,
             user_id,
             task_id,
@@ -466,9 +483,16 @@ class LangGraphOrchestrator:
         saver = self.saver_factory(self.repository, user_id, task_id, lease_token=lease)
         graph = build_graph(saver)
         config = {"configurable": {"thread_id": task_id}, "recursion_limit": 100}
+        async def heartbeat():
+            while True:
+                await asyncio.sleep(lease_seconds / 3)
+                if not await context.db("renew", lease, lease_seconds):
+                    return
+
+        heartbeat_task = asyncio.create_task(heartbeat()) if bearer.startswith("bgt1.") else None
         try:
             try:
-                AgentTaskRequest.model_validate(request)
+                AgentTaskRequest.model_validate(request).check_execution_scope()
             except ValueError:
                 raise DomainError(
                     "INVALID_TASK_PLAN", "stored task request is invalid", 422
@@ -547,9 +571,16 @@ class LangGraphOrchestrator:
         except TimeoutError:
             return await context.safe_finish("interrupted", error_code="TASK_TIMEOUT")
         except asyncio.CancelledError:
-            await asyncio.shield(context.safe_finish("interrupted", error_code="TASK_INTERRUPTED"))
+            if not bearer.startswith("bgt1."):
+                await asyncio.shield(context.safe_finish("interrupted", error_code="TASK_INTERRUPTED"))
+            # A background process stop leaves its durable lease to expire.
+            # Recovery inspects the journal before deciding whether replay is safe.
             raise
         except Exception:
             # Serializer/DB/engine errors may contain SQL or credentials. Do not
             # persist exception strings or use an in-memory production fallback.
             return await context.safe_finish("failed", error_code="TASK_ENGINE_ERROR")
+        finally:
+            if heartbeat_task:
+                heartbeat_task.cancel()
+                await asyncio.gather(heartbeat_task, return_exceptions=True)

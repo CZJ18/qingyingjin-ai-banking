@@ -80,7 +80,10 @@ func evaluate(tx *gorm.DB, op *entity.OperationIntent) error {
 	if op.IntentDigest == "" || op.IntentDigest != entity.OperationDigest(op) {
 		return entity.Fail("AUTHORIZATION_MISMATCH", "stored intent changed")
 	}
-	for _, name := range []string{"simulation_only", "bound_authorization", "resource_ownership", "necessary_reserve", "amount_limit", "resource_version"} {
+	if e := checkRequiredPolicies(tx); e != nil {
+		return e
+	}
+	for _, name := range requiredPolicyNames {
 		var r entity.RiskRule
 		if e := tx.Where("name = ?", name).First(&r).Error; e != nil {
 			return entity.Fail("RISK_REJECTED", "required risk policy unavailable")
@@ -95,6 +98,9 @@ func evaluate(tx *gorm.DB, op *entity.OperationIntent) error {
 	if _, e := entity.Money(op.AmountMinor, op.Currency); e != nil {
 		return e
 	}
+	if scenarioKind(op.Kind) {
+		return scenarioPolicy(tx, op)
+	}
 	switch op.Kind {
 	case "recipient_transfer":
 		return recipientPolicy(tx, op)
@@ -105,6 +111,15 @@ func evaluate(tx *gorm.DB, op *entity.OperationIntent) error {
 			return e
 		}
 	case "transfer", "savings_deposit", "savings_withdrawal":
+		if op.Kind == "transfer" {
+			var in service.TransferInput
+			if e := strict(op.Payload, &in); e != nil {
+				return e
+			}
+			if e := checkTransferCard(tx, op.UserID, in); e != nil {
+				return e
+			}
+		}
 		source, e := account(tx, op.UserID, op.SourceAccountID)
 		if e != nil {
 			return e

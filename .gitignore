@@ -27,3 +27,16 @@ playwright-report/
 # Private backups and evidence
 *.sql.gz
 *.dump
+
+# Keep all live authorization and local financial data out of Git
+private/
+secrets/
+*.secret
+*.approval.json
+ready-snapshot.json
+execution-confirmation*.json
+SOURCE-MANIFEST.json
+*.zip
+*.7z
+*.rar
+*.tar.gz

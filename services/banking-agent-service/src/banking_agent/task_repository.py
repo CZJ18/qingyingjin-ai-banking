@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from psycopg.types.json import Jsonb
 
@@ -13,6 +15,32 @@ from .errors import DomainError
 from .repository import Repository, _text
 
 MAX_BODY = 1048576
+
+
+def task_display_title(request):
+    """Describe a stored query for history, keeping the actual instruction separate."""
+    if not isinstance(request, dict):
+        return "结构化业务任务"
+    instruction = request.get("instruction")
+    if isinstance(instruction, str) and instruction.strip():
+        return instruction[:512]
+    specs = request.get("tasks")
+    if not isinstance(specs, list) or len(specs) != 1 or not isinstance(specs[0], dict):
+        return "结构化业务任务"
+    spec = specs[0]
+    if spec.get("execution_mode") != "read_only":
+        return "结构化业务任务"
+    if not isinstance(spec.get("agent_type"), str) or not isinstance(spec.get("tool"), str):
+        return "结构化业务任务"
+    name = {("billing", "generate_billing_report"): "账单分析",
+            ("subscription", "detect_subscriptions"): "订阅识别"}.get(
+        (spec.get("agent_type"), spec.get("tool")))
+    if spec.get("agent_type") == "supervisor" and spec.get("tool") == "get_scenario_overview":
+        parameters = spec.get("parameters")
+        scenario = parameters.get("scenario") if isinstance(parameters, dict) else None
+        name = {"transfer": "转账范围", "cards": "卡片管理", "investment": "理财产品",
+                "subscriptions": "订阅范围", "birthday": "生日安排"}.get(scenario) if isinstance(scenario, str) else None
+    return "只读查询：" + name if name else "结构化业务任务"
 
 
 def body(value):
@@ -33,8 +61,166 @@ class TaskRepository:
     def __init__(self, repository: Repository):
         self.repository = repository
 
-    def _transaction(self, user):
-        return self.repository._transaction(user)
+    def _transaction(self, user, *, readonly=False):
+        return self.repository._transaction(user, readonly=True) if readonly else self.repository._transaction(user)
+
+    def model_context(self, user, node_task_id):
+        try:
+            root, node = node_task_id.split(".")
+            if (
+                not root.startswith("lg-")
+                or str(UUID(root[3:])) != root[3:]
+                or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", node)
+            ):
+                raise ValueError
+        except (ValueError, AttributeError, TypeError):
+            raise DomainError(
+                "INVALID_ARGUMENT", "Canonical task node identity required", 422
+            ) from None
+        journal_node = "__internal:supervisor_plan" if node == "supervisor_plan" else node
+        with self._transaction(user) as conn:
+            row = self._owned(conn, user, root, True)
+            if not row["lease_token"] or not self._active(row, row["lease_token"]):
+                conflict("MODEL_TASK_NOT_ACTIVE")
+            call = conn.execute(
+                "SELECT state FROM public.agent_tool_calls WHERE owner_id=%s AND task_id=%s AND node_key=%s",
+                (user, root, journal_node),
+            ).fetchone()
+            if not call or call["state"] != "running":
+                conflict("MODEL_TASK_NOT_ACTIVE")
+            return {
+                "owner_id": user,
+                "task_id": node_task_id,
+                "request_digest": row["request_digest"],
+                "version": row["version"],
+                "lease_fingerprint": hashlib.sha256(row["lease_token"].encode()).hexdigest(),
+            }
+
+    def enroll(self, user, task, request_digest, capability, expires_in_seconds):
+        if (
+            not isinstance(capability, str)
+            or not capability.startswith("bgt1.")
+            or not 16 <= len(capability) <= 8192
+            or type(expires_in_seconds) is not int
+            or not 1 <= expires_in_seconds <= 86400
+        ):
+            raise DomainError("TOOL_OUTPUT_INVALID", "Invalid background delegation", 502)
+        with self._transaction(user) as conn:
+            row = self._owned(conn, user, task, True)
+            if row["request_digest"] != request_digest:
+                conflict("IDEMPOTENCY_CONFLICT")
+            conn.execute(
+                "INSERT INTO public.agent_background_credentials(owner_id,task_id,capability,expires_at) VALUES(%s,%s,%s,clock_timestamp()+(%s*interval '1 second')) ON CONFLICT(owner_id,task_id) DO UPDATE SET capability=EXCLUDED.capability,expires_at=EXCLUDED.expires_at",
+                (user, task, capability, expires_in_seconds),
+            )
+
+    def candidates(self):
+        with self.repository.pool.connection() as conn:
+            return conn.execute("SELECT * FROM public.agent_background_candidates()").fetchall()
+
+    def background_claim(self, user, task, lease_seconds=30):
+        with self._transaction(user) as conn:
+            row = self._owned(conn, user, task, True)
+            credential = conn.execute(
+                "SELECT capability,expires_at FROM public.agent_background_credentials WHERE owner_id=%s AND task_id=%s",
+                (user, task),
+            ).fetchone()
+            if (
+                not credential
+                or row["next_run_at"] > datetime.now(UTC)
+                or not (
+                    row["status"] == "queued"
+                    or (row["status"] == "running" and row["lease_until"] <= datetime.now(UTC))
+                )
+            ):
+                return None
+            terminal = (
+                "BACKGROUND_RETRIES_EXHAUSTED"
+                if row["background_attempts"] >= 3
+                else "BACKGROUND_DELEGATION_EXPIRED"
+                if credential["expires_at"] <= datetime.now(UTC)
+                else ""
+            )
+            if terminal:
+                row = conn.execute(
+                    "UPDATE public.agent_tasks SET status='failed',error_code=%s,lease_token=NULL,lease_until=NULL,version=version+1,updated_at=clock_timestamp() WHERE owner_id=%s AND task_id=%s RETURNING *",
+                    (terminal, user, task),
+                ).fetchone()
+                self._event(conn, row, error=terminal)
+                return None
+            # An expired worker may have sent a paid/model or non-idempotent call.
+            # Retain its journal and stop for inspection instead of replaying it.
+            unsafe = conn.execute(
+                "SELECT 1 FROM public.agent_tool_calls WHERE owner_id=%s AND task_id=%s AND state IN ('unknown','running') LIMIT 1",
+                (user, task),
+            ).fetchone()
+            if unsafe:
+                row = conn.execute(
+                    "UPDATE public.agent_tasks SET status='interrupted',error_code='TOOL_OUTCOME_UNKNOWN',lease_token=NULL,lease_until=NULL,version=version+1,updated_at=clock_timestamp() WHERE owner_id=%s AND task_id=%s RETURNING *",
+                    (user, task),
+                ).fetchone()
+                self._event(conn, row, error="TOOL_OUTCOME_UNKNOWN")
+                return None
+            token = str(uuid4())
+            row = conn.execute(
+                "UPDATE public.agent_tasks SET status='running',background_attempts=background_attempts+1,lease_token=%s,lease_until=clock_timestamp()+(%s*interval '1 second'),version=version+1,updated_at=clock_timestamp() WHERE owner_id=%s AND task_id=%s RETURNING *",
+                (token, lease_seconds, user, task),
+            ).fetchone()
+            self._event(conn, row)
+            return {
+                "lease": token,
+                "capability": credential["capability"],
+                "trace_id": row["trace_id"],
+            }
+
+    def renew(self, user, task, lease, lease_seconds=30):
+        with self._transaction(user) as conn:
+            row = self._owned(conn, user, task, True)
+            if not self._active(row, lease):
+                return False
+            conn.execute(
+                "UPDATE public.agent_tasks SET lease_until=clock_timestamp()+(%s*interval '1 second') WHERE owner_id=%s AND task_id=%s",
+                (lease_seconds, user, task),
+            )
+            return True
+
+    def retry_background(self, user, task):
+        with self._transaction(user) as conn:
+            row = self._owned(conn, user, task, True)
+            if not self._retry_eligible(conn, row):
+                return False
+            row = self._queue_retry(conn, row)
+            self._event(conn, row)
+            return True
+
+    @staticmethod
+    def _retry_eligible(conn, row):
+        if (
+            row["status"] != "failed"
+            or not 0 < row["background_attempts"] < 3
+            or row["error_code"] not in ("BANKING_UNAVAILABLE", "DEPENDENCY_UNAVAILABLE")
+        ):
+            return False
+        calls = conn.execute(
+            "SELECT node_key,mode,state,error_code FROM public.agent_tool_calls WHERE owner_id=%s AND task_id=%s AND state<>'succeeded'",
+            (row["owner_id"], row["task_id"]),
+        ).fetchall()
+        if any(
+            call["state"] != "failed"
+            or call["mode"] not in ("read_only", "intent")
+            or call["node_key"] == "__internal:supervisor_plan"
+            or call["error_code"] not in ("BANKING_UNAVAILABLE", "DEPENDENCY_UNAVAILABLE")
+            for call in calls
+        ):
+            return False
+        return True
+
+    @staticmethod
+    def _queue_retry(conn, row):
+        return conn.execute(
+            "UPDATE public.agent_tasks SET status='queued',next_run_at=clock_timestamp()+(%s*interval '1 second'),version=version+1,updated_at=clock_timestamp() WHERE owner_id=%s AND task_id=%s RETURNING *",
+            (2 ** row["background_attempts"], row["owner_id"], row["task_id"]),
+        ).fetchone()
 
     @staticmethod
     def _owned(conn, user, task, lock=False):
@@ -95,6 +281,19 @@ class TaskRepository:
         }
         for key in ("created_at", "updated_at"):
             result[key] = result[key].isoformat()
+        if row["status"] in ("failed", "interrupted"):
+            uncertain = conn.execute(
+                "SELECT node_key FROM public.agent_tool_calls WHERE owner_id=%s AND task_id=%s AND state IN ('unknown','running') ORDER BY CASE WHEN node_key='__internal:supervisor_plan' THEN 0 ELSE 1 END,node_key LIMIT 1",
+                (row["owner_id"], row["task_id"]),
+            ).fetchone()
+            if uncertain:
+                # This read-only projection reflects the durable call journal.
+                # Preserve the original task error, events and fee records.
+                result["error_code"] = (
+                    "MODEL_OUTCOME_UNKNOWN"
+                    if uncertain["node_key"] == "__internal:supervisor_plan"
+                    else "TOOL_OUTCOME_UNKNOWN"
+                )
         challenge = conn.execute(
             "SELECT node_key,digest,nonce,expires_at,status,parameters_view FROM public.agent_confirmations WHERE owner_id=%s AND task_id=%s AND status='pending' ORDER BY created_at DESC LIMIT 1",
             (row["owner_id"], row["task_id"]),
@@ -134,6 +333,26 @@ class TaskRepository:
     def get(self, user, task):
         with self._transaction(user) as conn:
             return self._view(conn, self._owned(conn, user, task))
+
+    def list_recent(self, user, limit=20, offset=0):
+        if type(limit) is not int or not 1 <= limit <= 100 or type(offset) is not int or not 0 <= offset <= 1000000:
+            raise DomainError("INVALID_ARGUMENT", "Bounded task history pagination required", 400)
+        # Tenant RLS and explicit owner predicate both apply. History cannot claim
+        # a lease, load background capabilities or generate a confirmation/grant.
+        with self._transaction(user, readonly=True) as conn:
+            total = conn.execute(
+                "SELECT count(*) AS total FROM public.agent_tasks WHERE owner_id=%s", (user,)
+            ).fetchone()["total"]
+            rows = conn.execute(
+                "SELECT task_id,status,version,left(COALESCE(request->>'instruction',''),512) AS instruction,request,"
+                "error_code,created_at,updated_at FROM public.agent_tasks WHERE owner_id=%s "
+                "ORDER BY created_at DESC,task_id DESC LIMIT %s OFFSET %s", (user, limit, offset)
+            ).fetchall()
+            for row in rows:
+                row["display_title"] = task_display_title(row.pop("request", None))
+                for key in ("created_at", "updated_at"):
+                    row[key] = row[key].isoformat()
+            return {"items": rows, "total": total, "limit": limit, "offset": offset}
 
     def claim(self, user, task, expected_version=None, lease_seconds=120):
         if type(lease_seconds) is not int or not 1 <= lease_seconds <= 3600:
@@ -175,9 +394,11 @@ class TaskRepository:
                 if not pending:
                     conflict("CONFIRMATION_CONFLICT")
             row = conn.execute(
-                "UPDATE public.agent_tasks SET status=%s,result=%s,error_code=%s,lease_token=NULL,lease_until=NULL,version=version+1,updated_at=clock_timestamp() WHERE owner_id=%s AND task_id=%s RETURNING *",
-                (status, Jsonb(result), error_code, user, task),
+                "UPDATE public.agent_tasks SET status=%s,result=%s,error_code=%s,lease_token=NULL,lease_until=NULL,background_attempts=CASE WHEN %s='waiting_confirmation' THEN 0 ELSE background_attempts END,version=version+1,updated_at=clock_timestamp() WHERE owner_id=%s AND task_id=%s RETURNING *",
+                (status, Jsonb(result), error_code, status, user, task),
             ).fetchone()
+            if self._retry_eligible(conn, row):
+                row = self._queue_retry(conn, row)
             self._event(conn, row, error=error_code)
             return self._view(conn, row)
 
@@ -222,6 +443,18 @@ class TaskRepository:
             if row:
                 if row["request_digest"] != request_digest or row["mode"] != mode:
                     conflict("TOOL_CALL_CONFLICT")
+                if (
+                    row["state"] == "failed"
+                    and mode == "read_only"
+                    and node != "__internal:supervisor_plan"
+                    and row["error_code"]
+                    in ("BANKING_UNAVAILABLE", "DEPENDENCY_UNAVAILABLE", "TOOL_TIMEOUT")
+                ):
+                    row = conn.execute(
+                        "UPDATE public.agent_tool_calls SET state='running',error_code='',result=NULL,updated_at=clock_timestamp() WHERE owner_id=%s AND task_id=%s AND node_key=%s RETURNING *",
+                        (user, task, node),
+                    ).fetchone()
+                    self._event(conn, taskrow, node)
                 return row
             row = conn.execute(
                 "INSERT INTO public.agent_tool_calls(owner_id,task_id,node_key,request_digest,mode,state) VALUES(%s,%s,%s,%s,%s,'running') RETURNING *",

@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 import logging
@@ -32,7 +33,9 @@ from .models import (
     RefreshEnvelope,
     RefreshInput,
 )
+from .readiness import BoundedProbe
 from .repository import Repository
+from .scheduler import BackgroundScheduler
 from .task_repository import TaskRepository
 
 log = logging.getLogger("banking_agent")
@@ -111,11 +114,29 @@ def create_app(
             config.banking_url, config.agent_service_key
         )
         app.state.orchestrator = LangGraphOrchestrator(app.state.tasks, app.state.agent_tools)
+        app.state.scheduler = None
+        async def postgres_probe():
+            return await in_thread(app.state.repository.ready)
+
+        app.state.readiness = {
+            "postgresql": BoundedProbe(postgres_probe),
+            "redis": BoundedProbe(app.state.cache.ping),
+            "banking": BoundedProbe(app.state.banking.ready),
+        }
         try:
-            if not await in_thread(app.state.repository.ready):
+            if not await app.state.readiness["postgresql"].check():
                 raise RuntimeError("projection schema or restricted runtime role is not ready")
+            if config.background_worker_enabled:
+                app.state.scheduler = BackgroundScheduler(
+                    app.state.tasks, app.state.orchestrator,
+                    poll_seconds=config.background_poll_seconds,
+                )
+                app.state.scheduler.start()
             yield
         finally:
+            await asyncio.gather(*(probe.close() for probe in app.state.readiness.values()))
+            if app.state.scheduler is not None:
+                await app.state.scheduler.stop()
             if repository is None:
                 await in_thread(app.state.repository.close)
             if banking is None:
@@ -282,24 +303,15 @@ def create_app(
 
     @app.get("/readyz", response_model=Envelope, tags=["Health"])
     async def ready(request: Request):
-        states = {}
-        try:
-            states["postgresql"] = (
-                "ready" if await in_thread(request.app.state.repository.ready) else "unavailable"
-            )
-        except Exception:
-            states["postgresql"] = "unavailable"
-        try:
-            states["redis"] = "ready" if await request.app.state.cache.ping() else "unavailable"
-        except Exception:
-            states["redis"] = "unavailable"
-        try:
-            states["banking"] = (
-                "ready" if await request.app.state.banking.ready() else "unavailable"
-            )
-        except Exception:
-            states["banking"] = "unavailable"
-        ok = all(v == "ready" for v in states.values())
+        probes = request.app.state.readiness
+        results = await asyncio.gather(*(probe.check() for probe in probes.values()))
+        states = {name: "ready" if ok else "unavailable" for name, ok in zip(probes, results, strict=True)}
+        worker = request.app.state.scheduler
+        states["background_worker"] = (
+            "disabled" if worker is None else "ready"
+            if not worker.task.done() and worker.healthy else "unavailable"
+        )
+        ok = all(v in ("ready", "disabled") for v in states.values())
         return JSONResponse(
             envelope(
                 request,

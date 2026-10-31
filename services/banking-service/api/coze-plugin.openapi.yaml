@@ -3240,6 +3240,10 @@ components:
       type: object
       additionalProperties: false
       properties:
+        timezone:
+          type: string
+          enum: [UTC, Asia/Shanghai]
+          description: RFC3339 instants; default detection history is 1096 days.
         from:
           type: string
           format: date-time
@@ -3418,6 +3422,11 @@ components:
       type: object
       additionalProperties: false
       properties:
+        goal_priority_ids:
+          type: array
+          maxItems: 100
+          uniqueItems: true
+          items: {type: integer, format: int64, minimum: 1}
         period:
           type: string
           pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
@@ -3551,6 +3560,7 @@ components:
       type: object
       additionalProperties: false
       properties:
+        ends_at: {type: integer, format: int64}
         id: *id010
         target_minor: *id007
         current_minor: *id007
@@ -3617,6 +3627,9 @@ components:
       type: object
       additionalProperties: false
       properties:
+        deadline_at: {type: integer, format: int64}
+        required_monthly_minor: {type: integer, format: int64, minimum: 0}
+        deadline_risk: {type: boolean}
         goal_id: *id010
         amount_minor: *id007
         unmet_minor: *id007

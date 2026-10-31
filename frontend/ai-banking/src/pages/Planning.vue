@@ -1,13 +1,15 @@
 <script setup lang="ts">
+import { planningExplanation,planReason } from '@/lib/business-copy'
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import { RefreshCw, ShieldCheck, ArrowRight, Plus, X } from 'lucide-vue-next'
-import { request, post, type Schema } from '@/api/client'
+import { ApiError, request, post, type Schema } from '@/api/client'
 import { useSession, useUI } from '@/lib/store'
-import { currentMonth, useSavings, useOperations } from '@/lib/queries'
+import { planningMonth, useSavings, useOperations } from '@/lib/queries'
 import { money, minor } from '@/lib/utils'
 import Button from '@/components/ui/button/Button.vue'
 import State from '@/components/State.vue'
+import JsonDetails from '@/components/JsonDetails.vue'
 import Chart from '@/components/Chart.vue'
 import PlanHistory from '@/components/planning/PlanHistory.vue'
 import ExecutionDialog from '@/components/ExecutionDialog.vue'
@@ -32,11 +34,29 @@ const s = useSession(),
   safety = ref(''),
   buffer = ref(''),
   income = ref(''),
+  futureIncome = ref(''),
+  usePriority = ref(false),
   saveError = ref(''),
   busy = ref(false),
   selected = ref('balanced')
 const savings = useSavings(),
   selectedSavings = ref<string[]>([])
+const catalogOffset=ref(0),catalogError=ref('')
+const savedPlans=useQuery({
+ queryKey:computed(()=>['owned-financial-plans',s.sessionEpoch,catalogOffset.value]),
+ enabled:computed(()=>s.connected),
+ queryFn:({signal})=>request<Schema<'FinancialPlan'>[]>(`/api/v1/financial-plans?limit=20&offset=${catalogOffset.value}`,{signal}),
+})
+watch(()=>s.sessionEpoch,()=>{catalogOffset.value=0;catalogError.value=''})
+function selectSavedPlan(id:string){
+ const saved=savedPlans.data.value?.find(item=>item.id===id)
+ catalogError.value=''
+ if(!saved)return
+ if(!s.accountId||!saved.settings.account_ids.some(account=>String(account)===s.accountId)){
+  catalogError.value='这份规划使用其他账户，请先选择对应账户再打开。';return
+ }
+ lookup.value=id;s.savePlan(id);showForm.value=false
+}
 let active = true
 onBeforeUnmount(() => {
   active = false
@@ -102,8 +122,10 @@ watch(
     safety.value = String(value.safety_reserve_minor / 100)
     buffer.value = String(value.cash_buffer_minor / 100)
     income.value = String(value.baseline_income_minor / 100)
+    futureIncome.value = value.future_income_minor == null ? '' : String(value.future_income_minor / 100)
+    usePriority.value = !!value.goal_priority_ids?.length
     name.value = plan.data.value?.plan.name || ''
-    selectedSavings.value = value.savings_goal_ids.map(String)
+    selectedSavings.value = (value.goal_priority_ids?.length ? value.goal_priority_ids : value.savings_goal_ids).map(String)
   },
   { immediate: true },
 )
@@ -115,15 +137,17 @@ function safeId(id: string) {
 }
 function settings() {
   return {
-    period: currentMonth(),
+    period: planningMonth(),
     account_ids: [safeId(s.accountId)],
     savings_goal_ids: selectedSavings.value.map(safeId),
-    life_goal_ids: s.goalIds.map(safeId),
+    goal_priority_ids: usePriority.value ? selectedSavings.value.map(safeId) : [],
+    life_goal_ids: plan.data.value?.plan.settings.life_goal_ids || s.goalIds.map(safeId),
     essential_remaining_minor: minor(essential.value),
     living_remaining_minor: minor(living.value),
     safety_reserve_minor: minor(safety.value),
     cash_buffer_minor: minor(buffer.value),
     baseline_income_minor: minor(income.value),
+    future_income_minor: futureIncome.value.trim() ? minor(futureIncome.value) : undefined,
     cashflows: plan.data.value?.plan.settings.cashflows || [],
   }
 }
@@ -156,11 +180,20 @@ async function save() {
       lookup.value = out.plan.id
     }
     showForm.value = false
+    await savedPlans.refetch()
     ui.notify('资金规划已保存，未执行资金操作')
   } catch (e) {
     if (!current()) return
-    saveError.value = (e as Error).message
-    ui.notify((e as Error).message)
+    if (e instanceof ApiError && e.code === 'VERSION_CONFLICT') {
+      // Refresh the CAS version and displayed balances, never resubmit a draft
+      // automatically. The plan-ID watcher leaves edits to this plan intact.
+      const latest = await plan.refetch()
+      if (!current()) return
+      saveError.value = latest.error
+        ? '服务端规划已更新，已保留你的修改；最新状态暂不可读取，请先重新查询。'
+        : '服务端规划已更新，已保留你的修改。请核对最新资金和版本后再次保存。'
+    } else saveError.value = (e as Error).message
+    ui.notify(saveError.value)
   } finally {
     if (active) busy.value = false
   }
@@ -321,6 +354,7 @@ async function confirmAdvice() {
       <div>
         <h1>动态资金规划</h1>
         <p>先保障必要开支，再安排目标储蓄。</p>
+        <p>资金规划月份：{{ planningMonth() }}（UTC 自然月）。</p>
       </div>
       <div>
         <Button variant="outline" :disabled="busy || confirming" @click="showForm = !showForm"
@@ -330,6 +364,22 @@ async function confirmAdvice() {
         >
       </div>
     </header>
+    <section v-if="s.connected" class="panel" aria-label="我的资金规划">
+      <h2>我的资金规划</h2>
+      <p>从服务器恢复已保存的规划，换浏览器也无需记住编号。</p>
+      <p v-if="savedPlans.isLoading.value">正在读取资金规划…</p>
+      <p v-else-if="savedPlans.error.value" role="alert">规划列表暂时无法读取。<Button variant="outline" @click="savedPlans.refetch()">重试规划列表</Button></p>
+      <p v-else-if="!savedPlans.data.value?.length">这一页没有保存的资金规划。</p>
+      <div v-for="item in savedPlans.data.value" :key="item.id" class="row-between">
+        <span>{{item.name}} · {{item.settings.period}} · v{{item.current_version}}</span>
+        <Button variant="outline" :disabled="busy||confirming" @click="selectSavedPlan(item.id)">打开规划 #{{item.id}}</Button>
+      </div>
+      <p v-if="catalogError" class="form-error" role="alert">{{catalogError}}</p>
+      <div class="row-between">
+        <Button variant="ghost" :disabled="catalogOffset===0||savedPlans.isFetching.value" @click="catalogOffset=Math.max(0,catalogOffset-20)">上一页规划</Button>
+        <Button variant="ghost" :disabled="(savedPlans.data.value?.length||0)<20||savedPlans.isFetching.value" @click="catalogOffset+=20">下一页规划</Button>
+      </div>
+    </section>
     <details class="plan-lookup">
       <summary>
         查询已有资金规划<span v-if="s.planId">当前 #{{ s.planId }}</span>
@@ -385,6 +435,7 @@ async function confirmAdvice() {
           ><label
             >基准月收入 / 元<input v-model="income" required inputmode="decimal" placeholder="0.00"
           /></label>
+          <label>本月尚未到账收入假设 / 元<input v-model="futureIncome" inputmode="decimal" placeholder="留空表示未知；0 表示明确无预期收入" /></label>
         </div>
         <fieldset class="planning-goal-selection">
           <legend>关联健康目标金 · 至少选择一项</legend>
@@ -396,6 +447,13 @@ async function confirmAdvice() {
             目标 {{ money(goal.target_minor) }}</label
           >
         </fieldset>
+        <label class="checkbox-label"><input type="checkbox" v-model="usePriority" />按所选目标顺序优先分配（未勾选时按需求比例分配）</label>
+        <div v-if="usePriority">
+          <div v-for="(id, index) in selectedSavings" :key="id" class="row-between">
+            <span>{{ index + 1 }}. {{ goalName(id) }}</span>
+            <Button type="button" variant="ghost" :disabled="index === 0" @click="selectedSavings.splice(index - 1, 0, selectedSavings.splice(index, 1)[0]!)">提高优先级</Button>
+          </div>
+        </div>
         <p v-if="saveError" class="form-error" role="alert">{{ saveError }}</p>
         <div class="row-between">
           <small>使用顶部当前账户；预期收入不会算作现有可用余额。</small
@@ -469,7 +527,7 @@ async function confirmAdvice() {
         <div class="latest-trigger">
           <div>
             <b>最新调整原因</b>
-            <p>{{ plan.data.value.version.reason }}</p>
+            <p>{{ planReason(plan.data.value.version.reason) }}</p>
           </div>
           <span v-if="plan.data.value.version.event_id"
             >事件 #{{ plan.data.value.version.event_id }}</span
@@ -510,7 +568,8 @@ async function confirmAdvice() {
           <div v-if="selectedOption" class="selected-allocation">
             <div class="allocation-explanation">
               <h3>{{ labels[selectedOption.name] || selectedOption.name }}方案 · 资金安排</h3>
-              <p>{{ selectedOption.explanation }}</p>
+              <p>{{ planningExplanation(plan.data.value.result,selectedOption) }}</p>
+              <JsonDetails label="查看原始计算说明" :value="selectedOption.explanation" />
               <p v-if="!selectedOption.feasible" class="form-error">
                 此方案存在约束冲突，暂不可确认。
               </p>
@@ -522,6 +581,7 @@ async function confirmAdvice() {
                     <th>储蓄目标</th>
                     <th>本期分配</th>
                     <th>未满足金额</th>
+                    <th>期限检查</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -529,6 +589,7 @@ async function confirmAdvice() {
                     <td>{{ goalName(a.goal_id) }}</td>
                     <td>{{ money(a.amount_minor) }}</td>
                     <td>{{ money(a.unmet_minor) }}</td>
+                    <td>{{ a.deadline_at ? (a.deadline_risk ? '按期目标存在缺口；' : '按当前假设；') + '本月总进度月均需 ' + money(a.required_monthly_minor || 0) + '（含本月已存，按月估算）' : '旧版本未记录期限' }}</td>
                   </tr>
                 </tbody>
               </table>

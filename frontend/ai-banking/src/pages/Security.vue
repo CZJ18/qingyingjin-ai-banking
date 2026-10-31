@@ -32,6 +32,12 @@ const rules = useQuery({
   queryFn: ({ signal }) =>
     request<Schema<'ExecutionRiskRule'>[]>('/api/v1/execution/risk-rules', { signal }),
 })
+const executionReadiness=useQuery({
+ queryKey:computed(()=>['execution-readiness',s.sessionEpoch]),
+ enabled:computed(()=>s.connected),
+ queryFn:({signal})=>request<{ready:boolean}>('/api/v1/execution/readiness',{signal}),
+ retry:false,
+})
 const audits = useQuery({
   queryKey: computed(() => ['execution-audits', auditId.value]),
   enabled: computed(() => s.connected && !!auditId.value),
@@ -43,9 +49,10 @@ const audits = useQuery({
 const filtered = computed(
   () => operations.data.value?.filter((o) => !filter.value || o.status === filter.value) || [],
 )
+const ordinaryAccounts=computed(()=>accounts.data.value?.filter(a=>a.status==='active'&&!a.savings_goal_id&&['checking','savings'].includes(a.account_type))||[])
 async function prepare() {
   try {
-    if (!s.accountId || s.accountId === target.value) throw new Error('请选择不同的付款和收款账户')
+    if (!ordinaryAccounts.value.some(a=>a.id===s.accountId) || s.accountId === target.value) throw new Error('请选择不同的普通模拟付款和收款账户，预留及持仓资金需使用对应场景操作')
     await dialog.value?.prepare('transfer', {
       source_account_id: s.accountId,
       target_account_id: target.value,
@@ -130,6 +137,7 @@ const riskLabel: Record<string, string> = {
       </div>
       <span class="simulation-badge">模拟账户 · 模拟资金</span>
     </header>
+    <p v-if="s.connected&&executionReadiness.error.value" role="alert" class="warning-note">金融执行策略尚未就绪，暂不能创建金融操作意向；已有记录仍可查询。<Button variant="outline" @click="executionReadiness.refetch()">重新检查执行状态</Button></p>
     <section class="execution-summary">
       <div>
         <span>待处理操作</span
@@ -204,7 +212,7 @@ const riskLabel: Record<string, string> = {
             <label
               >付款账户<select v-model="s.accountId" required>
                 <option value="" disabled>选择付款账户</option>
-                <option v-for="a in accounts.data.value" :key="a.id" :value="a.id">
+                <option v-for="a in ordinaryAccounts" :key="a.id" :value="a.id">
                   {{ a.display_name }} · {{ a.masked_account_number }} ·
                   {{ money(a.balance_minor) }}
                 </option>
@@ -213,7 +221,7 @@ const riskLabel: Record<string, string> = {
               >收款账户<select v-model="target" required>
                 <option value="" disabled>选择收款账户</option>
                 <option
-                  v-for="a in accounts.data.value?.filter((a) => a.id !== s.accountId)"
+                  v-for="a in ordinaryAccounts.filter((a) => a.id !== s.accountId)"
                   :key="a.id"
                   :value="a.id"
                 >

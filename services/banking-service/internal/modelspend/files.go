@@ -2,7 +2,6 @@ package modelspend
 
 import (
 	"bytes"
-	"encoding/hex"
 	"encoding/json"
 	"io"
 	"reflect"
@@ -161,23 +160,20 @@ func ParseBill(raw []byte, evidenceDigest string) ([]Settlement, error) {
 	if e := StrictJSON(raw, &b, 512*1024); e != nil {
 		return nil, e
 	}
-	if b.SchemaVersion != 1 || !identifier.MatchString(b.ProjectID) || len(b.Currency) != 3 || !modelName.MatchString(b.BillID) || len(b.EvidenceDigest) != 64 || b.EvidenceDigest != evidenceDigest || len(b.Rows) == 0 || len(b.Rows) > 100 {
+	if b.SchemaVersion != 1 || b.EvidenceDigest != evidenceDigest || len(b.Rows) == 0 || len(b.Rows) > 100 {
 		return nil, ErrPolicy
 	}
-	if _, e := hex.DecodeString(b.EvidenceDigest); e != nil {
-		return nil, ErrPolicy
-	}
-	seen := map[string]bool{}
+	seenLines, seenAttempts, seenProviders := map[string]bool{}, map[string]bool{}, map[string]bool{}
 	out := make([]Settlement, 0, len(b.Rows))
 	for _, r := range b.Rows {
-		if !modelName.MatchString(r.LineID) || seen[r.LineID] || r.AttemptID == "" || r.ProviderID == "" {
+		in := Settlement{AttemptID: r.AttemptID, ProjectID: b.ProjectID, Currency: b.Currency, BillID: b.BillID, LineID: r.LineID, ProviderID: r.ProviderID, ActualCost: r.ActualCost, EvidenceDigest: b.EvidenceDigest, ConfirmNoActiveRun: r.ConfirmNoActiveRun}
+		// Validate the whole file against the reconciler contract before any row
+		// can reach SQL. One attempt and supplier response each settle only once.
+		if _, e := validateSettlement(in); e != nil || seenLines[r.LineID] || seenAttempts[r.AttemptID] || seenProviders[r.ProviderID] {
 			return nil, ErrPolicy
 		}
-		seen[r.LineID] = true
-		if _, e := ParseMoney(r.ActualCost); e != nil {
-			return nil, e
-		}
-		out = append(out, Settlement{AttemptID: r.AttemptID, ProjectID: b.ProjectID, Currency: b.Currency, BillID: b.BillID, LineID: r.LineID, ProviderID: r.ProviderID, ActualCost: r.ActualCost, EvidenceDigest: b.EvidenceDigest, ConfirmNoActiveRun: r.ConfirmNoActiveRun})
+		seenLines[r.LineID], seenAttempts[r.AttemptID], seenProviders[r.ProviderID] = true, true, true
+		out = append(out, in)
 	}
 	return out, nil
 }

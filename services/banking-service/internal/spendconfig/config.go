@@ -165,8 +165,21 @@ func Check(ctx context.Context, c Loaded, conn *platform.Connections) error {
 		return errConfig
 	}
 	var version int
-	if conn.SQL.QueryRowContext(ctx, "SELECT MAX(version) FROM banking_schema_migrations").Scan(&version) != nil || version != 20 {
+	// 022 adds advisory expense trials and 023 adds only birthday_calendar to
+	// banking_users; neither changes the 021 fee contract checked below. Keep
+	// this reviewed allowlist explicit: future application migrations must not
+	// automatically authorize a new ledger schema.
+	if conn.SQL.QueryRowContext(ctx, "SELECT MAX(version) FROM banking_schema_migrations").Scan(&version) != nil || version != 21 && version != 22 && version != 23 {
 		return errConfig
+	}
+	for _, query := range []string{"SELECT id,project_id,user_id,currency,limit_units FROM banking_model_user_limits WHERE 1=0", "SELECT id,user_id,period,limit_units,used_units,held_units FROM banking_model_user_windows WHERE 1=0", "SELECT id,user_id,window_id FROM banking_model_attempt_owners WHERE 1=0"} {
+		rows, e := conn.SQL.QueryContext(ctx, query)
+		if e != nil {
+			return errConfig
+		}
+		if rows.Close() != nil {
+			return errConfig
+		}
 	}
 	for _, query := range []string{"SELECT project_id,currency,policy_hash,limit_units,used_units,held_units,frozen FROM banking_model_spend_pools WHERE 1=0", "SELECT id,project_id,reserved_units,actual_units,response_body FROM banking_model_spend_attempts WHERE 1=0", "SELECT id,project_id,attempt_id,dedupe_key,amount_units,snapshot_json FROM banking_model_spend_events WHERE 1=0"} {
 		rows, e := conn.SQL.QueryContext(ctx, query)

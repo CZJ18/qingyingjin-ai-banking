@@ -58,9 +58,10 @@ const duration = (ms?: number) =>
     </div>
     <div class="detail-section">
       <h3>
-        工具执行记录 <span>{{ trace?.invocations?.length || 0 }}</span>
+        工具执行记录 <span>{{ trace?.invocations ? trace.invocations.length : '—' }}</span>
       </h3>
-      <p v-if="!trace?.invocations?.length">专业节点返回后，可在下方核对工具、版本和数据来源。</p>
+      <p v-if="!trace?.invocations">未提供独立调用记录。可在下方核对已返回的工具结果和数据来源。</p>
+      <p v-else-if="!trace.invocations.length">本次未记录独立工具调用。</p>
       <div v-for="call in trace?.invocations" :key="call.id" class="detail-call">
         <b>{{ call.tool }}</b>
         <div>

@@ -15,7 +15,7 @@ func reads(agent string, tools ...string) []Pair {
 
 var definitions = []Definition{
 	definition("goal_compilation", "supervisor", "Compile structured goals using the configured Coze parser", "goal.parse"),
-	definition("task_planning", "supervisor", "Plan a bounded supervisory dependency graph", "", Pair{"supervisor", "plan_instruction", "read_only"}, Pair{"supervisor", "request_confirmation", "user_confirmation"}),
+	definition("task_planning", "supervisor", "Plan a bounded supervisory dependency graph", "", Pair{"supervisor", "plan_instruction", "read_only"}, Pair{"supervisor", "request_confirmation", "user_confirmation"}, Pair{"supervisor", "model_smoke", "read_only"}, Pair{"supervisor", "get_scenario_overview", "read_only"}),
 	definition("billing_analysis", "billing", "Deterministic spending analysis with transaction evidence", "", reads("billing", "get_transactions", "get_account_summary", "analyze_spending", "compare_budget", "detect_anomalies", "generate_billing_report")...),
 	definition("subscription_analysis", "subscription", "Evidence-backed recurring payment analysis", "", reads("subscription", "detect_subscriptions", "get_subscription_details", "analyze_subscription_cost", "suggest_subscription_actions", "get_subscription_status")...),
 	definition("savings_planning", "savings", "Deterministic cash-flow planning, without execution", "", Pair{"savings", "get_financial_plan", "read_only"}, Pair{"savings", "compare_financial_plans", "read_only"}, Pair{"savings", "replan_financial_plan", "advice"}),

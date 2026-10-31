@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { applyDeepSeek, bootstrapModelDescriptor, buildConfig, createNativeCall, nextVersion, parseEnv, rebindCanvas, runtimeLogLevel, safeLogLevel, verifyModels } from './configure-coze-deepseek.mjs'
+import { applyDeepSeek, assertBudgetedApply, bootstrapModelDescriptor, buildConfig, createNativeCall, nextVersion, parseEnv, rebindCanvas, runtimeLogLevel, safeLogLevel, verifyModels } from './configure-coze-deepseek.mjs'
+
+test('unbudgeted provider apply is refused before reading credentials or contacting Coze',()=>{
+  assert.throws(()=>assertBudgetedApply('ApplyDirectUnbudgeted'),{message:'MODEL_GATEWAY_REQUIRED'})
+})
 
 const key = 'sk-unit-test-only-never-real-1234567890'
 const env = { DEEPSEEK_API_KEY: key, DEEPSEEK_BASE_URL: 'https://api.deepseek.com/v1', DEEPSEEK_MODEL: 'deepseek-flash', DEEPSEEK_MAX_TOKENS: '4096' }

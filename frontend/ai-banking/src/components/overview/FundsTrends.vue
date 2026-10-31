@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { categoryLabel } from '@/lib/categories'
+import { billingFindingText,planReason } from '@/lib/business-copy'
 import { computed, ref } from 'vue'
 import { useQuery } from '@tanstack/vue-query'
 import type { Schema } from '@/api/client'
@@ -112,7 +114,7 @@ const pie = computed(() => ({
       itemStyle: { borderColor: '#fff', borderWidth: 3, borderRadius: 4 },
       data:
         props.report?.category_breakdown?.map((c) => ({
-          name: c.category,
+          name: categoryLabel(c.category),
           value: c.expense_minor / 100,
         })) || [],
     },
@@ -164,7 +166,7 @@ defineExpose({ refresh })
       </p>
       <div v-else-if="report?.findings?.length || planningNote" class="embedded-insight">
         <span>{{ planningNote ? '规划提醒' : '资金观察' }}</span>
-        <p>{{ planningNote || report?.findings?.[0]?.description }}</p>
+        <p>{{ planningNote ? planReason(planningNote) : report?.findings?.[0] ? billingFindingText(report.findings[0],report) : '' }}</p>
         <RouterLink to="/planning">查看资金规划</RouterLink>
       </div>
     </div>
@@ -188,7 +190,7 @@ defineExpose({ refresh })
               :style="{
                 background: ['#0D9488', '#142D4E', '#7EA9BF', '#E4AF68', '#8996B3'][index],
               }"
-            /><span>{{ c.category }}</span
+            /><span>{{ categoryLabel(c.category) }}</span
             ><b>{{ money(c.expense_minor) }}</b>
           </div>
         </div>

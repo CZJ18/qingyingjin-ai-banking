@@ -107,6 +107,39 @@ func (tx *Tx) SubscriptionList() ([]entity.Subscription, error) {
 	}
 	return rows, e
 }
+
+// DetectionSubscriptions limits the report itself, not just new pattern
+// detection. Existing subscriptions must have payment evidence in this window.
+// The unscoped cost/suggestion endpoints retain SubscriptionList semantics.
+func (tx *Tx) DetectionSubscriptions(from, to, account int64) ([]entity.Subscription, error) {
+	if from <= 0 || to <= from || account < 0 {
+		return nil, entity.Fail("INVALID_ARGUMENT", "bounded subscription detection scope required")
+	}
+	var rows []entity.Subscription
+	q := tx.db.Where("user_id=?", tx.userID)
+	if account > 0 {
+		q = q.Where("bank_account_id=?", account)
+	}
+	q = q.Where("EXISTS (SELECT 1 FROM banking_subscription_payments sp WHERE sp.user_id=? AND sp.subscription_id=banking_subscriptions.id AND sp.occurred_at>=? AND sp.occurred_at<?)", tx.userID, from, to)
+	e := q.Order("id").Limit(1001).Find(&rows).Error
+	if len(rows) > 1000 {
+		return nil, entity.Fail("ANALYSIS_LIMIT", "more than 1000 subscriptions in detection scope")
+	}
+	return rows, e
+}
+
+func (tx *Tx) DetectionSubscriptionPayments(id, from, to int64) ([]entity.SubscriptionPayment, error) {
+	if id <= 0 || from <= 0 || to <= from {
+		return nil, entity.Fail("INVALID_ARGUMENT", "bounded subscription payment scope required")
+	}
+	var rows []entity.SubscriptionPayment
+	e := tx.db.Where("user_id=? AND subscription_id=? AND occurred_at>=? AND occurred_at<?", tx.userID, id, from, to).Order("occurred_at,id").Limit(10001).Find(&rows).Error
+	if len(rows) > 10000 {
+		return nil, entity.Fail("ANALYSIS_LIMIT", "more than 10000 subscription payments in detection scope")
+	}
+	return rows, e
+}
+
 func (tx *Tx) SubscriptionPayments(id int64) ([]entity.SubscriptionPayment, error) {
 	var p []entity.SubscriptionPayment
 	e := tx.db.Where("user_id=? AND subscription_id=?", tx.userID, id).Order("occurred_at,id").Limit(10001).Find(&p).Error

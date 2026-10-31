@@ -24,6 +24,10 @@ func skillGuard(gateway *execution.Service) gin.HandlerFunc {
 		if professional && c.Request.Method == "POST" {
 			tool = path[strings.LastIndex(path, "/")+1:]
 		}
+		if path == "/api/v1/scenarios/get_scenario_overview" && c.Request.Method == "POST" {
+			tool = "get_scenario_overview"
+			professional = true
+		}
 		if path == "/api/v1/billing/query" || path == "/api/v1/billing/reports/:id" {
 			tool = "generate_billing_report"
 			professional = true

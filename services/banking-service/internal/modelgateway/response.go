@@ -136,7 +136,7 @@ func validateChoice(raw []byte, stream bool) error {
 	reason := string(c["finish_reason"])
 	if reason != "" && reason != "null" {
 		s, e := textField(c, "finish_reason")
-		if e != nil || (s != "stop" && s != "length" && s != "tool_calls" && s != "content_filter" && s != "insufficient_system_resource") {
+		if e != nil || (s != "stop" && s != "length" && s != "tool_calls" && s != "content_filter" && s != "insufficient_system_resource" && s != "aborted") {
 			return invalidResponse
 		}
 	} else if !stream {

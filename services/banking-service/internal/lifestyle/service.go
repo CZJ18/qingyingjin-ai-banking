@@ -134,13 +134,9 @@ func loadSnapshot(tx *gorm.DB, user int64, g Goal, in CompileInput) (Snapshot, e
 		if report.UserID != user || report.ID != stored.ID {
 			return s, entity.Fail("TOOL_OUTPUT_INVALID", "report ownership mismatch")
 		}
-		from, e1 := time.Parse(time.RFC3339, report.AnalysisPeriod.From)
-		to, e2 := time.Parse(time.RFC3339, report.AnalysisPeriod.To)
-		loc, e3 := time.LoadLocation(report.AnalysisPeriod.Timezone)
-		if e1 == nil && e2 == nil && e3 == nil {
-			start := time.Date(from.In(loc).Year(), from.In(loc).Month(), 1, 0, 0, 0, 0, loc)
-			s.CompleteMonth = from.Equal(start) && to.Equal(start.AddDate(0, 1, 0)) && !to.After(time.Now())
-		}
+		// The current Report contract has no verified statement coverage evidence.
+		// Closed query dates and SnapshotAt alone cannot establish a complete month.
+		s.CompleteMonth = false
 		var accounts []entity.BankAccount
 		if e := tx.Where("user_id=?", user).Order("id").Find(&accounts).Error; e != nil {
 			return s, e
@@ -308,6 +304,9 @@ func (s *Service) Decide(ctx context.Context, m service.Meta, key string, id int
 		}
 		if fresh.SourceDigest != in.PlanDigest {
 			return Decision{}, entity.Fail("VERSION_CONFLICT", "financial sources changed; compile a new plan")
+		}
+		if in.Decision == "accept" && snap.CompleteMonth != fresh.CompleteMonth {
+			return Decision{}, entity.Fail("VERSION_CONFLICT", "historical billing completeness changed; compile a new plan")
 		}
 		status := "accepted"
 		if in.Decision == "reject" {

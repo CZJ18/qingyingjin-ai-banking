@@ -1,0 +1,16 @@
+{
+  "task_request_sha256": "",
+  "test_input": "",
+  "deterministic_tools": [],
+  "expected_data_scope": "",
+  "verification": [
+    "Verify real provider response identity and persisted model usage separately from settlement.",
+    "Validate model plan/qualitative explanation against registered skills and approved account bindings.",
+    "Compare actual Go tool evidence, isolated SQL records and Vue response."
+  ],
+  "failure_handling": [
+    "Stop on schema, scope, timeout or provider failure; never use a fixture fallback.",
+    "Preserve unknown holds, request counts and idempotency records; no automatic paid retry.",
+    "Do not execute financial operations or claim formal bill settlement."
+  ]
+}

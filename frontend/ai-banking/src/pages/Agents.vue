@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ArrowRight, Play, Square, RotateCw } from 'lucide-vue-next'
 import { useSession, useUI } from '@/lib/store'
 import { useJob } from '@/lib/job'
 import { useAgentJob } from '@/lib/agent-job'
+import { useTaskHistory } from '@/lib/task-history'
 import { type AgentResume, type AgentTask } from '@/api/agent-client'
 import { sessionVersion } from '@/api/client'
 import { date } from '@/lib/utils'
@@ -15,7 +17,9 @@ import {
   roleNames,
   taskControls,
   type TaskRow,
+  type OperationSuggestion,
 } from '@/components/agents/task-view'
+import { operationPreparationKey } from '@/lib/operation-preparation'
 import Button from '@/components/ui/button/Button.vue'
 import State from '@/components/State.vue'
 import Status from '@/components/Status.vue'
@@ -25,11 +29,14 @@ import TaskResult from '@/components/assistant/TaskResult.vue'
 import PreparationConfirmation from '@/components/agents/PreparationConfirmation.vue'
 import TransferPreparation from '@/components/agents/TransferPreparation.vue'
 import ExecutionDialog from '@/components/ExecutionDialog.vue'
+import ExpenseGoalAdvice from '@/components/assistant/ExpenseGoalAdvice.vue'
 import '@/components/agents/p6-workbench.css'
 const s = useSession(),
   ui = useUI(),
   legacy = useJob()
-const historyKind = ref<'langgraph' | 'legacy'>('langgraph')
+const route = useRoute()
+const historyKind = ref<'langgraph' | 'legacy'>(route.query.history === 'legacy' ? 'legacy' : 'langgraph')
+const history = useTaskHistory(() => historyKind.value === 'langgraph')
 const agent = useAgentJob(
   () => s.selectedAgentTask,
   () => s.connected && historyKind.value === 'langgraph',
@@ -39,6 +46,7 @@ const lookup = ref(s.selectedAgentTask || s.selectedJob),
   busy = ref(false),
   error = ref('')
 const executionDialog = ref<InstanceType<typeof ExecutionDialog>>()
+const expenseGoalAdvice = ref<InstanceType<typeof ExpenseGoalAdvice>>()
 const transferOpen = ref(false)
 const taskId = computed(() =>
   historyKind.value === 'langgraph' ? s.selectedAgentTask : s.selectedJob,
@@ -87,7 +95,7 @@ const traceLoading = computed(() =>
 const traceError = computed(() =>
   historyKind.value === 'langgraph' ? agent.events.error.value : legacy.trace.error.value,
 )
-const controls = computed(() => taskControls(current.value?.status || ''))
+const controls = computed(() => taskControls(current.value?.status || '', current.value?.error_code || ''))
 const dependencies = computed(() =>
   historyKind.value === 'langgraph'
     ? rows.value.flatMap((t) =>
@@ -103,6 +111,22 @@ const dependenciesKnown = computed(
   () => historyKind.value === 'legacy' || !!current.value?.request.tasks?.length,
 )
 const workflowId = computed(() => task.value?.output.workflow_execute_id)
+async function prepareSuggestion(value: OperationSuggestion) {
+  const id = resultTask.value?.task_id, epoch = sessionVersion(), owner = s.user?.id
+  if (!id || !s.connected) return
+  try {
+    const key = await operationPreparationKey(id, value)
+    if (epoch !== sessionVersion() || owner !== s.user?.id || !s.connected || id !== resultTask.value?.task_id) return
+    await executionDialog.value?.prepare(value.kind, value.parameters, value.expires_in_seconds, key)
+  } catch (error) {
+    if (epoch === sessionVersion() && owner === s.user?.id && s.connected) ui.notify((error as Error).message)
+  }
+}
+const workflowSource = computed(() =>
+  typeof workflowId.value === 'string' && workflowId.value.startsWith('direct_provider:')
+    ? '模型直连请求'
+    : '工作流执行记录',
+)
 watch(
   rows,
   (values) => {
@@ -218,6 +242,21 @@ async function startPreparation(task: AgentTask) {
         历史任务
       </button>
     </div>
+    <details v-if="historyKind === 'langgraph' && s.connected" class="panel persisted-task-history">
+      <summary>服务器任务历史{{ history.total.value == null ? '' : `（${history.total.value}）` }}</summary>
+      <p v-if="history.isLoading.value">正在加载任务历史…</p>
+      <p v-if="history.error.value" role="alert">{{ history.error.value.message }}</p>
+      <Button variant="outline" :disabled="history.isFetching.value" @click="history.refetch()">刷新任务历史</Button>
+      <p v-if="history.total.value === 0">尚无持久化任务。</p>
+      <div v-for="item in history.items.value" :key="item.task_id" class="filter-bar">
+        <button class="plain-button" @click="s.saveAgentTask(item.task_id); lookup = item.task_id">
+          {{ item.display_title || item.instruction || '金融协同任务' }} · {{ item.task_id }}
+        </button>
+        <Status :value="item.status" />
+      </div>
+      <Button v-if="history.hasNextPage.value" variant="outline" :disabled="history.isFetchingNextPage.value"
+        @click="history.fetchNextPage()">加载更多任务</Button>
+    </details>
     <form class="task-lookup" @submit.prevent="lookupTask">
       <label
         >任务编号<input
@@ -374,7 +413,7 @@ async function startPreparation(task: AgentTask) {
               </div>
               <div class="node-trace">
                 <h3>调用来源</h3>
-                <p v-if="workflowId">Coze 工作流执行 #{{ workflowId }}</p>
+                <p v-if="workflowId">{{ workflowSource }} #{{ workflowId }}</p>
                 <p v-else-if="Object.keys(task.output).length">
                   专业节点通过 Banking Tool 返回业务服务结果。
                 </p>
@@ -414,11 +453,14 @@ async function startPreparation(task: AgentTask) {
             </button>
           </div>
           <div v-if="resultTask" class="results-list">
-            <div><TaskResult :task="resultTask" @inspect="executionDialog?.inspect($event)" /></div>
+            <div><TaskResult :task="resultTask" @inspect="executionDialog?.inspect($event)"
+              @prepare="prepareSuggestion($event)"
+              @goal="expenseGoalAdvice?.openForm()" /></div>
           </div>
         </section>
       </template>
     </State>
+    <ExpenseGoalAdvice v-if="s.connected" ref="expenseGoalAdvice" />
     <ExecutionDialog ref="executionDialog" banking />
   </div>
 </template>

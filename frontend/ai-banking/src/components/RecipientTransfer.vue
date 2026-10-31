@@ -10,14 +10,16 @@ import { minor } from '@/lib/utils'
 import Button from '@/components/ui/button/Button.vue'
 import ExecutionDialog from '@/components/ExecutionDialog.vue'
 const s = useSession(), ui = useUI(), accounts = useAccounts()
-const kind = ref<'name' | 'phone'>('name'), query = ref(''), result = ref<Schema<'RecipientSearchResult'>>(), selected = ref(''), searching = ref(false), error = ref('')
+const kind = ref<'name' | 'phone' | 'remark'>('name'), query = ref(''), result = ref<Schema<'RecipientSearchResult'>>(), selected = ref(''), searching = ref(false), error = ref('')
+const remark = ref(''), savingRemark = ref(false)
 const account = ref(''), amount = ref(''), description = ref(''), dialog = ref<InstanceType<typeof ExecutionDialog>>()
 const enabled = ref(false), receiveAccount = ref(''), dirty = ref(false), saving = ref(false)
-const available = computed(() => accounts.data.value?.filter(a => a.status === 'active' && a.currency === 'CNY' && !a.savings_goal_id) ?? [])
+const available = computed(() => accounts.data.value?.filter(a => a.status === 'active' && a.currency === 'CNY' && !a.savings_goal_id && ['checking','savings'].includes(a.account_type)) ?? [])
 const chosen = computed(() => result.value?.items.find(r => r.id === selected.value))
 const config = useQuery({ queryKey: computed(() => ['recipient-settings', s.sessionEpoch]), enabled: computed(() => s.connected), queryFn: ({ signal }) => recipientApi.settings(signal) })
 let generation = 0
 watch([kind, query], () => { generation++; result.value = undefined; selected.value = ''; error.value = '' })
+watch(selected, () => { remark.value = '' })
 watch(() => s.sessionEpoch, () => { generation++; query.value = ''; result.value = undefined; selected.value = ''; amount.value = ''; description.value = ''; error.value = ''; enabled.value = false; dirty.value = false; account.value = ''; receiveAccount.value = '' })
 watch(() => available.value, v => { if (!v.some(a => a.id === account.value)) account.value = v[0]?.id ?? ''; if (!v.some(a => a.id === receiveAccount.value)) receiveAccount.value = v[0]?.id ?? '' }, { immediate: true })
 watch(() => config.data.value, v => { if (v && !dirty.value) { enabled.value = v.enabled; receiveAccount.value = v.account_id === '0' ? available.value[0]?.id ?? '' : v.account_id } }, { immediate: true })
@@ -42,21 +44,33 @@ async function saveSettings() {
   catch (e) { ui.notify((e as Error).message); await config.refetch() }
   finally { saving.value = false }
 }
+async function saveRemark() {
+  const r = chosen.value, v = config.data.value, run = generation
+  if (!r || !v || kind.value === 'remark' || !remark.value.trim() || savingRemark.value) return
+  savingRemark.value = true
+  try {
+    await recipientApi.saveRemark({ remark: remark.value.trim(), recipient_id: r.id, recipient_version: r.version, expected_version: v.version, lookup: { kind: kind.value, query: query.value.trim() } })
+    await config.refetch()
+    if (run === generation) ui.notify('联系人备注已保存，仅本人可见；尚未创建转账')
+  } catch (e) { if (run === generation) ui.notify((e as Error).message); await config.refetch() }
+  finally { savingRemark.value = false }
+}
 </script>
 <template>
   <section class="recipient-transfer" aria-labelledby="recipient-heading">
-    <header class="recipient-title"><div class="recipient-icon"><UserRound :size="22" /></div><div><h2 id="recipient-heading">找人转账</h2><p>通过姓名或手机号找到对方，核对后再付款。</p></div><span>模拟人民币转账</span></header>
+    <header class="recipient-title"><div class="recipient-icon"><UserRound :size="22" /></div><div><h2 id="recipient-heading">找人转账</h2><p>通过姓名、手机号或本人保存的联系人备注找到对方，核对后再付款。</p></div><span>模拟人民币转账</span></header>
     <p v-if="!s.connected">请先登录，再查找收款人。</p>
     <template v-else>
       <div class="recipient-workspace">
         <div class="recipient-search"><h3>1. 查找并选择收款人</h3>
-          <form @submit.prevent="lookup"><label>查找方式<select v-model="kind" aria-label="收款人查找方式"><option value="name">姓名／账户显示名</option><option value="phone">完整手机号</option></select></label>
-          <label>{{ kind === 'phone' ? '收款人手机号' : '收款人完整姓名／显示名' }}<input v-model="query" aria-label="收款人查询内容" :inputmode="kind === 'phone' ? 'tel' : 'text'" maxlength="128" autocomplete="off" required :placeholder="kind === 'phone' ? '输入完整11位手机号' : '请输入完整显示名，至少两个字'" /></label>
+          <form @submit.prevent="lookup"><label>查找方式<select v-model="kind" aria-label="收款人查找方式"><option value="name">姓名／账户显示名</option><option value="phone">完整手机号</option><option value="remark">本人的联系人备注</option></select></label>
+          <label>{{ kind === 'phone' ? '收款人手机号' : kind === 'remark' ? '本人保存的联系人备注' : '收款人完整姓名／显示名' }}<input v-model="query" aria-label="收款人查询内容" :inputmode="kind === 'phone' ? 'tel' : 'text'" :maxlength="kind === 'remark' ? 32 : 128" autocomplete="off" required :placeholder="kind === 'phone' ? '输入完整11位手机号' : kind === 'remark' ? '例如：房东（需先查到对方并保存）' : '请输入完整显示名，至少两个字'" /></label>
           <Button type="submit" :disabled="searching || !query.trim()"><Search :size="15" />{{ searching ? '查找中…' : '查找收款人' }}</Button></form>
           <p v-if="error" role="alert" class="recipient-error">{{ error }}</p>
           <template v-if="result"><p v-if="!result.items.length">未找到可收款的用户。请核对信息，并让对方先完成手机号验证、开启收款。</p><p v-else>请选择本人认识的收款人，同名不会自动选中。</p><p v-if="result.limited" role="alert">同名结果超过20位，请改用完整手机号查找。</p>
           <fieldset v-if="result.items.length" class="recipient-results"><legend class="sr-only">选择收款人</legend><label v-for="r in result.items" :key="r.id" class="recipient-result" :class="{ selected: selected === r.id }"><input v-model="selected" type="radio" name="recipient" :value="r.id" :aria-label="`选择收款人 ${r.display_name} ${r.phone_masked}`" /><div><strong>{{ r.display_name }}</strong><span>{{ r.phone_masked }}</span><small>{{ r.account_name }} · {{ r.account_masked_number }}</small><small>{{ r.phone_verification_method === 'development' ? '开发模拟验证 · 非真实短信认证' : '手机号已验证 · 非姓名实名认证' }}</small></div></label></fieldset></template>
           <p class="recipient-note">只查找主动开启收款的用户，不支持手机号前缀或模糊搜索。姓名是账户显示名，请通过其他渠道确认对方身份。</p>
+          <form v-if="chosen && kind !== 'remark'" @submit.prevent="saveRemark"><label>联系人备注（仅本人可见）<input v-model="remark" aria-label="联系人备注" maxlength="32" required placeholder="例如：房东、家人" /></label><Button type="submit" variant="outline" :disabled="savingRemark || !remark.trim()">{{ savingRemark ? '保存中…' : '保存联系人备注' }}</Button><p class="recipient-note">最多20条。先核实并选择对方，再保存备注；下次可按精确备注查找，付款仍需独立授权。</p></form>
         </div>
         <form class="recipient-payment" @submit.prevent="prepare"><h3>2. 填写金额与转账备注</h3>
           <div class="recipient-chosen"><ShieldCheck :size="19" /><div v-if="chosen"><strong>{{ chosen.display_name }} · {{ chosen.phone_masked }}</strong><small>{{ chosen.account_name }} · {{ chosen.account_masked_number }}</small></div><span v-else>请先从查询结果中明确选择收款人</span></div>

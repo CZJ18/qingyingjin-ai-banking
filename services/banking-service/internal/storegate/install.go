@@ -58,7 +58,7 @@ func Install(ctx context.Context, db *sql.DB, dialect string, outboxSQL []string
 		}
 		// Schema 018 installs its own guards; keep immutable 011's checksum and
 		// 46-table contract unchanged on existing stores and subsequent reruns.
-		if name == "banking_schema_migrations" || strings.HasPrefix(name, "banking_storage_") || name == "banking_model_budget_windows" || name == "banking_model_calls" || name == "banking_model_reconciliations" || name == "banking_model_spend_pools" || name == "banking_model_spend_attempts" || name == "banking_model_spend_events" {
+		if name == "banking_expense_trials" || name == "banking_schema_migrations" || strings.HasPrefix(name, "banking_storage_") || name == "banking_model_budget_windows" || name == "banking_model_calls" || name == "banking_model_reconciliations" || name == "banking_model_spend_pools" || name == "banking_model_spend_attempts" || name == "banking_model_spend_events" || name == "banking_model_user_limits" || name == "banking_model_user_windows" || name == "banking_model_attempt_owners" {
 			continue
 		}
 		if !identifier.MatchString(name) {

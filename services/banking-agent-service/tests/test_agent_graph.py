@@ -115,6 +115,19 @@ def system(request):
 
 
 @pytest.mark.asyncio
+async def test_unknown_smoke_is_not_replayed_as_a_read_only_tool():
+    smoke = spec(key="smoke", agent_type="supervisor", tool="model_smoke",
+                 skill_id="task_planning", parameters={}).model_dump()
+    request = AgentSubmit.model_validate({"tasks": [smoke], "max_attempts": 1}).model_dump()
+    engine, store, tools, _ = system(request)
+    store.calls["smoke"] = {"state": "unknown"}
+    result = await engine.run("42", store.task["task_id"], "synthetic-bearer", "test-smoke")
+    assert result["status"] == "interrupted"
+    assert result["error_code"] == "TOOL_OUTCOME_UNKNOWN"
+    assert tools.called == []
+
+
+@pytest.mark.asyncio
 async def test_parallel_read_tasks_and_dependency_wait():
     request = AgentSubmit.model_validate(
         {
@@ -216,7 +229,9 @@ async def test_dynamic_subscription_verification_uses_native_detect_dto():
     result = await engine.run("42", store.task["task_id"], "bearer", "trace")
     assert result["status"] == "succeeded" and len(seen) == 2
     assert seen[-1]["tool"] == "detect_subscriptions"
-    assert set(seen[-1]["parameters"]) == {"from", "to", "account_id"}
+    # A short period can lack recurrence evidence; that never authorizes reading
+    # a longer history than the task selected.
+    assert seen[-1]["parameters"] == {"from": "2026-09-01", "to": "2026-10-01", "account_id": "1", "timezone": "Asia/Shanghai"}
 
 
 @pytest.mark.asyncio

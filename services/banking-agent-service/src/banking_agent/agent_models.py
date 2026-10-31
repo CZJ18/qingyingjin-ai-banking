@@ -7,6 +7,9 @@ from pydantic import Field, model_validator
 
 from .models import StrictInput
 from .monthly_plan import REVIEW_NODE, current_period, validate_monthly_specs
+from .source import canonical_numeric_id
+
+SCENARIO_NAMES = frozenset({"transfer", "cards", "investment", "subscriptions", "birthday"})
 
 PAIRS = (
     {
@@ -40,6 +43,8 @@ PAIRS = (
         ("subscription", "create_cancel_intent"): ("operation_preparation", "intent"),
         ("supervisor", "require_gateway"): ("operation_preparation", "intent"),
         ("supervisor", "request_confirmation"): ("task_planning", "user_confirmation"),
+        ("supervisor", "model_smoke"): ("task_planning", "read_only"),
+        ("supervisor", "get_scenario_overview"): ("task_planning", "read_only"),
     }
 )
 BLOCKED_PARAMETER_KEYS = {
@@ -122,6 +127,17 @@ class AgentTaskSpec(StrictInput):
             raise ValueError("permissions are derived from the registered tool")
         self.required_permissions = permissions
         safe_parameters(self.parameters)
+        if self.tool == "model_smoke" and (self.parameters or self.use_coze or self.dependencies):
+            raise ValueError("fixed smoke has no parameters, Coze calls or tool dependencies")
+        if self.tool == "get_scenario_overview":
+            if (
+                set(self.parameters) != {"scenario", "account_id"}
+                or type(self.parameters["scenario"]) is not str
+                or self.parameters["scenario"] not in SCENARIO_NAMES
+                or self.use_coze
+            ):
+                raise ValueError("explicit registered scenario and selected account required; no model call")
+            canonical_numeric_id(self.parameters["account_id"])
         if len(json.dumps(self.parameters, ensure_ascii=False).encode()) > 65_536:
             raise ValueError("tool parameters exceed 64 KiB")
         if len(self.dependencies) != len(set(self.dependencies)):
@@ -143,11 +159,32 @@ class AgentTaskRequest(StrictInput):
     timeout_ms: int = Field(default=90_000, ge=100, le=180_000)
     monthly_goal: MonthlyGoal | None = None
 
+    def check_execution_scope(self) -> None:
+        # These two tools deliberately cover all caller-owned subscriptions and
+        # accept no account/period arguments. They cannot honor a selected scope.
+        # Keep this execution rule out of historical response deserialization.
+        selected_scope = any(
+            self.bindings.get(field) not in (None, "")
+            for field in ("account_id", "from", "to")
+        )
+        if selected_scope and any(
+            task.agent_type == "subscription"
+            and task.tool in {"analyze_subscription_cost", "suggest_subscription_actions"}
+            for task in self.tasks
+        ):
+            raise ValueError("global subscription tools cannot satisfy selected account or period bindings")
+
     @model_validator(mode="after")
     def valid_graph(self):
         if bool(self.tasks) == bool(self.instruction.strip()):
             raise ValueError("provide exactly one task plan or instruction")
         safe_parameters(self.bindings)
+
+        if any(task.tool == "model_smoke" for task in self.tasks) and (
+            len(self.tasks) != 1 or self.bindings or self.monthly_goal is not None
+            or self.max_attempts != 1
+        ):
+            raise ValueError("smoke is standalone, without financial bindings or retries")
         keys = {task.key for task in self.tasks}
         if len(keys) != len(self.tasks):
             raise ValueError("duplicate task key")
@@ -169,6 +206,7 @@ class AgentTaskRequest(StrictInput):
 class AgentSubmit(AgentTaskRequest):
     @model_validator(mode="after")
     def current_month(self):
+        self.check_execution_scope()
         if self.monthly_goal is not None and self.monthly_goal.period != current_period():
             raise ValueError("monthly goal must use the current Asia/Shanghai calendar month")
         return self

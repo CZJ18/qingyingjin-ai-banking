@@ -155,6 +155,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, token, key string, in Settle
 			return ErrUnavailable
 		}
 		before, previous := p, a.Status
+		userBefore, userAfter, e := s.settleUser(tx, a, actual)
+		if e != nil {
+			return e
+		}
 		now := time.Now().UnixMilli()
 		p.HeldUnits -= a.ReservedUnits
 		p.UsedUnits += actual
@@ -176,7 +180,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, token, key string, in Settle
 		if actual > a.ReservedUnits {
 			reason = "supplier_bill_exceeded_reserved_bound"
 		}
-		snapshot, e := snapshotJSON(eventSnapshot{Policy: s.policy, Before: before, After: p, PreviousStatus: previous, InputHash: inputHash, Settlement: &in, Reason: reason})
+		snapshot, e := snapshotJSON(eventSnapshot{Policy: s.policy, Before: before, After: p, UserBefore: userBefore, UserAfter: userAfter, PreviousStatus: previous, InputHash: inputHash, Settlement: &in, Reason: reason})
 		if e != nil {
 			return e
 		}

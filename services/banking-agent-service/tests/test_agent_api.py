@@ -7,6 +7,35 @@ from banking_agent.config import Settings
 from banking_agent.main import create_app
 
 
+def test_history_is_paginated_owned_and_never_runs_tasks():
+    class History:
+        def __init__(self):
+            self.calls = []
+
+        def list_recent(self, user, limit, offset):
+            self.calls.append((user, limit, offset))
+            return {"items": [], "total": 0, "limit": limit, "offset": offset}
+
+    settings = Settings(
+        "postgresql://app:test@localhost/test", "redis://:test@localhost/0", "http://bank.invalid"
+    )
+    app = create_app(settings, banking=Bank(), repository=Store(), cache=Cache())
+    history = History()
+    with TestClient(app) as client:
+        app.state.tasks = history
+        response = client.get("/api/v1/agent-tasks?limit=10&offset=20", headers=headers())
+        assert response.status_code == 200
+        assert response.json()["data"] == {"items": [], "total": 0, "limit": 10, "offset": 20}
+        assert history.calls == [("1", 10, 20)]
+        assert client.get("/api/v1/agent-tasks", headers=headers("user-b")).status_code == 200
+        assert history.calls[-1][0] == "2"
+        assert client.get("/api/v1/agent-tasks", headers=headers("agent")).status_code == 403
+        for query in ("limit=0", "limit=101", "offset=-1", "offset=1000001", "limit=1.5"):
+            assert client.get("/api/v1/agent-tasks?" + query, headers=headers()).status_code == 422
+        schema = client.get("/openapi.json").json()
+        assert "get" in schema["paths"]["/api/v1/agent-tasks"]
+
+
 def test_agent_endpoints_reject_agent_identity_and_document_user_confirmation():
     settings = Settings(
         "postgresql://app:test@localhost/test", "redis://:test@localhost/0", "http://bank.invalid"

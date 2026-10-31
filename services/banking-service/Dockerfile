@@ -14,6 +14,7 @@ RUN CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/ba
 RUN CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/banking-model-reconcile ./cmd/model-reconcile
 RUN CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/banking-model-gateway ./cmd/model-gateway
 RUN CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/banking-model-spend-reconcile ./cmd/model-spend-reconcile
+RUN CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/banking-model-user-limit ./cmd/model-user-limit
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/banking-service /banking-service
@@ -24,5 +25,6 @@ COPY --from=build /out/banking-storage-control /banking-storage-control
 COPY --from=build /out/banking-model-reconcile /banking-model-reconcile
 COPY --from=build /out/banking-model-gateway /banking-model-gateway
 COPY --from=build /out/banking-model-spend-reconcile /banking-model-spend-reconcile
+COPY --from=build /out/banking-model-user-limit /banking-model-user-limit
 EXPOSE 8090
 ENTRYPOINT ["/banking-service"]

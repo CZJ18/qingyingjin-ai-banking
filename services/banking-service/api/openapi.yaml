@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Qingyingjin Banking and Adaptive Savings API
-  version: 0.22.0
+  version: 0.25.0
   description: Simulated CNY accounts only. Amounts are integer minor units; IDs are decimal strings;
     timestamps are Unix milliseconds. User JWT is mandatory for Core. Financial changes require explicit
     user confirmation and a balanced persisted ledger. Module8 may replace the simulation safety gateway.
@@ -29,6 +29,245 @@ tags:
 - name: Execution
 - name: Authentication
 paths:
+  /api/v2/expense-trials:
+    post:
+      operationId: start_expense_trial
+      tags:
+      - Lifestyle
+      summary: start expense trial
+      description: User-only persistent advisory trial. Existing ownership, idempotency, audit and storage
+        fencing apply. No model or financial execution. Recorded expenses and personal observations do
+        not establish savings.
+      security:
+      - UserBearer: []
+      responses:
+        '201':
+          description: Advisory record only
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseTrialResponse'
+        '400':
+          description: Invalid bounded input
+        '401':
+          description: Authentication required
+        '403':
+          description: User-only; agents refused
+        '404':
+          description: Owned resource not found
+        '409':
+          description: Version or idempotency conflict
+        '503':
+          description: Dependency unavailable
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExpenseTrialInput'
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+    get:
+      operationId: list_expense_trials
+      tags:
+      - Lifestyle
+      summary: list expense trials
+      description: User-only persistent advisory trial. Existing ownership, idempotency, audit and storage
+        fencing apply. No model or financial execution. Recorded expenses and personal observations do
+        not establish savings.
+      security:
+      - UserBearer: []
+      responses:
+        '200':
+          description: Advisory record only
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseTrialListResponse'
+        '400':
+          description: Invalid bounded input
+        '401':
+          description: Authentication required
+        '403':
+          description: User-only; agents refused
+        '404':
+          description: Owned resource not found
+        '409':
+          description: Version or idempotency conflict
+        '503':
+          description: Dependency unavailable
+      parameters:
+      - name: account_id
+        in: query
+        required: true
+        schema: &id001
+          type: string
+          pattern: ^[1-9][0-9]*$
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 1000000
+          default: 0
+  /api/v2/expense-trials/{id}:
+    get:
+      operationId: get_expense_trial
+      tags:
+      - Lifestyle
+      summary: get expense trial
+      description: User-only persistent advisory trial. Existing ownership, idempotency, audit and storage
+        fencing apply. No model or financial execution. Recorded expenses and personal observations do
+        not establish savings.
+      security:
+      - UserBearer: []
+      responses:
+        '200':
+          description: Advisory record only
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseTrialResponse'
+        '400':
+          description: Invalid bounded input
+        '401':
+          description: Authentication required
+        '403':
+          description: User-only; agents refused
+        '404':
+          description: Owned resource not found
+        '409':
+          description: Version or idempotency conflict
+        '503':
+          description: Dependency unavailable
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+  /api/v2/expense-trials/{id}/reviews:
+    post:
+      operationId: review_expense_trial
+      tags:
+      - Lifestyle
+      summary: review expense trial
+      description: User-only persistent advisory trial. Existing ownership, idempotency, audit and storage
+        fencing apply. No model or financial execution. Recorded expenses and personal observations do
+        not establish savings.
+      security:
+      - UserBearer: []
+      responses:
+        '200':
+          description: Advisory record only
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseTrialResponse'
+        '400':
+          description: Invalid bounded input
+        '401':
+          description: Authentication required
+        '403':
+          description: User-only; agents refused
+        '404':
+          description: Owned resource not found
+        '409':
+          description: Version or idempotency conflict
+        '503':
+          description: Dependency unavailable
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExpenseTrialReviewInput'
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+  /api/v2/lifestyle-goals/expense-reduction-preview:
+    post:
+      operationId: preview_expense_reduction
+      tags:
+      - Lifestyle
+      security:
+      - UserBearer: []
+      description: User-only, read-only what-if advice for next Shanghai month from an owned stored report.
+        Uses existing deterministic lifestyle rules, never a model call, persisted recommendation or financial
+        authorization. Partial months remain needs_information. Forecast reductions are not available
+        cash.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExpensePreviewInput'
+      responses:
+        '200':
+          description: Grounded scenario or explicit missing information; never guaranteed savings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpensePreviewResponse'
+        '400':
+          description: Invalid goal, period, category or body
+        '401':
+          description: User authentication required
+        '403':
+          description: Agents cannot use this user-only preview
+        '404':
+          description: Source report not owned or not found
+        '503':
+          description: Storage unavailable; no fallback data
+  /api/v1/model-admission:
+    get:
+      operationId: getModelAdmissionSnapshot
+      tags:
+      - Orchestrator
+      security:
+      - UserBearer: []
+      description: Read-only authenticated owner's fee snapshot. Never grants workflow scope, reserves
+        funds, or authorizes financial execution. Simulation is explicitly labelled.
+      responses:
+        '200':
+          description: Current approval limits and remaining monetary, request and concurrency snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '401':
+          description: User authentication required
+        '403':
+          description: User outside approval scope (MODEL_APPROVAL_REQUIRED)
+        '503':
+          description: Missing monetary admission, execution confirmation or unavailable fee ledger (MODEL_MONETARY_ADMISSION_REQUIRED
+            / MODEL_EXECUTION_CONFIRMATION_REQUIRED). When no admission provider is configured, data.reason
+            is MODEL_ADMISSION_NOT_CONFIGURED; this diagnostic does not grant execution or imply exhausted funds.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
   /healthz:
     get:
       operationId: getLiveness
@@ -325,7 +564,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/TraceID'
       - $ref: '#/components/parameters/TaskID'
-      - &id002
+      - &id003
         name: limit
         in: query
         schema:
@@ -334,7 +573,7 @@ paths:
           maximum: 1000000
           default: 50
         description: Capped at 100
-      - &id003
+      - &id004
         name: offset
         in: query
         schema:
@@ -403,11 +642,11 @@ paths:
       parameters:
       - $ref: '#/components/parameters/TraceID'
       - $ref: '#/components/parameters/TaskID'
-      - &id001
+      - &id002
         name: id
         in: path
         required: true
-        schema: &id004
+        schema: &id005
           type: string
           pattern: ^[1-9][0-9]*$
           description: Canonical positive int64 decimal string
@@ -472,7 +711,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/TraceID'
       - $ref: '#/components/parameters/TaskID'
-      - *id001
+      - *id002
       responses:
         '200':
           description: Persisted simulation result
@@ -534,9 +773,9 @@ paths:
       parameters:
       - $ref: '#/components/parameters/TraceID'
       - $ref: '#/components/parameters/TaskID'
-      - *id001
       - *id002
       - *id003
+      - *id004
       responses:
         '200':
           description: Persisted simulation result
@@ -598,7 +837,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/TraceID'
       - $ref: '#/components/parameters/TaskID'
-      - *id001
+      - *id002
       responses:
         '200':
           description: Persisted simulation result
@@ -726,6 +965,77 @@ paths:
               $ref: '#/components/schemas/TransactionInput'
       description: Legacy financial mutation blocked with GATEWAY_REQUIRED when module8 gateway is configured.
         Prepare, authorize and execute through /api/v1/execution/operations.
+  /api/v1/transactions/import/preview:
+    post:
+      operationId: previewStatementCSV
+      description: User-uploaded unverified CSV preview only. Requires an owned account. No balance or
+        transaction changes; records must enter prepare, authorize and execute individually. Pending/reversed/failed
+        rows are skipped; conflicting external IDs reject the whole preview.
+      security:
+      - UserBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatementPreviewInput'
+      responses:
+        '200':
+          description: Normalized unverified upload; no financial execution authority.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/Envelope'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/StatementPreview'
+        '400':
+          $ref: '#/components/responses/StatementError'
+        '401':
+          $ref: '#/components/responses/StatementError'
+        '403':
+          $ref: '#/components/responses/StatementError'
+        '404':
+          $ref: '#/components/responses/StatementError'
+        '409':
+          $ref: '#/components/responses/StatementError'
+        '503':
+          $ref: '#/components/responses/StatementError'
+  /api/v1/transactions/{id}/source:
+    get:
+      operationId: getStatementSource
+      description: Owned retained CSV source. User-supplied evidence, never bank verification.
+      security:
+      - UserBearer: []
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+          pattern: ^[1-9][0-9]*$
+      responses:
+        '200':
+          description: Original row and source hashes.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/Envelope'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '#/components/schemas/StatementSource'
+        '400':
+          $ref: '#/components/responses/StatementError'
+        '401':
+          $ref: '#/components/responses/StatementError'
+        '404':
+          $ref: '#/components/responses/StatementError'
+        '503':
+          $ref: '#/components/responses/StatementError'
   /api/v1/transactions:
     get:
       operationId: listTransactions
@@ -736,25 +1046,41 @@ paths:
       parameters:
       - $ref: '#/components/parameters/TraceID'
       - $ref: '#/components/parameters/TaskID'
-      - *id002
       - *id003
+      - *id004
       - name: bank_account_id
         in: query
-        schema: *id004
+        schema: *id005
       - name: direction
         in: query
-        schema: &id021
+        schema: &id025
           type: string
           enum:
           - income
           - expense
       - name: category
         in: query
-        schema: &id005
+        schema: &id006
           type: string
       - name: merchant
         in: query
-        schema: *id005
+        schema: *id006
+      - name: canonical_category
+        in: query
+        description: Shared Billing classification; raw category remains an exact filter.
+        schema:
+          type: string
+          enum:
+          - dining
+          - transport
+          - shopping
+          - sports
+          - subscriptions
+          - housing
+          - medical
+          - education
+          - other
+          - uncategorized
       - name: from
         in: query
         schema:
@@ -829,7 +1155,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/TraceID'
       - $ref: '#/components/parameters/TaskID'
-      - *id001
+      - *id002
       responses:
         '200':
           description: Persisted simulation result
@@ -960,7 +1286,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/TraceID'
       - $ref: '#/components/parameters/TaskID'
-      - *id001
+      - *id002
       responses:
         '200':
           description: Persisted simulation result
@@ -1022,7 +1348,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/TraceID'
       - $ref: '#/components/parameters/TaskID'
-      - *id001
+      - *id002
       responses:
         '200':
           description: Persisted simulation result
@@ -1159,11 +1485,11 @@ paths:
       parameters:
       - $ref: '#/components/parameters/TraceID'
       - $ref: '#/components/parameters/TaskID'
-      - *id002
       - *id003
+      - *id004
       - name: month
         in: query
-        schema: &id024
+        schema: &id028
           type: string
           pattern: ^[0-9]{4}-[0-9]{2}$
       responses:
@@ -1227,7 +1553,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/TraceID'
       - $ref: '#/components/parameters/TaskID'
-      - *id001
+      - *id002
       responses:
         '200':
           description: Persisted simulation result
@@ -1289,7 +1615,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/TraceID'
       - $ref: '#/components/parameters/TaskID'
-      - *id001
+      - *id002
       responses:
         '200':
           description: Persisted simulation result
@@ -1421,8 +1747,8 @@ paths:
       parameters:
       - $ref: '#/components/parameters/TraceID'
       - $ref: '#/components/parameters/TaskID'
-      - *id002
       - *id003
+      - *id004
       responses:
         '200':
           description: Persisted simulation result
@@ -1484,7 +1810,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/TraceID'
       - $ref: '#/components/parameters/TaskID'
-      - *id001
+      - *id002
       responses:
         '200':
           description: Persisted simulation result
@@ -1547,9 +1873,9 @@ paths:
       parameters:
       - $ref: '#/components/parameters/TraceID'
       - $ref: '#/components/parameters/TaskID'
-      - *id001
       - *id002
       - *id003
+      - *id004
       responses:
         '200':
           description: Persisted simulation result
@@ -1611,7 +1937,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/TraceID'
       - $ref: '#/components/parameters/TaskID'
-      - *id001
+      - *id002
       - $ref: '#/components/parameters/IdempotencyKey'
       responses:
         '201':
@@ -1681,7 +2007,7 @@ paths:
       parameters:
       - $ref: '#/components/parameters/TraceID'
       - $ref: '#/components/parameters/TaskID'
-      - *id001
+      - *id002
       - $ref: '#/components/parameters/IdempotencyKey'
       responses:
         '201':
@@ -1751,8 +2077,8 @@ paths:
       parameters:
       - $ref: '#/components/parameters/TraceID'
       - $ref: '#/components/parameters/TaskID'
-      - *id002
       - *id003
+      - *id004
       responses:
         '200':
           description: Persisted simulation result
@@ -1880,10 +2206,10 @@ paths:
       - name: id
         in: path
         required: true
-        schema: &id006
+        schema: &id007
           type: string
           pattern: ^[1-9][0-9]*$
-      - &id007
+      - &id008
         name: version
         in: query
         schema:
@@ -1949,7 +2275,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id006
+        schema: *id007
       responses:
         '200':
           description: Persisted goal/plan result
@@ -2015,7 +2341,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id006
+        schema: *id007
       responses:
         '200':
           description: Persisted goal/plan result
@@ -2081,8 +2407,8 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id006
-      - *id007
+        schema: *id007
+      - *id008
       responses:
         '200':
           description: Persisted goal/plan result
@@ -2142,7 +2468,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id006
+        schema: *id007
       - name: limit
         in: query
         schema:
@@ -2217,7 +2543,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id006
+        schema: *id007
       - name: from
         in: query
         required: true
@@ -4170,7 +4496,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: &id008
+        schema: &id009
           type: string
           pattern: ^[1-9][0-9]*$
       description: Local simulated subscription only. Candidate evidence does not prove merchant contract
@@ -4241,7 +4567,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id008
+        schema: *id009
       description: Local simulated subscription only. Candidate evidence does not prove merchant contract
         or inactivity. Forecasts are integer CNY cents and never available balance or goal deposits. Cancellation
         proposal is gateway checked and version bound; execution requires separate user JWT confirmation.
@@ -4310,7 +4636,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id008
+        schema: *id009
       - $ref: '#/components/parameters/IdempotencyKey'
       description: Legacy financial mutation blocked with GATEWAY_REQUIRED when module8 gateway is configured.
         Prepare, authorize and execute through /api/v1/execution/operations.
@@ -4382,7 +4708,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id008
+        schema: *id009
       description: Local simulated subscription only. Candidate evidence does not prove merchant contract
         or inactivity. Forecasts are integer CNY cents and never available balance or goal deposits. Cancellation
         proposal is gateway checked and version bound; execution requires separate user JWT confirmation.
@@ -4451,7 +4777,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id008
+        schema: *id009
       description: Local simulated subscription only. Candidate evidence does not prove merchant contract
         or inactivity. Forecasts are integer CNY cents and never available balance or goal deposits. Cancellation
         proposal is gateway checked and version bound; execution requires separate user JWT confirmation.
@@ -4520,7 +4846,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id008
+        schema: *id009
       description: Legacy financial mutation blocked with GATEWAY_REQUIRED when module8 gateway is configured.
         Prepare, authorize and execute through /api/v1/execution/operations.
       responses:
@@ -4579,6 +4905,67 @@ paths:
             schema:
               $ref: '#/components/schemas/SubscriptionConfirmInput'
   /api/v1/financial-plans:
+    get:
+      operationId: list_owned_financial_plans
+      security:
+      - UserBearer: []
+      description: User only. Owned plan summaries ordered by updated_at/id descending. Listing does not
+        select advice, change account scope or authorize execution.
+      responses:
+        '200':
+          description: Owned read-only data; no approval, grant or financial effect
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/Envelope'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/FinancialPlan'
+        '400':
+          description: Invalid input, missing identity, forbidden scope or unavailable dependency
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '401':
+          description: Invalid input, missing identity, forbidden scope or unavailable dependency
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '403':
+          description: Invalid input, missing identity, forbidden scope or unavailable dependency
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '503':
+          description: Invalid input, missing identity, forbidden scope or unavailable dependency
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+      parameters:
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 100
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 1000000
+          default: 0
     post:
       operationId: create_financial_plan
       tags:
@@ -4661,7 +5048,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: &id009
+        schema: &id010
           type: string
           pattern: ^[1-9][0-9]*$
       description: Advice only; all amounts are deterministic integer CNY cents. Never deposits forecast
@@ -4731,7 +5118,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id009
+        schema: *id010
       - name: limit
         in: query
         required: false
@@ -4817,7 +5204,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id009
+        schema: *id010
       description: Advice only; all amounts are deterministic integer CNY cents. Never deposits forecast
         income/avoided subscription costs or executes transfers. UTC calendar-month period. Necessary
         cashflows are ADDITIONAL obligations outside living budget; do not enter the same expense twice.
@@ -4891,7 +5278,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id009
+        schema: *id010
       description: Advice only; all amounts are deterministic integer CNY cents. Never deposits forecast
         income/avoided subscription costs or executes transfers. UTC calendar-month period. Necessary
         cashflows are ADDITIONAL obligations outside living budget; do not enter the same expense twice.
@@ -5036,7 +5423,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id009
+        schema: *id010
       description: Advice only; all amounts are deterministic integer CNY cents. Never deposits forecast
         income/avoided subscription costs or executes transfers. UTC calendar-month period. Necessary
         cashflows are ADDITIONAL obligations outside living budget; do not enter the same expense twice.
@@ -5366,7 +5753,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Envelope'
         '503':
-          description: DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
+          description: MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
           content:
             application/json:
               schema:
@@ -5390,7 +5777,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: &id010
+        schema: &id011
           type: string
           format: uuid
       description: Persistent owner-scoped supervisory DAG. Parallelism only for read_only tools. Recommendations,
@@ -5441,7 +5828,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Envelope'
         '503':
-          description: DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
+          description: MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
           content:
             application/json:
               schema:
@@ -5459,7 +5846,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id010
+        schema: *id011
       description: Persistent owner-scoped supervisory DAG. Parallelism only for read_only tools. Recommendations,
         proposals, explicit confirmation and financial execution remain separate. Module8 proposal gateway
         fails closed when absent; this module never moves funds. Coze use requires published native workflow
@@ -5508,7 +5895,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Envelope'
         '503':
-          description: DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
+          description: MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
           content:
             application/json:
               schema:
@@ -5526,7 +5913,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id010
+        schema: *id011
       - name: last_event_id
         in: query
         schema:
@@ -5589,7 +5976,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Envelope'
         '503':
-          description: DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
+          description: MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
           content:
             application/json:
               schema:
@@ -5607,7 +5994,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id010
+        schema: *id011
       description: Persistent owner-scoped supervisory DAG. Parallelism only for read_only tools. Recommendations,
         proposals, explicit confirmation and financial execution remain separate. Module8 proposal gateway
         fails closed when absent; this module never moves funds. Coze use requires published native workflow
@@ -5656,7 +6043,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Envelope'
         '503':
-          description: DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
+          description: MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
           content:
             application/json:
               schema:
@@ -5674,7 +6061,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id010
+        schema: *id011
       description: Persistent owner-scoped supervisory DAG. Parallelism only for read_only tools. Recommendations,
         proposals, explicit confirmation and financial execution remain separate. Module8 proposal gateway
         fails closed when absent; this module never moves funds. Coze use requires published native workflow
@@ -5723,7 +6110,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Envelope'
         '503':
-          description: DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
+          description: MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
           content:
             application/json:
               schema:
@@ -5741,7 +6128,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id010
+        schema: *id011
       description: Persistent owner-scoped supervisory DAG. Parallelism only for read_only tools. Recommendations,
         proposals, explicit confirmation and financial execution remain separate. Module8 proposal gateway
         fails closed when absent; this module never moves funds. Coze use requires published native workflow
@@ -5790,7 +6177,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Envelope'
         '503':
-          description: DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
+          description: MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
           content:
             application/json:
               schema:
@@ -5808,7 +6195,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id010
+        schema: *id011
       description: Persistent owner-scoped supervisory DAG. Parallelism only for read_only tools. Recommendations,
         proposals, explicit confirmation and financial execution remain separate. Module8 proposal gateway
         fails closed when absent; this module never moves funds. Coze use requires published native workflow
@@ -5857,7 +6244,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Envelope'
         '503':
-          description: DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
+          description: MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
           content:
             application/json:
               schema:
@@ -5881,7 +6268,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id010
+        schema: *id011
       description: Persistent owner-scoped supervisory DAG. Parallelism only for read_only tools. Recommendations,
         proposals, explicit confirmation and financial execution remain separate. Module8 proposal gateway
         fails closed when absent; this module never moves funds. Coze use requires published native workflow
@@ -5930,7 +6317,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Envelope'
         '503':
-          description: DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
+          description: MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
           content:
             application/json:
               schema:
@@ -5954,7 +6341,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id010
+        schema: *id011
       - name: Last-Event-ID
         in: header
         schema:
@@ -5968,7 +6355,7 @@ paths:
           description: task events and end event; metadata JSON in SSE data
           content:
             text/event-stream:
-              schema: &id049
+              schema: &id053
                 type: string
         '400':
           description: INVALID_ARGUMENT
@@ -6007,7 +6394,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Envelope'
         '503':
-          description: DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
+          description: MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
           content:
             application/json:
               schema:
@@ -6070,7 +6457,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Envelope'
         '503':
-          description: DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
+          description: MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
           content:
             application/json:
               schema:
@@ -6139,7 +6526,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Envelope'
         '503':
-          description: DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
+          description: MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
           content:
             application/json:
               schema:
@@ -6163,7 +6550,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: &id051
+        schema: &id055
           type: string
           pattern: ^[1-9][0-9]*$
       description: Persistent owner-scoped supervisory DAG. Parallelism only for read_only tools. Recommendations,
@@ -6214,7 +6601,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Envelope'
         '503':
-          description: DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
+          description: MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
           content:
             application/json:
               schema:
@@ -6317,7 +6704,7 @@ paths:
           - subscription_manage
       - name: resource_id
         in: query
-        schema: &id059
+        schema: &id063
           type: string
           pattern: ^(0|[1-9][0-9]*)$
       description: Owner-scoped gateway. READ and PREPARE do not execute. Authorize and execute require
@@ -6387,7 +6774,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: &id011
+        schema: &id012
           type: string
           format: uuid
       description: Owner-scoped gateway. READ and PREPARE do not execute. Authorize and execute require
@@ -6457,7 +6844,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id011
+        schema: *id012
       description: Owner-scoped gateway. READ and PREPARE do not execute. Authorize and execute require
         a signed human user JWT, exact intent digest and one-time confirmation. Execution consumes authorization,
         validates resource version and risk inside the financial transaction. Audit write failure fails
@@ -6531,7 +6918,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id011
+        schema: *id012
       - $ref: '#/components/parameters/IdempotencyKey'
       description: Owner-scoped gateway. READ and PREPARE do not execute. Authorize and execute require
         a signed human user JWT, exact intent digest and one-time confirmation. Execution consumes authorization,
@@ -6606,7 +6993,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id011
+        schema: *id012
       description: Owner-scoped gateway. READ and PREPARE do not execute. Authorize and execute require
         a signed human user JWT, exact intent digest and one-time confirmation. Execution consumes authorization,
         validates resource version and risk inside the financial transaction. Audit write failure fails
@@ -6657,6 +7044,59 @@ paths:
                 $ref: '#/components/schemas/Envelope'
         '503':
           description: DEPENDENCY_UNAVAILABLE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+  /api/v1/execution/readiness:
+    get:
+      operationId: get_execution_readiness
+      security:
+      - UserBearer: []
+      description: Authenticated user only. Checks all six required execution policies without creating
+        intents or authorizations. Missing/disabled/incompatible policies return503.
+      responses:
+        '200':
+          description: Owned read-only data; no approval, grant or financial effect
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/Envelope'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: object
+                      additionalProperties: false
+                      required:
+                      - ready
+                      properties:
+                        ready:
+                          type: boolean
+                          enum:
+                          - true
+        '400':
+          description: Invalid input, missing identity, forbidden scope or unavailable dependency
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '401':
+          description: Invalid input, missing identity, forbidden scope or unavailable dependency
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '403':
+          description: Invalid input, missing identity, forbidden scope or unavailable dependency
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '503':
+          description: Invalid input, missing identity, forbidden scope or unavailable dependency
           content:
             application/json:
               schema:
@@ -6966,6 +7406,67 @@ paths:
             schema:
               $ref: '#/components/schemas/LifestyleParseInput'
   /api/v2/lifestyle-goals:
+    get:
+      operationId: list_owned_lifestyle_goals
+      security:
+      - UserBearer: []
+      description: User only. Latest persisted version per owned goal, ordered by updated_at/id descending.
+        Caller user_id is never authority.
+      responses:
+        '200':
+          description: Owned read-only data; no approval, grant or financial effect
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/Envelope'
+                - type: object
+                  required:
+                  - data
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/LifestyleGoalView'
+        '400':
+          description: Invalid input, missing identity, forbidden scope or unavailable dependency
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '401':
+          description: Invalid input, missing identity, forbidden scope or unavailable dependency
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '403':
+          description: Invalid input, missing identity, forbidden scope or unavailable dependency
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '503':
+          description: Invalid input, missing identity, forbidden scope or unavailable dependency
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+      parameters:
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 100
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 1000000
+          default: 0
     post:
       operationId: create_lifestyle_goal
       tags:
@@ -7113,7 +7614,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: &id012
+        schema: &id013
           type: string
           pattern: ^[1-9][0-9]*$
       - name: limit
@@ -7200,7 +7701,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id012
+        schema: *id013
       - name: Idempotency-Key
         in: header
         required: true
@@ -7283,7 +7784,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id012
+        schema: *id013
       - name: Idempotency-Key
         in: header
         required: true
@@ -7366,7 +7867,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id012
+        schema: *id013
       - name: limit
         in: query
         schema:
@@ -7452,7 +7953,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id012
+        schema: *id013
   /api/v2/recommendations/{id}/decisions:
     post:
       operationId: decide_lifestyle_recommendation
@@ -7522,7 +8023,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id012
+        schema: *id013
       - name: Idempotency-Key
         in: header
         required: true
@@ -7604,7 +8105,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id012
+        schema: *id013
   /tools/v1/lifestyle/get_lifestyle_goal:
     post:
       operationId: get_lifestyle_goal
@@ -7826,6 +8327,99 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/LifestyleCompileToolInput'
+  /api/v1/langgraph/background-delegations:
+    post:
+      operationId: langgraph_background_delegations
+      tags:
+      - Orchestrator
+      description: Server-to-server only. Requires BOTH the authenticated user's Bearer JWT and X-Banking-Agent-Key.
+        The persisted user must be active and the user session must remain valid. Specialist agent, tool
+        and background actors cannot issue this grant. The caller supplies the canonical persisted task
+        root and immutable request digest for that authenticated owner; user_id is never accepted as authority.
+        The returned opaque capability is bound to this owner, task and digest for up to 24 hours, and
+        can only request child specialist delegations through /api/v1/langgraph/delegations. It cannot
+        call ordinary user APIs or authorize financial execution. Store as a secret; never expose in browser/model
+        content or log request credentials, response capability, or the complete response body.
+      security:
+      - UserBearer: []
+        AgentServiceKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+              - task_id
+              - request_digest
+              properties:
+                task_id:
+                  type: string
+                  pattern: ^lg-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+                  description: Canonical task root without a specialist suffix.
+                request_digest:
+                  type: string
+                  pattern: ^[0-9a-f]{64}$
+                  description: SHA-256 digest of the persisted immutable task request.
+      responses:
+        '200':
+          description: Opaque task-bound background grant; sensitive response, never log.
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/Envelope'
+                - type: object
+                  properties:
+                    data:
+                      type: object
+                      required:
+                      - capability
+                      - task_id
+                      - request_digest
+                      - expires_in_seconds
+                      properties:
+                        capability:
+                          type: string
+                          pattern: ^bgt1\.[A-Za-z0-9_-]+$
+                          format: password
+                          x-sensitive: true
+                          description: Sensitive opaque credential; returned only to the trusted task
+                            service, never log or disclose to models/browser clients.
+                        task_id:
+                          type: string
+                        request_digest:
+                          type: string
+                          pattern: ^[0-9a-f]{64}$
+                        expires_in_seconds:
+                          type: integer
+                          enum:
+                          - 86400
+        '400':
+          description: INVALID_ARGUMENT; canonical task root and lowercase SHA-256 required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '401':
+          description: UNAUTHENTICATED; both user Bearer and service key required, or session revoked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '403':
+          description: FORBIDDEN; active user actor required, agent actors cannot issue grants.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '503':
+          description: DEPENDENCY_UNAVAILABLE; bridge or authoritative account validation unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
   /api/v1/langgraph/delegations:
     post:
       operationId: langgraph_delegations
@@ -7879,7 +8473,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Envelope'
         '503':
-          description: DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
+          description: MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
           content:
             application/json:
               schema:
@@ -7896,7 +8490,9 @@ paths:
       tags:
       - Orchestrator
       description: Signed specialist plus server key; role/user/task derived from JWT. Native Skill/DTO/evidence
-        validation; READ/PLAN only. Sensitive preparation uses the separate existing gateway.
+        validation; READ/PLAN only. Sensitive preparation uses the separate existing gateway. Supervisor
+        may additionally run the exact deterministic get_scenario_overview tool with use_coze=false. This
+        does not enable financial preparation or execution.
       security:
       - UserBearer: []
         AgentServiceKey: []
@@ -7931,7 +8527,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Envelope'
         '403':
-          description: FORBIDDEN
+          description: FORBIDDEN / MODEL_APPROVAL_REQUIRED
           content:
             application/json:
               schema:
@@ -7942,8 +8538,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Envelope'
+        '429':
+          description: MODEL_APPROVAL_LIMIT_EXCEEDED / MODEL_QUOTA_EXCEEDED / MODEL_USER_MONTHLY_QUOTA_EXCEEDED
+            / MODEL_SPEND_QUOTA_EXCEEDED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
         '503':
-          description: DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
+          description: MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
           content:
             application/json:
               schema:
@@ -7995,7 +8598,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Envelope'
         '403':
-          description: FORBIDDEN
+          description: FORBIDDEN / MODEL_APPROVAL_REQUIRED
           content:
             application/json:
               schema:
@@ -8006,8 +8609,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Envelope'
+        '429':
+          description: MODEL_APPROVAL_LIMIT_EXCEEDED / MODEL_QUOTA_EXCEEDED / MODEL_USER_MONTHLY_QUOTA_EXCEEDED
+            / MODEL_SPEND_QUOTA_EXCEEDED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
         '503':
-          description: DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
+          description: MODEL_EXECUTION_CONFIRMATION_REQUIRED / DEPENDENCY_UNAVAILABLE / COZE_UNAVAILABLE
           content:
             application/json:
               schema:
@@ -9210,13 +9820,13 @@ paths:
       - name: owner
         in: path
         required: true
-        schema: &id082
+        schema: &id086
           type: string
           pattern: ^[1-9][0-9]*$
       - name: id
         in: path
         required: true
-        schema: &id013
+        schema: &id014
           type: string
           format: uuid
   /api/v1/aa/invitations/preview:
@@ -9412,7 +10022,7 @@ paths:
       - name: id
         in: path
         required: true
-        schema: *id013
+        schema: *id014
       requestBody:
         required: true
         content:
@@ -9556,6 +10166,85 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/RecipientSettingsInput'
+  /api/v1/notifications/birthdays:
+    get:
+      operationId: getBirthdayCalendar
+      tags:
+      - Core
+      security:
+      - UserBearer: []
+      description: Human-only private birthday calendar and read-only upcoming occurrences in Shanghai.
+        Dates are explicitly supplied by the user. No inferred relationships, financial intents, authorization,
+        reservation or merchant requests. Feb29 occurs only in a true leap year.
+      responses:
+        '200':
+          description: Current calendar and upcoming birthdays
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BirthdayCalendarResponse'
+        default:
+          description: Authentication, ownership, storage or invalid saved state error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+    put:
+      operationId: updateBirthdayCalendar
+      tags:
+      - Core
+      security:
+      - UserBearer: []
+      description: Replace the user's private calendar with explicit version CAS; missing entries are
+        removed from future reminders only. Existing financial plans and histories are unchanged.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BirthdayCalendarInput'
+      responses:
+        '200':
+          description: Persisted calendar and upcoming birthdays
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BirthdayCalendarResponse'
+        default:
+          description: Authentication, ownership, version, input or storage error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+  /api/v1/recipients/remarks:
+    put:
+      operationId: saveRecipientRemark
+      tags:
+      - RecipientTransfers
+      security:
+      - UserBearer: []
+      description: Human-only private exact remark. Requires explicit recipient selection from an exact
+        name/phone lookup, recipient version and own settings version. Applies the existing lookup rate
+        limit. No arbitrary ID discovery, public alias, transfer intent or money movement.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecipientRemarkInput'
+      responses:
+        '200':
+          description: Own settings with private remarks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecipientSettingsResponse'
+        default:
+          description: Existing authentication, lookup, version and dependency errors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
   /api/v1/recipients/search:
     post:
       operationId: searchRecipients
@@ -9642,13 +10331,13 @@ paths:
       - name: owner
         in: path
         required: true
-        schema: &id014
+        schema: &id015
           type: string
           pattern: ^[1-9][0-9]*$
       - name: id
         in: path
         required: true
-        schema: &id015
+        schema: &id016
           type: string
           format: uuid
       requestBody:
@@ -9720,11 +10409,11 @@ paths:
       - name: owner
         in: path
         required: true
-        schema: *id014
+        schema: *id015
       - name: id
         in: path
         required: true
-        schema: *id015
+        schema: *id016
       requestBody:
         required: true
         content:
@@ -9780,6 +10469,195 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Envelope'
+  /api/v1/execution/scenarios:
+    get:
+      operationId: getSimulatedScenarios
+      tags:
+      - Execution
+      security:
+      - UserBearer: []
+      description: Human-owned simulated catalog, principal holdings and exact persisted operations. No
+        model request or real bank/merchant integration.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioResponse'
+        '400':
+          description: Explicit denial
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '401':
+          description: Explicit denial
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '403':
+          description: Explicit denial
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '404':
+          description: Explicit denial
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '409':
+          description: Explicit denial
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '422':
+          description: Explicit denial
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '503':
+          description: Explicit denial
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+  /api/v1/execution/operations/{id}/cancel:
+    post:
+      operationId: cancelScheduledSimulation
+      tags:
+      - Execution
+      security:
+      - UserBearer: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecutionAuthorizeInput'
+      description: Cancel an owned already-authorized schedule. decision must be reject, digest and nonce
+        must match. Cannot undo a completed posting or mutate fee state.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionViewResponse'
+        '400':
+          description: Explicit denial
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '401':
+          description: Explicit denial
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '403':
+          description: Explicit denial
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '404':
+          description: Explicit denial
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '409':
+          description: Explicit denial
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '422':
+          description: Explicit denial
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '503':
+          description: Explicit denial
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+  /api/v1/scenarios/get_scenario_overview:
+    post:
+      operationId: getScenarioOverview
+      tags:
+      - Orchestrator
+      security:
+      - UserBearer: []
+      description: Registered task_planning v1 / supervisor / read_only tool. Requires an owned selected
+        simulated CNY account. The signed task identity supplies the user. Returns at most50 fixed redacted
+        records and explicit truncation. Does not relax the original human-only card, recipient or scenario
+        endpoints.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScenarioOverviewInput'
+      responses:
+        '200':
+          description: Bounded read-only facts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioOverviewResponse'
+        '400':
+          description: Explicit refusal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '401':
+          description: Explicit refusal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '403':
+          description: Explicit refusal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '404':
+          description: Explicit refusal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '422':
+          description: Explicit refusal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '503':
+          description: Explicit refusal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
 components:
   securitySchemes:
     UserBearer:
@@ -9828,6 +10706,587 @@ components:
       description: Scoped to user/action. Same key + canonical body returns persisted original result;
         different body returns 409.
   schemas:
+    ExpenseTrialInput:
+      type: object
+      additionalProperties: false
+      properties:
+        statement_check:
+          $ref: '#/components/schemas/ExpenseStatementCheck'
+        expected_reduction_minor:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 1000000000000
+        account_id: &id017
+          type: string
+          pattern: ^[1-9][0-9]*$
+        billing_report_id:
+          type: string
+          maxLength: 64
+        target_period:
+          type: string
+        target_minor:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 1000000000000
+        category: &id018
+          type: string
+          enum:
+          - shopping
+          - subscriptions
+          - sports
+          - other
+      required:
+      - account_id
+      - billing_report_id
+      - target_period
+      - target_minor
+      - category
+    ExpenseTrial:
+      type: object
+      additionalProperties: false
+      properties:
+        id: *id017
+        user_id: *id017
+        account_id: *id017
+        billing_report_id:
+          type: string
+        baseline_digest:
+          type: string
+        target_period:
+          type: string
+        target_minor: &id019
+          type: integer
+          format: int64
+        category: *id018
+        started_at: *id019
+        ends_at: *id019
+        status:
+          type: string
+          enum:
+          - active
+          - completed
+        version: *id019
+        created_at: *id019
+        updated_at: *id019
+      required:
+      - id
+      - user_id
+      - account_id
+      - billing_report_id
+      - baseline_digest
+      - target_period
+      - target_minor
+      - category
+      - started_at
+      - ends_at
+      - status
+      - version
+      - created_at
+      - updated_at
+    ExpenseTrialProgress:
+      type: object
+      additionalProperties: false
+      properties:
+        from: *id019
+        to: *id019
+        total_expense_minor: *id019
+        category_expense_minor: *id019
+        evidence_transaction_ids:
+          type: array
+          items: *id017
+        window_complete:
+          type: boolean
+        confirmed_savings_minor:
+          type: integer
+          format: int64
+          nullable: true
+          description: Always null. Recorded spending is not independently verified savings.
+      required:
+      - from
+      - to
+      - total_expense_minor
+      - category_expense_minor
+      - evidence_transaction_ids
+      - window_complete
+      - confirmed_savings_minor
+    ExpenseTrialReviewInput:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version:
+          type: integer
+          format: int64
+          minimum: 1
+        note:
+          type: string
+          maxLength: 2000
+          description: At most 2000 UTF-8 bytes; personal observation, never a financial amount claim.
+      required:
+      - expected_version
+      - note
+    ExpenseTrialReview:
+      type: object
+      additionalProperties: false
+      properties:
+        observed_at: *id019
+        note:
+          type: string
+        progress:
+          $ref: '#/components/schemas/ExpenseTrialProgress'
+      required:
+      - observed_at
+      - note
+      - progress
+    ExpenseTrialBaseline:
+      type: object
+      additionalProperties: false
+      properties:
+        category:
+          type: string
+        expense_minor: *id019
+        transaction_ids:
+          type: array
+          items: *id017
+      required:
+      - category
+      - expense_minor
+      - transaction_ids
+    ExpenseTrialView:
+      type: object
+      additionalProperties: false
+      properties:
+        plan:
+          $ref: '#/components/schemas/ExpenseTrialPlan'
+        comparison:
+          $ref: '#/components/schemas/ExpenseTrialComparison'
+        trial:
+          $ref: '#/components/schemas/ExpenseTrial'
+        baseline:
+          $ref: '#/components/schemas/ExpenseTrialBaseline'
+        baseline_period:
+          type: object
+          additionalProperties: false
+          required:
+          - from
+          - to
+          - timezone
+          properties:
+            from:
+              type: string
+              format: date-time
+            to:
+              type: string
+              format: date-time
+            timezone:
+              type: string
+        baseline_complete:
+          type: boolean
+        progress:
+          $ref: '#/components/schemas/ExpenseTrialProgress'
+        review:
+          nullable: true
+          allOf:
+          - $ref: '#/components/schemas/ExpenseTrialReview'
+        financial_execution_enabled:
+          type: boolean
+          enum:
+          - false
+      required:
+      - trial
+      - baseline
+      - baseline_period
+      - baseline_complete
+      - progress
+      - review
+      - financial_execution_enabled
+    ExpenseTrialResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        request_id:
+          type: string
+        trace_id:
+          type: string
+        data:
+          $ref: '#/components/schemas/ExpenseTrialView'
+      required:
+      - code
+      - message
+      - request_id
+      - trace_id
+      - data
+    ExpenseTrialListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        request_id:
+          type: string
+        trace_id:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpenseTrialView'
+      required:
+      - code
+      - message
+      - request_id
+      - trace_id
+      - data
+    ExpenseStatementCheck:
+      type: object
+      additionalProperties: false
+      description: User-entered full-month statement totals checked against one owned report. Not bank authenticity, verified coverage, savings, funds or authorization.
+      required: [full_month_confirmed, transaction_count, income_minor, expense_minor]
+      properties:
+        full_month_confirmed:
+          type: boolean
+          enum: [true]
+        transaction_count:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+        income_minor:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000000
+        expense_minor:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000000
+    ExpenseTrialPlan:
+      type: object
+      additionalProperties: false
+      required: [expected_reduction_minor, monthly_limit_minor, statement_check]
+      properties:
+        expected_reduction_minor:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 1000000000000
+        monthly_limit_minor:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000000
+        statement_check:
+          $ref: '#/components/schemas/ExpenseStatementCheck'
+    ExpenseTrialComparison:
+      type: object
+      additionalProperties: false
+      description: Two equal seven-day windows, snapshot membership and source totals checked. Recorded differences are reference only and never confirmed savings.
+      required: [status, baseline_period, category_expense_minor, total_expense_minor, category_difference_minor, total_difference_minor]
+      properties:
+        status:
+          type: string
+          enum: [recorded_reference_only, source_changed]
+        baseline_period:
+          type: object
+          required: [from, to, timezone]
+          properties:
+            from:
+              type: string
+              format: date-time
+            to:
+              type: string
+              format: date-time
+            timezone:
+              type: string
+        category_expense_minor:
+          type: integer
+          format: int64
+        total_expense_minor:
+          type: integer
+          format: int64
+        category_difference_minor:
+          type: integer
+          format: int64
+          nullable: true
+        total_difference_minor:
+          type: integer
+          format: int64
+          nullable: true
+    ExpensePreviewInput:
+      type: object
+      additionalProperties: false
+      required:
+      - billing_report_id
+      - target_period
+      - target_minor
+      - adjustable_categories
+      properties:
+        statement_check:
+          $ref: '#/components/schemas/ExpenseStatementCheck'
+        billing_report_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        target_period:
+          type: string
+          pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+          description: Next Asia/Shanghai calendar month only
+        target_minor:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 1000000000000
+        adjustable_categories:
+          type: array
+          maxItems: 32
+          uniqueItems: true
+          items:
+            type: string
+    ExpensePreview:
+      type: object
+      additionalProperties: false
+      required:
+      - source
+      - billing_report_id
+      - baseline_period
+      - target_period
+      - target_minor
+      - historical_expense_minor
+      - evidence_transaction_ids
+      - result
+      properties:
+        baseline_status:
+          type: string
+          enum: [unverified, user_reconciled]
+          description: Matching user-declared totals only; not bank-verified completeness.
+        statement_check:
+          $ref: '#/components/schemas/ExpenseStatementCheck'
+        source:
+          type: string
+          enum:
+          - deterministic_lifestyle_rules
+        billing_report_id:
+          type: string
+        baseline_period:
+          type: object
+          additionalProperties: false
+          required:
+          - from
+          - to
+          - timezone
+          properties:
+            from:
+              type: string
+              format: date-time
+            to:
+              type: string
+              format: date-time
+            timezone:
+              type: string
+        target_period:
+          type: string
+        target_minor:
+          type: integer
+          format: int64
+        historical_expense_minor:
+          type: integer
+          format: int64
+        evidence_transaction_ids:
+          type: array
+          items:
+            type: string
+        result:
+          $ref: '#/components/schemas/LifestyleResult'
+    ExpensePreviewResponse:
+      type: object
+      required:
+      - code
+      - message
+      - request_id
+      - trace_id
+      - data
+      properties:
+        code:
+          type: string
+          enum:
+          - OK
+        message:
+          type: string
+        request_id:
+          type: string
+        trace_id:
+          type: string
+        data:
+          $ref: '#/components/schemas/ExpensePreview'
+    StatementSource:
+      type: object
+      additionalProperties: false
+      required:
+      - kind
+      - file_sha256
+      - row_sha256
+      - row_number
+      - raw_record
+      - columns
+      - timezone
+      properties:
+        kind:
+          type: string
+          enum:
+          - unverified_csv_upload
+        timezone:
+          type: string
+          enum:
+          - UTC
+          - Asia/Shanghai
+        columns:
+          type: object
+          minProperties: 1
+          maxProperties: 9
+          additionalProperties:
+            type: string
+        file_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+        row_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+        row_number:
+          type: integer
+          minimum: 2
+          maximum: 1001
+        raw_record:
+          type: object
+          minProperties: 1
+          maxProperties: 32
+          additionalProperties:
+            type: string
+    StatementPreviewInput:
+      type: object
+      additionalProperties: false
+      required:
+      - account_id
+      - csv
+      - timezone
+      - columns
+      properties:
+        account_id:
+          type: string
+          pattern: ^[1-9][0-9]*$
+        csv:
+          type: string
+          minLength: 1
+          maxLength: 262144
+        timezone:
+          type: string
+          enum:
+          - UTC
+          - Asia/Shanghai
+        columns:
+          type: object
+          required:
+          - external_id
+          - occurred_at
+          - amount
+          - direction
+          - currency
+          - status
+          additionalProperties: false
+          properties:
+            external_id:
+              type: string
+            occurred_at:
+              type: string
+            amount:
+              type: string
+            direction:
+              type: string
+            currency:
+              type: string
+            status:
+              type: string
+            merchant:
+              type: string
+            category:
+              type: string
+            kind:
+              type: string
+    StatementRecord:
+      type: object
+      required:
+      - external_transaction_id
+      - direction
+      - amount_minor
+      - currency
+      - category
+      - merchant_name
+      - occurred_at
+      - effect_mode
+      - source
+      properties:
+        external_transaction_id:
+          type: string
+        direction:
+          type: string
+          enum:
+          - income
+          - expense
+        amount_minor:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 1000000000000
+        currency:
+          type: string
+          enum:
+          - CNY
+        category:
+          type: string
+        merchant_name:
+          type: string
+        occurred_at:
+          type: integer
+          format: int64
+        effect_mode:
+          type: string
+          enum:
+          - record_only
+        source:
+          $ref: '#/components/schemas/StatementSource'
+    StatementPreview:
+      type: object
+      required:
+      - file_sha256
+      - records
+      - skipped
+      - warnings
+      - financial_execution_enabled
+      properties:
+        file_sha256:
+          type: string
+        records:
+          type: array
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/StatementRecord'
+        skipped:
+          type: integer
+          minimum: 0
+        warnings:
+          type: array
+          items:
+            type: string
+        financial_execution_enabled:
+          type: boolean
+          enum:
+          - false
     Actor:
       type: object
       required:
@@ -9854,10 +11313,10 @@ components:
           type: array
           items:
             type: string
-        token_id: &id016
+        token_id: &id020
           type: string
-        agent_type: *id016
-        task_id: *id016
+        agent_type: *id020
+        task_id: *id020
     Envelope:
       type: object
       required:
@@ -9881,13 +11340,13 @@ components:
     User:
       type: object
       properties:
-        id: *id004
-        display_name: *id005
-        status: *id005
-        created_at: &id017
+        id: *id005
+        display_name: *id006
+        status: *id006
+        created_at: &id021
           type: integer
           format: int64
-        updated_at: *id017
+        updated_at: *id021
       required:
       - id
       - display_name
@@ -9897,39 +11356,41 @@ components:
     BankAccount:
       type: object
       properties:
-        id: *id004
-        user_id: *id004
-        created_at: *id017
-        updated_at: *id017
-        display_name: *id005
+        id: *id005
+        user_id: *id005
+        created_at: *id021
+        updated_at: *id021
+        display_name: *id006
         account_type:
           type: string
           enum:
           - checking
           - savings
-        masked_account_number: *id005
-        currency: &id018
+          - investment
+          - occasion
+        masked_account_number: *id006
+        currency: &id022
           type: string
           enum:
           - CNY
           default: CNY
-        balance_minor: &id019
+        balance_minor: &id023
           type: integer
           format: int64
           minimum: 0
           maximum: 1000000000000
           description: Integer CNY cents (never float)
-        status: &id025
+        status: &id029
           type: string
           enum:
           - active
           - frozen
           - inactive
           - closed
-        version: *id017
-        is_simulated: &id020
+        version: *id021
+        is_simulated: &id024
           type: boolean
-        savings_goal_id: *id004
+        savings_goal_id: *id005
       required:
       - id
       - user_id
@@ -9946,12 +11407,12 @@ components:
     AccountBalance:
       type: object
       properties:
-        account_id: *id004
-        currency: *id018
-        balance_minor: *id019
-        ledger_balance_minor: *id017
-        version: *id017
-        reconciled: *id020
+        account_id: *id005
+        currency: *id022
+        balance_minor: *id023
+        ledger_balance_minor: *id021
+        version: *id021
+        reconciled: *id024
       required:
       - account_id
       - currency
@@ -9962,23 +11423,23 @@ components:
     Transaction:
       type: object
       properties:
-        id: *id004
-        user_id: *id004
-        created_at: *id017
-        updated_at: *id017
-        bank_account_id: *id004
-        direction: *id021
-        amount_minor: &id022
+        id: *id005
+        user_id: *id005
+        created_at: *id021
+        updated_at: *id021
+        bank_account_id: *id005
+        direction: *id025
+        amount_minor: &id026
           type: integer
           format: int64
           minimum: 1
           maximum: 1000000000000
           description: Integer CNY cents (never float)
-        currency: *id018
-        category: *id005
-        merchant_name: *id005
-        description: *id005
-        occurred_at: &id023
+        currency: *id022
+        category: *id006
+        merchant_name: *id006
+        description: *id006
+        occurred_at: &id027
           type: integer
           format: int64
           minimum: 1
@@ -9989,17 +11450,17 @@ components:
           - opening
           - external
           - internal_transfer
-        effect_mode: &id026
+        effect_mode: &id030
           type: string
           enum:
           - record_only
           - apply_simulated_effect
-        trace_id: *id005
-        audit_id: *id005
-        external_transaction_id: *id005
-        journal_id: *id005
-        transfer_id: *id004
-        task_id: *id005
+        trace_id: *id006
+        audit_id: *id006
+        external_transaction_id: *id006
+        journal_id: *id006
+        transfer_id: *id005
+        task_id: *id006
       required:
       - id
       - user_id
@@ -10024,7 +11485,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Transaction'
-        total: *id017
+        total: *id021
         limit:
           type: integer
         offset:
@@ -10037,24 +11498,24 @@ components:
     LedgerEntry:
       type: object
       properties:
-        id: *id004
-        user_id: *id004
-        journal_id: *id005
+        id: *id005
+        user_id: *id005
+        journal_id: *id006
         sequence:
           type: integer
           enum:
           - 1
           - 2
-        currency: *id018
-        delta_minor: *id017
+        currency: *id022
+        delta_minor: *id021
         side:
           type: string
           enum:
           - debit
           - credit
-        created_at: *id017
-        account_id: *id004
-        transaction_id: *id004
+        created_at: *id021
+        account_id: *id005
+        transaction_id: *id005
       required:
       - id
       - user_id
@@ -10067,17 +11528,17 @@ components:
     Audit:
       type: object
       properties:
-        id: *id005
-        user_id: *id004
-        action: *id005
+        id: *id006
+        user_id: *id005
+        action: *id006
         resource_id:
           type: string
           pattern: ^[0-9]+$
-        outcome: *id005
-        trace_id: *id005
-        created_at: *id017
-        task_id: *id005
-        error_code: *id005
+        outcome: *id006
+        trace_id: *id006
+        created_at: *id021
+        task_id: *id006
+        error_code: *id006
       required:
       - id
       - user_id
@@ -10089,15 +11550,15 @@ components:
     TransferIntent:
       type: object
       properties:
-        id: *id004
-        user_id: *id004
-        created_at: *id017
-        updated_at: *id017
-        source_account_id: *id004
-        target_account_id: *id004
-        amount_minor: *id022
-        currency: *id018
-        description: *id005
+        id: *id005
+        user_id: *id005
+        created_at: *id021
+        updated_at: *id021
+        source_account_id: *id005
+        target_account_id: *id005
+        amount_minor: *id026
+        currency: *id022
+        description: *id006
         purpose:
           type: string
           enum:
@@ -10111,16 +11572,16 @@ components:
           - succeeded
           - failed
           - rejected
-        approval_hash: &id027
+        approval_hash: &id031
           type: string
           pattern: ^[a-f0-9]{64}$
-        expires_at: *id023
-        audit_id: *id005
-        trace_id: *id005
-        savings_goal_id: *id004
-        journal_id: *id005
-        failure_code: *id005
-        task_id: *id005
+        expires_at: *id027
+        audit_id: *id006
+        trace_id: *id006
+        savings_goal_id: *id005
+        journal_id: *id006
+        failure_code: *id006
+        task_id: *id006
       required:
       - id
       - user_id
@@ -10140,12 +11601,12 @@ components:
     BudgetCategory:
       type: object
       properties:
-        id: *id004
-        user_id: *id004
-        budget_id: *id004
-        category: *id005
-        allocated_minor: *id019
-        essential_reserve_minor: *id019
+        id: *id005
+        user_id: *id005
+        budget_id: *id005
+        category: *id006
+        allocated_minor: *id023
+        essential_reserve_minor: *id023
       required:
       - id
       - user_id
@@ -10156,14 +11617,14 @@ components:
     BudgetRule:
       type: object
       properties:
-        id: *id004
-        user_id: *id004
-        budget_id: *id004
+        id: *id005
+        user_id: *id005
+        budget_id: *id005
         kind:
           type: string
           enum:
           - enforce_reserve
-        enabled: *id020
+        enabled: *id024
       required:
       - id
       - user_id
@@ -10173,13 +11634,13 @@ components:
     Budget:
       type: object
       properties:
-        id: *id004
-        user_id: *id004
-        created_at: *id017
-        updated_at: *id017
-        month: *id024
-        currency: *id018
-        total_minor: *id022
+        id: *id005
+        user_id: *id005
+        created_at: *id021
+        updated_at: *id021
+        month: *id028
+        currency: *id022
+        total_minor: *id026
         categories:
           type: array
           items:
@@ -10201,11 +11662,11 @@ components:
     CategoryUsage:
       type: object
       properties:
-        category: *id005
-        allocated_minor: *id019
-        spent_minor: *id017
-        remaining_minor: *id017
-        essential_reserve_remaining_minor: *id019
+        category: *id006
+        allocated_minor: *id023
+        spent_minor: *id021
+        remaining_minor: *id021
+        essential_reserve_remaining_minor: *id023
       required:
       - category
       - allocated_minor
@@ -10217,15 +11678,15 @@ components:
       properties:
         budget:
           $ref: '#/components/schemas/Budget'
-        spent_minor: *id017
-        remaining_minor: *id017
-        essential_reserve_remaining_minor: *id017
-        available_after_reserve_minor: *id017
+        spent_minor: *id021
+        remaining_minor: *id021
+        essential_reserve_remaining_minor: *id021
+        available_after_reserve_minor: *id021
         categories:
           type: array
           items:
             $ref: '#/components/schemas/CategoryUsage'
-        unallocated_category_spend_minor: *id017
+        unallocated_category_spend_minor: *id021
       required:
       - budget
       - spent_minor
@@ -10237,10 +11698,10 @@ components:
     SavingsPlan:
       type: object
       properties:
-        id: *id004
-        user_id: *id004
-        goal_id: *id004
-        monthly_minor: *id022
+        id: *id005
+        user_id: *id005
+        goal_id: *id005
+        monthly_minor: *id026
         cadence:
           type: string
           enum:
@@ -10259,21 +11720,21 @@ components:
     SavingsGoal:
       type: object
       properties:
-        id: *id004
-        user_id: *id004
-        created_at: *id017
-        updated_at: *id017
-        name: *id005
-        target_minor: *id022
-        currency: *id018
-        starts_at: *id023
-        ends_at: *id023
-        account_id: *id004
-        status: *id005
+        id: *id005
+        user_id: *id005
+        created_at: *id021
+        updated_at: *id021
+        name: *id006
+        target_minor: *id026
+        currency: *id022
+        starts_at: *id027
+        ends_at: *id027
+        account_id: *id005
+        status: *id006
         plan:
           $ref: '#/components/schemas/SavingsPlan'
-        current_minor: *id019
-        progress_basis_points: *id017
+        current_minor: *id023
+        progress_basis_points: *id021
       required:
       - id
       - user_id
@@ -10292,14 +11753,14 @@ components:
     SavingsLedger:
       type: object
       properties:
-        id: *id004
-        user_id: *id004
-        goal_id: *id004
-        transfer_id: *id004
-        journal_id: *id005
-        delta_minor: *id017
-        currency: *id018
-        created_at: *id017
+        id: *id005
+        user_id: *id005
+        goal_id: *id005
+        transfer_id: *id005
+        journal_id: *id006
+        delta_minor: *id021
+        currency: *id022
+        created_at: *id021
       required:
       - id
       - user_id
@@ -10332,30 +11793,32 @@ components:
           - checking
           - savings
           default: checking
-        currency: *id018
-        initial_balance_minor: *id019
-        confirm_simulated_funds: *id020
+        currency: *id022
+        initial_balance_minor: *id023
+        confirm_simulated_funds: *id024
       required:
       - display_name
       additionalProperties: false
     StatusInput:
       type: object
       properties:
-        status: *id025
+        status: *id029
       required:
       - status
       additionalProperties: false
     TransactionInput:
       type: object
       properties:
-        bank_account_id: *id004
+        source:
+          $ref: '#/components/schemas/StatementSource'
+        bank_account_id: *id005
         external_transaction_id:
           type: string
           minLength: 1
           maxLength: 128
-        direction: *id021
-        amount_minor: *id022
-        currency: *id018
+        direction: *id025
+        amount_minor: *id026
+        currency: *id022
         category:
           type: string
           minLength: 1
@@ -10366,9 +11829,9 @@ components:
         description:
           type: string
           maxLength: 512
-        occurred_at: *id023
-        effect_mode: *id026
-        confirm_simulated_effect: *id020
+        occurred_at: *id027
+        effect_mode: *id030
+        confirm_simulated_effect: *id024
       required:
       - bank_account_id
       - external_transaction_id
@@ -10381,13 +11844,18 @@ components:
     TransferInput:
       type: object
       properties:
-        source_account_id: *id004
-        target_account_id: *id004
-        amount_minor: *id022
-        currency: *id018
+        source_account_id: *id005
+        target_account_id: *id005
+        amount_minor: *id026
+        currency: *id022
         description:
           type: string
           maxLength: 512
+        card_id:
+          type: string
+          format: uuid
+          description: Optional debit card initiation, owned by the source account. Enforced at preparation
+            and execution; locked/lost/unbound and over-limit cards are rejected. No credit spending.
       required:
       - source_account_id
       - target_account_id
@@ -10401,7 +11869,7 @@ components:
           enum:
           - approve
           - reject
-        approval_hash: *id027
+        approval_hash: *id031
       required:
       - decision
       - approval_hash
@@ -10413,8 +11881,8 @@ components:
           type: string
           minLength: 1
           maxLength: 64
-        allocated_minor: *id019
-        essential_reserve_minor: *id019
+        allocated_minor: *id023
+        essential_reserve_minor: *id023
       required:
       - category
       - allocated_minor
@@ -10422,16 +11890,16 @@ components:
     BudgetInput:
       type: object
       properties:
-        month: *id024
-        currency: *id018
-        total_minor: *id022
+        month: *id028
+        currency: *id022
+        total_minor: *id026
         categories:
           type: array
           items:
             $ref: '#/components/schemas/CategoryInput'
           minItems: 1
           maxItems: 100
-        enforce_reserve: *id020
+        enforce_reserve: *id024
       required:
       - month
       - total_minor
@@ -10444,11 +11912,11 @@ components:
           type: string
           minLength: 1
           maxLength: 128
-        target_minor: *id022
-        currency: *id018
-        starts_at: *id023
-        ends_at: *id023
-        monthly_minor: *id022
+        target_minor: *id026
+        currency: *id022
+        starts_at: *id027
+        ends_at: *id027
+        monthly_minor: *id026
       required:
       - name
       - target_minor
@@ -10459,8 +11927,8 @@ components:
     GoalTransferInput:
       type: object
       properties:
-        bank_account_id: *id004
-        amount_minor: *id022
+        bank_account_id: *id005
+        amount_minor: *id026
         description:
           type: string
           maxLength: 512
@@ -10471,8 +11939,8 @@ components:
     AccountStatus:
       type: object
       properties:
-        account_id: *id004
-        status: *id025
+        account_id: *id005
+        status: *id029
       required:
       - account_id
       - status
@@ -10635,7 +12103,7 @@ components:
     ParsedLifeGoal:
       type: object
       additionalProperties: false
-      properties: &id031
+      properties: &id035
         goal_type:
           enum:
           - healthy_lifestyle
@@ -10723,7 +12191,7 @@ components:
           minimum: 0
           maximum: 1000000000000
           nullable: true
-      required: &id032
+      required: &id036
       - goal_type
       - period_months
       - savings_monthly_minor
@@ -10887,10 +12355,10 @@ components:
           items:
             type: string
             maxLength: 2000
-        financial_context: &id028
+        financial_context: &id032
           type: object
           additionalProperties: false
-          properties: &id035
+          properties: &id039
             monthly_income_minor:
               type: integer
               minimum: 0
@@ -10927,18 +12395,18 @@ components:
       - confirmations
       - financial_context
       - budget_snapshot
-    GoalFinancialContext: *id028
+    GoalFinancialContext: *id032
     LifeGoal:
       type: object
       properties:
-        id: *id006
-        user_id: *id006
-        created_at: &id029
+        id: *id007
+        user_id: *id007
+        created_at: &id033
           type: integer
           format: int64
-        updated_at: *id029
-        current_version: *id029
-        status: &id030
+        updated_at: *id033
+        current_version: *id033
+        status: &id034
           type: string
       required:
       - id
@@ -10950,22 +12418,22 @@ components:
     LifeGoalVersion:
       type: object
       properties:
-        id: *id006
-        user_id: *id006
-        created_at: *id029
-        updated_at: *id029
-        skill_id: *id030
-        skill_version: *id029
-        goal_id: *id006
-        version: *id029
-        text: *id030
+        id: *id007
+        user_id: *id007
+        created_at: *id033
+        updated_at: *id033
+        skill_id: *id034
+        skill_version: *id033
+        goal_id: *id007
+        version: *id033
+        text: *id034
         financial_context:
           $ref: '#/components/schemas/GoalFinancialContext'
         parsed:
           type: object
           additionalProperties: false
-          properties: *id031
-          required: *id032
+          properties: *id035
+          required: *id036
           nullable: true
         parse_status:
           type: string
@@ -10974,13 +12442,13 @@ components:
           - parsing
           - failed
           - parsed
-        parse_id: *id030
-        lease_until: *id029
-        workflow_id: *id030
-        execute_id: *id030
-        error_code: *id030
-        trace_id: *id030
-        audit_id: *id030
+        parse_id: *id034
+        lease_until: *id033
+        workflow_id: *id034
+        execute_id: *id034
+        error_code: *id034
+        trace_id: *id034
+        audit_id: *id034
       required:
       - id
       - user_id
@@ -11003,20 +12471,20 @@ components:
       - audit_id
     StoredTaskPlan:
       type: object
-      properties: &id033
-        id: *id006
-        user_id: *id006
-        created_at: *id029
-        updated_at: *id029
-        goal_id: *id006
-        goal_version_id: *id006
-        version: *id029
-        status: *id030
+      properties: &id037
+        id: *id007
+        user_id: *id007
+        created_at: *id033
+        updated_at: *id033
+        goal_id: *id007
+        goal_version_id: *id007
+        version: *id033
+        status: *id034
         plan:
           $ref: '#/components/schemas/CompiledTaskPlan'
-        trace_id: *id030
-        audit_id: *id030
-      required: &id034
+        trace_id: *id034
+        audit_id: *id034
+      required: &id038
       - id
       - user_id
       - created_at
@@ -11037,8 +12505,8 @@ components:
           $ref: '#/components/schemas/LifeGoalVersion'
         task_plan:
           type: object
-          properties: *id033
-          required: *id034
+          properties: *id037
+          required: *id038
           nullable: true
       required:
       - goal
@@ -11054,7 +12522,7 @@ components:
         financial_context:
           type: object
           additionalProperties: false
-          properties: *id035
+          properties: *id039
           required: []
         expected_version:
           type: integer
@@ -11073,7 +12541,7 @@ components:
         financial_context:
           type: object
           additionalProperties: false
-          properties: *id035
+          properties: *id039
           required: []
         expected_version:
           type: integer
@@ -11096,7 +12564,7 @@ components:
     GoalDifference:
       type: object
       properties:
-        field: *id030
+        field: *id034
         before:
           nullable: true
         after:
@@ -11108,8 +12576,8 @@ components:
     GoalComparison:
       type: object
       properties:
-        from: *id029
-        to: *id029
+        from: *id033
+        to: *id033
         differences:
           type: array
           items:
@@ -11158,7 +12626,7 @@ components:
         - data
     BillingReport:
       type: object
-      properties: &id041
+      properties: &id045
         report_id:
           type: string
         user_id:
@@ -11605,23 +13073,23 @@ components:
           items:
             type: object
             properties:
-              id: &id036
+              id: &id040
                 type: string
                 pattern: ^[1-9][0-9]*$
                 description: Canonical positive int64 decimal string
-              user_id: *id036
-              created_at: &id037
+              user_id: *id040
+              created_at: &id041
                 type: integer
                 format: int64
-              updated_at: *id037
-              display_name: &id038
+              updated_at: *id041
+              display_name: &id042
                 type: string
               account_type:
                 type: string
                 enum:
                 - checking
                 - savings
-              masked_account_number: *id038
+              masked_account_number: *id042
               currency:
                 type: string
                 enum:
@@ -11640,10 +13108,10 @@ components:
                 - frozen
                 - inactive
                 - closed
-              version: *id037
+              version: *id041
               is_simulated:
                 type: boolean
-              savings_goal_id: *id036
+              savings_goal_id: *id040
             required:
             - id
             - user_id
@@ -11690,7 +13158,7 @@ components:
           type: string
         task_id:
           type: string
-      required: &id042
+      required: &id046
       - report_id
       - user_id
       - tool
@@ -11727,13 +13195,13 @@ components:
         to:
           type: string
           format: date-time
-        timezone: &id039
+        timezone: &id043
           type: string
           enum:
           - UTC
           - Asia/Shanghai
           default: Asia/Shanghai
-        account_id: &id040
+        account_id: &id044
           type: string
           pattern: ^[1-9][0-9]*$
         limit:
@@ -11757,8 +13225,8 @@ components:
           type: string
           minLength: 1
           maxLength: 4000
-        timezone: *id039
-        account_id: *id040
+        timezone: *id043
+        account_id: *id044
       required:
       - question
     BillingQueryResult:
@@ -11777,8 +13245,8 @@ components:
             type: string
         report:
           type: object
-          properties: *id041
-          required: *id042
+          properties: *id045
+          required: *id046
           additionalProperties: false
           nullable: true
       required:
@@ -12656,26 +14124,32 @@ components:
       type: object
       additionalProperties: false
       properties:
+        timezone:
+          type: string
+          enum:
+          - UTC
+          - Asia/Shanghai
+          description: RFC3339 timestamps define instants; default history is 1096 days before to or now.
         from:
           type: string
           format: date-time
         to:
           type: string
           format: date-time
-        account_id: *id008
-      required: &id043 []
+        account_id: *id009
+      required: &id047 []
     SubscriptionIDInput:
       type: object
       additionalProperties: false
       properties:
-        subscription_id: *id008
+        subscription_id: *id009
       required:
       - subscription_id
     SubscriptionIntentInput:
       type: object
       additionalProperties: false
       properties:
-        subscription_id: *id008
+        subscription_id: *id009
         expected_version:
           type: integer
           minimum: 1
@@ -12716,7 +14190,7 @@ components:
       type: object
       additionalProperties: false
       properties: {}
-      required: *id043
+      required: *id047
     SubscriptionReportResponse:
       type: object
       required:
@@ -12809,18 +14283,18 @@ components:
       type: object
       additionalProperties: false
       properties:
-        name: &id046
+        name: &id050
           type: string
         kind:
           type: string
           enum:
           - income
           - necessary_expense
-        amount_minor: &id045
+        amount_minor: &id049
           type: integer
           format: int64
           minimum: 0
-        due_at: &id047
+        due_at: &id051
           type: integer
           format: int64
       required:
@@ -12832,23 +14306,33 @@ components:
       type: object
       additionalProperties: false
       properties:
+        goal_priority_ids:
+          type: array
+          maxItems: 100
+          uniqueItems: true
+          description: Optional explicit priority, an exact permutation of savings_goal_ids; empty means
+            proportional allocation.
+          items:
+            type: integer
+            format: int64
+            minimum: 1
         period:
           type: string
           pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
-        account_ids: &id044
+        account_ids: &id048
           type: array
           items:
             type: integer
             format: int64
             minimum: 1
-        savings_goal_ids: *id044
-        life_goal_ids: *id044
-        living_remaining_minor: *id045
-        essential_remaining_minor: *id045
-        safety_reserve_minor: *id045
-        cash_buffer_minor: *id045
-        baseline_income_minor: *id045
-        future_income_minor: *id045
+        savings_goal_ids: *id048
+        life_goal_ids: *id048
+        living_remaining_minor: *id049
+        essential_remaining_minor: *id049
+        safety_reserve_minor: *id049
+        cash_buffer_minor: *id049
+        baseline_income_minor: *id049
+        future_income_minor: *id049
         cashflows:
           type: array
           items:
@@ -12865,7 +14349,7 @@ components:
       type: object
       additionalProperties: false
       properties:
-        name: *id046
+        name: *id050
         settings:
           $ref: '#/components/schemas/PlanningSettings'
       required:
@@ -12888,7 +14372,7 @@ components:
       type: object
       additionalProperties: false
       properties:
-        plan_id: *id009
+        plan_id: *id010
       required:
       - plan_id
     PlanningDecisionInput:
@@ -12908,7 +14392,7 @@ components:
           - conservative
           - balanced
           - aggressive
-        confirm_advice: &id048
+        confirm_advice: &id052
           type: boolean
       required:
       - expected_version
@@ -12946,12 +14430,12 @@ components:
       type: object
       additionalProperties: false
       properties:
-        expected_target_minor: *id045
-        expected_monthly_minor: *id045
-        expected_ends_at: *id047
-        target_minor: *id045
-        monthly_minor: *id045
-        ends_at: *id047
+        expected_target_minor: *id049
+        expected_monthly_minor: *id049
+        expected_ends_at: *id051
+        target_minor: *id049
+        monthly_minor: *id049
+        ends_at: *id051
       required:
       - expected_target_minor
       - expected_monthly_minor
@@ -12963,12 +14447,15 @@ components:
       type: object
       additionalProperties: false
       properties:
-        id: *id009
-        target_minor: *id045
-        current_minor: *id045
-        monthly_minor: *id045
-        deposited_this_period_minor: *id047
-        eligible: *id048
+        ends_at:
+          type: integer
+          format: int64
+        id: *id010
+        target_minor: *id049
+        current_minor: *id049
+        monthly_minor: *id049
+        deposited_this_period_minor: *id051
+        eligible: *id052
       required:
       - id
       - target_minor
@@ -12980,9 +14467,9 @@ components:
       type: object
       additionalProperties: false
       properties:
-        type: *id046
-        id: *id046
-        version: *id047
+        type: *id050
+        id: *id050
+        version: *id051
       required:
       - type
       - id
@@ -12991,14 +14478,14 @@ components:
       type: object
       additionalProperties: false
       properties:
-        period: *id046
+        period: *id050
         settings:
           $ref: '#/components/schemas/PlanningSettings'
-        balance_minor: *id045
-        life_floor_minor: *id045
-        essential_floor_minor: *id045
-        subscription_due_minor: *id045
-        cancelled_forecast_minor: *id045
+        balance_minor: *id049
+        life_floor_minor: *id049
+        essential_floor_minor: *id049
+        subscription_due_minor: *id049
+        cancelled_forecast_minor: *id049
         goals:
           type: array
           items:
@@ -13009,10 +14496,10 @@ components:
             $ref: '#/components/schemas/PlanningSource'
         blockers:
           type: array
-          items: *id046
+          items: *id050
         review_notes:
           type: array
-          items: *id046
+          items: *id050
       required:
       - period
       - settings
@@ -13029,10 +14516,19 @@ components:
       type: object
       additionalProperties: false
       properties:
-        goal_id: *id009
-        amount_minor: *id045
-        unmet_minor: *id045
-        progress_bps: *id047
+        deadline_at:
+          type: integer
+          format: int64
+        required_monthly_minor:
+          type: integer
+          format: int64
+          minimum: 0
+        deadline_risk:
+          type: boolean
+        goal_id: *id010
+        amount_minor: *id049
+        unmet_minor: *id049
+        progress_bps: *id051
       required:
       - goal_id
       - amount_minor
@@ -13042,15 +14538,15 @@ components:
       type: object
       additionalProperties: false
       properties:
-        name: *id046
-        savings_minor: *id045
-        retained_minor: *id045
+        name: *id050
+        savings_minor: *id049
+        retained_minor: *id049
         allocations:
           type: array
           items:
             $ref: '#/components/schemas/PlanningAllocation'
-        explanation: *id046
-        feasible: *id048
+        explanation: *id050
+        feasible: *id052
       required:
       - name
       - savings_minor
@@ -13062,36 +14558,36 @@ components:
       type: object
       additionalProperties: false
       properties:
-        balance_minor: *id045
-        necessary_reserve_minor: *id045
-        living_reserve_minor: *id045
-        additional_obligations_minor: *id045
-        cashflow_buffer_minor: *id045
-        safety_reserve_minor: *id045
-        income_risk_reserve_minor: *id045
-        disposable_minor: *id045
-        savings_cap_minor: *id045
-        suggested_savings_minor: *id045
-        target_demand_minor: *id045
-        future_income_minor: *id045
-        future_avoided_spend_minor: *id045
-        conflict_minor: *id045
-        reserve_shortfall_minor: *id045
+        balance_minor: *id049
+        necessary_reserve_minor: *id049
+        living_reserve_minor: *id049
+        additional_obligations_minor: *id049
+        cashflow_buffer_minor: *id049
+        safety_reserve_minor: *id049
+        income_risk_reserve_minor: *id049
+        disposable_minor: *id049
+        savings_cap_minor: *id049
+        suggested_savings_minor: *id049
+        target_demand_minor: *id049
+        future_income_minor: *id049
+        future_avoided_spend_minor: *id049
+        conflict_minor: *id049
+        reserve_shortfall_minor: *id049
         currency:
           type: string
           enum:
           - CNY
-        period: *id046
+        period: *id050
         options:
           type: array
           items:
             $ref: '#/components/schemas/PlanningOption'
         blockers:
           type: array
-          items: *id046
+          items: *id050
         review_notes:
           type: array
-          items: *id046
+          items: *id050
         financial_execution_enabled:
           type: boolean
           enum:
@@ -13122,15 +14618,15 @@ components:
       type: object
       additionalProperties: false
       properties:
-        id: *id009
-        user_id: *id009
-        created_at: *id047
-        updated_at: *id047
-        name: *id046
-        current_version: *id047
+        id: *id010
+        user_id: *id010
+        created_at: *id051
+        updated_at: *id051
+        name: *id050
+        current_version: *id051
         settings:
           $ref: '#/components/schemas/PlanningSettings'
-        status: *id046
+        status: *id050
       required:
       - id
       - user_id
@@ -13144,25 +14640,25 @@ components:
       type: object
       additionalProperties: false
       properties:
-        id: *id009
-        user_id: *id009
-        created_at: *id047
-        updated_at: *id047
-        plan_id: *id009
-        version: *id047
-        previous_version: *id047
-        event_id: *id009
-        reason: *id046
-        impact_minor: *id047
-        data_digest: *id046
-        needs_confirmation: *id048
+        id: *id010
+        user_id: *id010
+        created_at: *id051
+        updated_at: *id051
+        plan_id: *id010
+        version: *id051
+        previous_version: *id051
+        event_id: *id010
+        reason: *id050
+        impact_minor: *id051
+        data_digest: *id050
+        needs_confirmation: *id052
         snapshot:
           $ref: '#/components/schemas/PlanningSnapshot'
         result:
           $ref: '#/components/schemas/PlanningResult'
-        trace_id: *id046
-        task_id: *id046
-        audit_id: *id046
+        trace_id: *id050
+        task_id: *id050
+        audit_id: *id050
       required:
       - id
       - user_id
@@ -13184,14 +14680,14 @@ components:
       type: object
       additionalProperties: false
       properties:
-        id: *id009
-        user_id: *id009
-        created_at: *id047
-        updated_at: *id047
-        plan_version_id: *id009
-        kind: *id046
-        description: *id046
-        amount_minor: *id045
+        id: *id010
+        user_id: *id010
+        created_at: *id051
+        updated_at: *id051
+        plan_version_id: *id010
+        kind: *id050
+        description: *id050
+        amount_minor: *id049
       required:
       - id
       - user_id
@@ -13205,15 +14701,15 @@ components:
       type: object
       additionalProperties: false
       properties:
-        id: *id009
-        user_id: *id009
-        created_at: *id047
-        updated_at: *id047
-        plan_id: *id009
-        plan_version_id: *id009
-        option: *id046
-        data_digest: *id046
-        audit_id: *id046
+        id: *id010
+        user_id: *id010
+        created_at: *id051
+        updated_at: *id051
+        plan_id: *id010
+        plan_version_id: *id010
+        option: *id050
+        data_digest: *id050
+        audit_id: *id050
       required:
       - id
       - user_id
@@ -13228,20 +14724,20 @@ components:
       type: object
       additionalProperties: false
       properties:
-        id: *id009
-        user_id: *id009
-        created_at: *id047
-        updated_at: *id047
-        event_key: *id046
-        type: *id046
-        resource_id: *id046
-        reason: *id046
-        status: *id046
-        attempts: *id047
-        retry_at: *id047
-        error_code: *id046
-        trace_id: *id046
-        task_id: *id046
+        id: *id010
+        user_id: *id010
+        created_at: *id051
+        updated_at: *id051
+        event_key: *id050
+        type: *id050
+        resource_id: *id050
+        reason: *id050
+        status: *id050
+        attempts: *id051
+        retry_at: *id051
+        error_code: *id050
+        trace_id: *id050
+        task_id: *id050
       required:
       - id
       - user_id
@@ -13382,12 +14878,12 @@ components:
       type: object
       additionalProperties: false
       properties:
-        skill_id: *id049
+        skill_id: *id053
         skill_version:
           type: integer
           format: int64
           minimum: 1
-        key: *id049
+        key: *id053
         agent_type:
           type: string
           enum:
@@ -13396,20 +14892,20 @@ components:
           - subscription
           - savings
           - lifestyle
-        tool: *id049
-        parameters: &id053
+        tool: *id053
+        parameters: &id057
           type: object
           additionalProperties: true
         dependencies:
           type: array
-          items: *id049
+          items: *id053
         priority:
           type: integer
           format: int64
           minimum: 0
           maximum: 1000
-        execution_mode: *id049
-        blocked: &id052
+        execution_mode: *id053
+        blocked: &id056
           type: boolean
       required:
       - key
@@ -13419,15 +14915,15 @@ components:
       type: object
       additionalProperties: false
       properties:
-        from: *id049
-        to: *id049
-        account_id: *id049
-        financial_plan_id: *id049
-        lifestyle_goal_id: &id050
+        from: *id053
+        to: *id053
+        account_id: *id053
+        financial_plan_id: *id053
+        lifestyle_goal_id: &id054
           type: string
-        lifestyle_plan_id: *id050
-        budget_id: *id050
-        billing_report_id: *id050
+        lifestyle_plan_id: *id054
+        budget_id: *id054
+        billing_report_id: *id054
         lifestyle_goal_version:
           type: integer
           format: int64
@@ -13437,8 +14933,8 @@ components:
       type: object
       additionalProperties: false
       properties:
-        instruction: *id049
-        task_plan_id: *id051
+        instruction: *id053
+        task_plan_id: *id055
         tasks:
           type: array
           items:
@@ -13460,13 +14956,13 @@ components:
           format: int64
           minimum: 100
           maximum: 60000
-        use_coze: *id052
+        use_coze: *id056
       required: []
     OrchestrationConfirmInput:
       type: object
       additionalProperties: false
       properties:
-        task_key: *id049
+        task_key: *id053
         expected_version:
           type: integer
           format: int64
@@ -13484,12 +14980,12 @@ components:
       type: object
       additionalProperties: false
       properties:
-        task_key: *id049
+        task_key: *id053
         expected_version:
           type: integer
           format: int64
           minimum: 1
-        parameters: *id053
+        parameters: *id057
       required:
       - task_key
       - expected_version
@@ -13498,29 +14994,29 @@ components:
       type: object
       additionalProperties: false
       properties:
-        job_id: *id010
+        job_id: *id011
       required:
       - job_id
     OrchestrationJob:
       type: object
       additionalProperties: false
       properties:
-        id: *id010
-        user_id: *id051
-        status: *id049
-        strategy: *id049
-        version: &id054
+        id: *id011
+        user_id: *id055
+        status: *id053
+        strategy: *id053
+        version: &id058
           type: integer
           format: int64
-        max_attempts: *id054
-        timeout_ms: *id054
-        use_coze: *id052
-        source_plan_id: *id049
-        lease_until: *id054
-        trace_id: *id049
-        audit_id: *id049
-        created_at: *id054
-        updated_at: *id054
+        max_attempts: *id058
+        timeout_ms: *id058
+        use_coze: *id056
+        source_plan_id: *id053
+        lease_until: *id058
+        trace_id: *id053
+        audit_id: *id053
+        created_at: *id058
+        updated_at: *id058
       required:
       - id
       - user_id
@@ -13540,26 +15036,26 @@ components:
       type: object
       additionalProperties: false
       properties:
-        skill_id: *id049
-        skill_version: *id054
-        protected_blocked: *id052
-        task_id: *id010
-        user_id: *id051
-        job_id: *id010
-        key: *id049
-        agent_type: *id049
-        tool: *id049
-        execution_mode: *id049
-        priority: *id054
-        status: *id049
-        parameters: *id053
-        output: *id053
-        attempts: *id054
-        retry_at: *id054
-        confirmation: *id049
-        error_code: *id049
-        created_at: *id054
-        updated_at: *id054
+        skill_id: *id053
+        skill_version: *id058
+        protected_blocked: *id056
+        task_id: *id011
+        user_id: *id055
+        job_id: *id011
+        key: *id053
+        agent_type: *id053
+        tool: *id053
+        execution_mode: *id053
+        priority: *id058
+        status: *id053
+        parameters: *id057
+        output: *id057
+        attempts: *id058
+        retry_at: *id058
+        confirmation: *id053
+        error_code: *id053
+        created_at: *id058
+        updated_at: *id058
       required:
       - skill_id
       - skill_version
@@ -13585,11 +15081,11 @@ components:
       type: object
       additionalProperties: false
       properties:
-        id: *id051
-        user_id: *id051
-        job_id: *id010
-        task_id: *id010
-        depends_on: *id010
+        id: *id055
+        user_id: *id055
+        job_id: *id011
+        task_id: *id011
+        depends_on: *id011
       required:
       - id
       - user_id
@@ -13600,20 +15096,20 @@ components:
       type: object
       additionalProperties: false
       properties:
-        id: *id010
-        user_id: *id051
-        job_id: *id010
-        task_id: *id010
-        agent_type: *id049
-        attempt: *id054
-        status: *id049
-        started_at: *id054
-        finished_at: *id054
-        duration_ms: *id054
-        error_code: *id049
-        workflow_execute_id: *id049
-        input: *id053
-        output: *id053
+        id: *id011
+        user_id: *id055
+        job_id: *id011
+        task_id: *id011
+        agent_type: *id053
+        attempt: *id058
+        status: *id053
+        started_at: *id058
+        finished_at: *id058
+        duration_ms: *id058
+        error_code: *id053
+        workflow_execute_id: *id053
+        input: *id057
+        output: *id057
       required:
       - id
       - user_id
@@ -13633,19 +15129,19 @@ components:
       type: object
       additionalProperties: false
       properties:
-        id: *id010
-        user_id: *id051
-        job_id: *id010
-        task_id: *id010
-        execution_id: *id010
-        tool: *id049
-        invocation_key: *id049
-        status: *id049
-        started_at: *id054
-        finished_at: *id054
-        duration_ms: *id054
-        error_code: *id049
-        audit_id: *id049
+        id: *id011
+        user_id: *id055
+        job_id: *id011
+        task_id: *id011
+        execution_id: *id011
+        tool: *id053
+        invocation_key: *id053
+        status: *id053
+        started_at: *id058
+        finished_at: *id058
+        duration_ms: *id058
+        error_code: *id053
+        audit_id: *id053
       required:
       - id
       - user_id
@@ -13664,18 +15160,18 @@ components:
       type: object
       additionalProperties: false
       properties:
-        skill_id: *id049
-        skill_version: *id054
-        id: *id051
-        user_id: *id051
-        job_id: *id010
-        task_id: *id049
-        event: *id049
-        status: *id049
-        error_code: *id049
-        audit_id: *id049
-        trace_id: *id049
-        created_at: *id054
+        skill_id: *id053
+        skill_version: *id058
+        id: *id055
+        user_id: *id055
+        job_id: *id011
+        task_id: *id053
+        event: *id053
+        status: *id053
+        error_code: *id053
+        audit_id: *id053
+        trace_id: *id053
+        created_at: *id058
       required:
       - skill_id
       - skill_version
@@ -13693,9 +15189,9 @@ components:
       type: object
       additionalProperties: false
       properties:
-        type: *id049
-        id: *id049
-        audit_id: *id049
+        type: *id053
+        id: *id053
+        audit_id: *id053
       required:
       - type
       - id
@@ -13704,8 +15200,8 @@ components:
       type: object
       additionalProperties: false
       properties:
-        code: *id049
-        retryable: *id052
+        code: *id053
+        retryable: *id056
       required:
       - code
       - retryable
@@ -13713,8 +15209,8 @@ components:
       type: object
       additionalProperties: false
       properties:
-        type: *id049
-        requires_confirmation: *id052
+        type: *id053
+        requires_confirmation: *id056
       required:
       - type
       - requires_confirmation
@@ -13722,13 +15218,13 @@ components:
       type: object
       additionalProperties: false
       properties:
-        skill_id: *id049
-        skill_version: *id054
-        rule_version: *id049
-        task_id: *id010
-        agent_type: *id049
-        status: *id049
-        result: *id053
+        skill_id: *id053
+        skill_version: *id058
+        rule_version: *id053
+        task_id: *id011
+        agent_type: *id053
+        status: *id053
+        result: *id057
         evidence:
           type: array
           items:
@@ -13741,19 +15237,19 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/OrchestrationNextAction'
-        explanation: *id049
-        workflow_execute_id: *id049
-        financial_execution_enabled: &id055
+        explanation: *id053
+        workflow_execute_id: *id053
+        financial_execution_enabled: &id059
           type: boolean
           enum:
           - false
         explanation_evidence_ids:
           type: array
-          items: *id050
+          items: *id054
           uniqueItems: true
         explanation_finding_ids:
           type: array
-          items: *id050
+          items: *id054
           uniqueItems: true
       required:
       - task_id
@@ -13780,7 +15276,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/OrchestrationDependency'
-        financial_execution_enabled: *id055
+        financial_execution_enabled: *id059
       required:
       - job
       - tasks
@@ -13790,13 +15286,13 @@ components:
       type: object
       additionalProperties: false
       properties:
-        job_id: *id010
-        status: *id049
+        job_id: *id011
+        status: *id053
         outputs:
           type: array
           items:
             $ref: '#/components/schemas/OrchestrationAgentOutput'
-        financial_execution_enabled: *id055
+        financial_execution_enabled: *id059
       required:
       - job_id
       - status
@@ -13909,11 +15405,21 @@ components:
           - card_manage
           - aa_payment
           - recipient_transfer
-        parameters: &id061
+          - scheduled_transfer
+          - investment_assessment
+          - investment_order
+          - occasion_plan
+          - occasion_order
+          - occasion_release
+        parameters: &id065
           type: object
           additionalProperties: true
-          description: Typed by kind. recipient_transfer uses RecipientTransferInput (human-only, recipient
-            account resolved by server); aa_payment uses AAPaymentInput. Other kinds unchanged.
+          description: 'Typed by kind. recipient_transfer uses RecipientTransferInput (human-only, recipient
+            account resolved by server); aa_payment uses AAPaymentInput. Other kinds unchanged. Scenarios:
+            scheduled_transfer=ExecutionScheduledTransferParameters; investment_assessment=ExecutionInvestmentAssessmentParameters;
+            investment_order=ExecutionInvestmentOrderParameters; occasion_plan=ExecutionOccasionPlanParameters;
+            occasion_order=ExecutionOccasionOrderParameters; occasion_release=ExecutionOccasionReleaseParameters.
+            Human-only simulated execution; existing approval and ledger apply.'
         expires_in_seconds:
           type: integer
           format: int64
@@ -13930,8 +15436,8 @@ components:
           enum:
           - approve
           - reject
-        intent_digest: *id016
-        confirmation_nonce: *id016
+        intent_digest: *id020
+        confirmation_nonce: *id020
       required:
       - decision
       - intent_digest
@@ -13940,8 +15446,8 @@ components:
       type: object
       additionalProperties: false
       properties:
-        authorization_id: *id011
-        intent_digest: *id016
+        authorization_id: *id012
+        intent_digest: *id020
         expected_version:
           type: integer
           format: int64
@@ -13954,17 +15460,17 @@ components:
       type: object
       additionalProperties: false
       properties:
-        operation_id: *id011
+        operation_id: *id012
       required:
       - operation_id
     ExecutionTransferParameters:
       type: object
       properties:
-        source_account_id: &id056
+        source_account_id: &id060
           type: string
           pattern: ^[1-9][0-9]*$
           description: Canonical positive int64 decimal string
-        target_account_id: *id056
+        target_account_id: *id060
         amount_minor:
           type: integer
           format: int64
@@ -13979,6 +15485,11 @@ components:
         description:
           type: string
           maxLength: 512
+        card_id:
+          type: string
+          format: uuid
+          description: Optional debit card initiation, owned by the source account. Enforced at preparation
+            and execution; locked/lost/unbound and over-limit cards are rejected. No credit spending.
       required:
       - source_account_id
       - target_account_id
@@ -14121,7 +15632,7 @@ components:
           type: string
           minLength: 1
           maxLength: 128
-        target_minor: &id058
+        target_minor: &id062
           type: integer
           format: int64
           minimum: 1
@@ -14132,13 +15643,13 @@ components:
           enum:
           - CNY
           default: CNY
-        starts_at: &id057
+        starts_at: &id061
           type: integer
           format: int64
           minimum: 1
           description: Unix milliseconds UTC
-        ends_at: *id057
-        monthly_minor: *id058
+        ends_at: *id061
+        monthly_minor: *id062
       required:
       - name
       - target_minor
@@ -14202,7 +15713,7 @@ components:
         rule_id:
           type: string
           pattern: ^[1-9][0-9]*$
-        expected_digest: *id016
+        expected_digest: *id020
         enabled:
           type: boolean
       required:
@@ -14226,37 +15737,37 @@ components:
       type: object
       additionalProperties: false
       properties:
-        kind: *id016
-        permission: *id016
-        agent: *id016
-        resource_digest: *id016
-        currency: *id016
-        intent_digest: *id016
-        confirmation_nonce: *id016
-        status: *id016
-        authorization_id: *id016
-        risk_level: *id016
-        error_code: *id016
-        trace_id: *id016
-        task_id: *id016
-        audit_id: *id016
-        user_id: *id059
-        resource_id: *id059
-        source_account_id: *id059
-        target_account_id: *id059
-        amount_minor: &id060
+        kind: *id020
+        permission: *id020
+        agent: *id020
+        resource_digest: *id020
+        currency: *id020
+        intent_digest: *id020
+        confirmation_nonce: *id020
+        status: *id020
+        authorization_id: *id020
+        risk_level: *id020
+        error_code: *id020
+        trace_id: *id020
+        task_id: *id020
+        audit_id: *id020
+        user_id: *id063
+        resource_id: *id063
+        source_account_id: *id063
+        target_account_id: *id063
+        amount_minor: &id064
           type: integer
           format: int64
-        version: *id060
-        expires_at: *id060
-        created_at: *id060
-        updated_at: *id060
-        parameters: *id061
-        snapshot: *id061
-        result: *id061
-        id: *id011
-        skill_id: *id016
-        skill_version: *id060
+        version: *id064
+        expires_at: *id064
+        created_at: *id064
+        updated_at: *id064
+        parameters: *id065
+        snapshot: *id065
+        result: *id065
+        id: *id012
+        skill_id: *id020
+        skill_version: *id064
       required:
       - kind
       - permission
@@ -14291,14 +15802,14 @@ components:
       type: object
       additionalProperties: false
       properties:
-        id: *id011
-        user_id: *id059
-        operation_id: *id011
-        decision: *id016
-        intent_digest: *id016
-        expires_at: *id060
-        consumed_at: *id060
-        created_at: *id060
+        id: *id012
+        user_id: *id063
+        operation_id: *id012
+        decision: *id020
+        intent_digest: *id020
+        expires_at: *id064
+        consumed_at: *id064
+        created_at: *id064
       required:
       - id
       - user_id
@@ -14312,13 +15823,13 @@ components:
       type: object
       additionalProperties: false
       properties:
-        name: *id016
-        version: *id060
+        name: *id020
+        version: *id064
         enabled:
           type: boolean
-        risk_level: *id016
-        limit_minor: *id060
-        description: *id016
+        risk_level: *id020
+        limit_minor: *id064
+        description: *id020
       required:
       - name
       - version
@@ -14330,16 +15841,16 @@ components:
       type: object
       additionalProperties: false
       properties:
-        id: *id011
-        user_id: *id059
-        operation_id: *id011
-        rule_name: *id016
-        risk_level: *id016
-        decision: *id016
-        error_code: *id016
-        evidence: *id061
-        trace_id: *id016
-        created_at: *id060
+        id: *id012
+        user_id: *id063
+        operation_id: *id012
+        rule_name: *id020
+        risk_level: *id020
+        decision: *id020
+        error_code: *id020
+        evidence: *id065
+        trace_id: *id020
+        created_at: *id064
       required:
       - id
       - user_id
@@ -14355,20 +15866,20 @@ components:
       type: object
       additionalProperties: false
       properties:
-        agent: *id016
-        operation_id: *id016
-        operation_type: *id016
-        permission: *id016
-        authorization_id: *id016
-        authorization_digest: *id016
-        risk_level: *id016
-        state: *id016
-        error_code: *id016
-        trace_id: *id016
-        task_id: *id016
-        id: *id011
-        user_id: *id059
-        created_at: *id060
+        agent: *id020
+        operation_id: *id020
+        operation_type: *id020
+        permission: *id020
+        authorization_id: *id020
+        authorization_digest: *id020
+        risk_level: *id020
+        state: *id020
+        error_code: *id020
+        trace_id: *id020
+        task_id: *id020
+        id: *id012
+        user_id: *id063
+        created_at: *id064
       required:
       - agent
       - operation_id
@@ -14499,10 +16010,10 @@ components:
       type: object
       additionalProperties: false
       properties:
-        agent_type: &id062
+        agent_type: &id066
           type: string
-        tool: *id062
-        execution_mode: *id062
+        tool: *id066
+        execution_mode: *id066
       required:
       - agent_type
       - tool
@@ -14511,21 +16022,21 @@ components:
       type: object
       additionalProperties: false
       properties:
-        skill_id: *id062
+        skill_id: *id066
         skill_version:
           type: integer
           format: int64
-        owner: *id062
-        description: *id062
+        owner: *id066
+        description: *id066
         allowed_pairs:
           type: array
           items:
             $ref: '#/components/schemas/SkillPair'
-        internal_entry: *id062
+        internal_entry: *id066
         required_evidence:
           type: array
-          items: *id062
-        rule_version: *id062
+          items: *id066
+        rule_version: *id066
       required:
       - skill_id
       - skill_version
@@ -14576,12 +16087,12 @@ components:
           format: int64
           minimum: 1
           maximum: 120
-        expense_reduction_monthly_minor: &id063
+        expense_reduction_monthly_minor: &id067
           type: integer
           format: int64
           minimum: 0
           maximum: 1000000000000
-        savings_monthly_minor: *id063
+        savings_monthly_minor: *id067
         health_background:
           type: string
           maxLength: 2000
@@ -14652,17 +16163,17 @@ components:
       type: object
       additionalProperties: false
       properties:
-        expected_version: &id065
+        expected_version: &id069
           type: integer
           format: int64
           minimum: 1
-        budget_id: &id064
+        budget_id: &id068
           type: string
           pattern: ^(0|[1-9][0-9]*)$
-        billing_report_id: &id066
+        billing_report_id: &id070
           type: string
           maxLength: 64
-        financial_plan_id: *id064
+        financial_plan_id: *id068
       required:
       - expected_version
       - budget_id
@@ -14672,11 +16183,11 @@ components:
       type: object
       additionalProperties: false
       properties:
-        expected_version: *id065
-        budget_id: *id064
-        billing_report_id: *id066
-        financial_plan_id: *id064
-        goal_id: *id012
+        expected_version: *id069
+        budget_id: *id068
+        billing_report_id: *id070
+        financial_plan_id: *id068
+        goal_id: *id013
       required:
       - expected_version
       - budget_id
@@ -14718,8 +16229,8 @@ components:
       type: object
       additionalProperties: false
       properties:
-        goal_id: *id064
-        plan_id: *id064
+        goal_id: *id068
+        plan_id: *id068
       required:
       - goal_id
       - plan_id
@@ -14727,13 +16238,13 @@ components:
       type: object
       additionalProperties: false
       properties:
-        id: *id012
-        user_id: *id012
-        created_at: &id067
+        id: *id013
+        user_id: *id013
+        created_at: &id071
           type: integer
           format: int64
-        updated_at: *id067
-        current_version: *id067
+        updated_at: *id071
+        current_version: *id071
       required:
       - id
       - user_id
@@ -14744,16 +16255,16 @@ components:
       type: object
       additionalProperties: false
       properties:
-        id: *id012
-        user_id: *id012
-        created_at: *id067
-        updated_at: *id067
-        goal_id: *id012
-        version: *id067
-        text: *id050
+        id: *id013
+        user_id: *id013
+        created_at: *id071
+        updated_at: *id071
+        goal_id: *id013
+        version: *id071
+        text: *id054
         spec:
           $ref: '#/components/schemas/LifestyleSpec'
-        trace_id: *id050
+        trace_id: *id054
       required:
       - id
       - user_id
@@ -14781,10 +16292,10 @@ components:
       type: object
       additionalProperties: false
       properties:
-        historical_minor: *id063
-        category: *id050
-        original_minor: *id063
-        proposed_minor: *id063
+        historical_minor: *id067
+        category: *id054
+        original_minor: *id067
+        proposed_minor: *id067
         protected:
           type: boolean
       required:
@@ -14803,14 +16314,14 @@ components:
           - conservative
           - balanced
           - active
-        budget_minor: *id063
-        expense_reduction_minor: *id063
-        savings_monthly_minor: *id063
+        budget_minor: *id067
+        expense_reduction_minor: *id067
+        savings_monthly_minor: *id067
         categories:
           type: array
           items:
             $ref: '#/components/schemas/LifestyleAllocation'
-        explanation: *id050
+        explanation: *id054
       required:
       - name
       - budget_minor
@@ -14822,8 +16333,8 @@ components:
       type: object
       additionalProperties: false
       properties:
-        schema_version: *id050
-        rule_version: *id050
+        schema_version: *id054
+        rule_version: *id054
         status:
           type: string
           enum:
@@ -14836,12 +16347,12 @@ components:
             $ref: '#/components/schemas/LifestyleOption'
         missing_information:
           type: array
-          items: *id050
+          items: *id054
         conflicts:
           type: array
-          items: *id050
-        reduction_gap_minor: *id063
-        savings_gap_minor: *id063
+          items: *id054
+        reduction_gap_minor: *id067
+        savings_gap_minor: *id067
         requires_confirmation:
           type: boolean
         financial_execution_enabled:
@@ -14863,10 +16374,10 @@ components:
       type: object
       additionalProperties: false
       properties:
-        category: *id050
-        allocated_minor: *id063
-        essential_reserve_minor: *id063
-        observed_minor: *id063
+        category: *id054
+        allocated_minor: *id067
+        essential_reserve_minor: *id067
+        observed_minor: *id067
       required:
       - category
       - allocated_minor
@@ -14878,7 +16389,7 @@ components:
       properties:
         goal:
           $ref: '#/components/schemas/LifestyleSpec'
-        budget_minor: *id063
+        budget_minor: *id067
         categories:
           type: array
           items:
@@ -14891,10 +16402,10 @@ components:
           nullable: true
         evidence_transaction_ids:
           type: array
-          items: *id050
+          items: *id054
         sources:
           $ref: '#/components/schemas/LifestyleCompileInput'
-        source_digest: *id050
+        source_digest: *id054
       required:
       - goal
       - budget_minor
@@ -14908,20 +16419,20 @@ components:
       type: object
       additionalProperties: false
       properties:
-        id: *id012
-        user_id: *id012
-        created_at: *id067
-        updated_at: *id067
-        goal_id: *id012
-        goal_version: *id067
-        input_digest: *id050
+        id: *id013
+        user_id: *id013
+        created_at: *id071
+        updated_at: *id071
+        goal_id: *id013
+        goal_version: *id071
+        input_digest: *id054
         snapshot:
           $ref: '#/components/schemas/LifestyleSnapshot'
         result:
           $ref: '#/components/schemas/LifestyleResult'
-        expires_at: *id067
-        audit_id: *id050
-        trace_id: *id050
+        expires_at: *id071
+        audit_id: *id054
+        trace_id: *id054
       required:
       - id
       - user_id
@@ -14939,17 +16450,17 @@ components:
       type: object
       additionalProperties: false
       properties:
-        id: *id012
-        user_id: *id012
-        created_at: *id067
-        updated_at: *id067
-        goal_id: *id012
-        plan_id: *id012
-        type: *id050
-        expected_impact_minor: *id063
-        impact_period: *id050
-        explanation: *id050
-        confidence: *id050
+        id: *id013
+        user_id: *id013
+        created_at: *id071
+        updated_at: *id071
+        goal_id: *id013
+        plan_id: *id013
+        type: *id054
+        expected_impact_minor: *id067
+        impact_period: *id054
+        explanation: *id054
+        confidence: *id054
         status:
           type: string
           enum:
@@ -14957,9 +16468,9 @@ components:
           - accepted
           - rejected
           - superseded
-        version: *id067
-        expires_at: *id067
-        rule_version: *id050
+        version: *id071
+        expires_at: *id071
+        rule_version: *id054
         option:
           $ref: '#/components/schemas/LifestyleOption'
       required:
@@ -14996,14 +16507,14 @@ components:
       type: object
       additionalProperties: false
       properties:
-        id: *id012
-        user_id: *id012
-        created_at: *id067
-        updated_at: *id067
-        recommendation_id: *id012
-        decision: *id050
-        audit_id: *id050
-        trace_id: *id050
+        id: *id013
+        user_id: *id013
+        created_at: *id071
+        updated_at: *id071
+        recommendation_id: *id013
+        decision: *id054
+        audit_id: *id054
+        trace_id: *id054
       required:
       - id
       - user_id
@@ -15031,8 +16542,8 @@ components:
             enum:
             - period_months
             - goal_details
-        execute_id: *id050
-        workflow_id: *id012
+        execute_id: *id054
+        workflow_id: *id013
       required:
       - status
       - missing_information
@@ -15315,7 +16826,7 @@ components:
       - task_id
       - agent_type
       properties:
-        task_id: &id068
+        task_id: &id072
           type: string
           pattern: ^lg-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[A-Za-z0-9][A-Za-z0-9_-]{0,63}$
           maxLength: 128
@@ -15339,7 +16850,7 @@ components:
           type: string
           readOnly: true
           description: 120s role/task-bound Agent JWT; runtime only, no authorization or execution scope.
-        task_id: *id068
+        task_id: *id072
         agent_type:
           type: string
         expires_in_seconds:
@@ -15403,7 +16914,7 @@ components:
       - skill_version
       - rule_version
       properties:
-        task_id: *id068
+        task_id: *id072
         agent_type:
           type: string
         status:
@@ -15488,11 +16999,11 @@ components:
       - phone
       - password
       properties:
-        phone: &id069
+        phone: &id073
           type: string
           pattern: ^(\+86)?1[3-9][0-9]{9}$
           description: Mainland phone login identifier; verification method is reported separately.
-        password: &id070
+        password: &id074
           type: string
           format: password
           minLength: 8
@@ -15506,16 +17017,16 @@ components:
       - phone
       - password
       properties:
-        phone: *id069
-        password: *id070
+        phone: *id073
+        password: *id074
         display_name:
           type: string
           maxLength: 128
           description: Optional display name; at most 128 UTF-8 bytes.
-        challenge_id: &id071
+        challenge_id: &id075
           type: string
           pattern: ^[A-Za-z0-9_-]{43}$
-        code: &id072
+        code: &id076
           type: string
           pattern: ^[0-9]{6}$
           writeOnly: true
@@ -15571,7 +17082,7 @@ components:
       type: object
       additionalProperties: false
       properties:
-        challenge_id: *id071
+        challenge_id: *id075
         expires_in:
           type: integer
           enum:
@@ -15588,16 +17099,16 @@ components:
       type: object
       additionalProperties: false
       properties:
-        phone: *id069
+        phone: *id073
       required:
       - phone
     PhoneVerificationInput:
       type: object
       additionalProperties: false
       properties:
-        challenge_id: *id071
-        code: *id072
-        current_password: *id070
+        challenge_id: *id075
+        code: *id076
+        current_password: *id074
       required:
       - challenge_id
       - code
@@ -15606,10 +17117,10 @@ components:
       type: object
       additionalProperties: false
       properties:
-        phone: *id069
-        challenge_id: *id071
-        code: *id072
-        new_password: *id070
+        phone: *id073
+        challenge_id: *id075
+        code: *id076
+        new_password: *id074
       required:
       - phone
       - challenge_id
@@ -15692,19 +17203,19 @@ components:
         id:
           type: string
           format: uuid
-        account_id: &id074
+        account_id: &id078
           type: string
           pattern: ^[1-9][0-9]*$
-        issuer: &id075
+        issuer: &id079
           type: string
           maxLength: 96
-        name: &id076
+        name: &id080
           type: string
           maxLength: 96
-        last_four: &id077
+        last_four: &id081
           type: string
           pattern: ^[0-9]{4}$
-        card_type: &id078
+        card_type: &id082
           type: string
           enum:
           - debit
@@ -15717,6 +17228,8 @@ components:
           type: string
           enum:
           - active
+          - locked
+          - lost
           - unbound
         is_default:
           type: boolean
@@ -15724,7 +17237,7 @@ components:
           type: boolean
           enum:
           - true
-        credit_limit_minor: &id079
+        credit_limit_minor: &id083
           type: integer
           format: int64
           minimum: 0
@@ -15739,11 +17252,18 @@ components:
           format: int64
           minimum: 0
           maximum: 1000000000000
-        created_at: &id073
+        created_at: &id077
           type: integer
           format: int64
           minimum: 0
-        updated_at: *id073
+        updated_at: *id077
+        transaction_limit_minor:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000000
+          description: Optional legacy field. Zero explicitly blocks card-initiated transfers; absence
+            retains account risk policy. Not a cash balance.
       required:
       - id
       - account_id
@@ -15764,26 +17284,39 @@ components:
       type: object
       additionalProperties: false
       properties:
-        account_id: *id074
-        issuer: *id075
-        name: *id076
-        last_four: *id077
-        card_type: *id078
-        credit_limit_minor: *id079
+        account_id: *id078
+        issuer: *id079
+        name: *id080
+        last_four: *id081
+        card_type: *id082
+        credit_limit_minor: *id083
         action:
           type: string
           enum:
           - bind
+          - apply
           - unbind
           - set_default
+          - adjust_limit
+          - set_transaction_limit
+          - lock
+          - unlock
+          - report_lost
         card_id:
           type: string
           format: uuid
+        transaction_limit_minor:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000000
       required:
       - action
-      description: User-only. bind requires account_id,issuer,name,last_four,card_type; debit limit must
-        be zero. unbind/set_default require only action and card_id. No PAN/CVV, no credit payments or
-        repayments.
+      description: User-only simulated metadata. apply/bind require account, issuer, name, four digits,
+        card type. Other actions require card_id; adjust_limit requires an explicit positive credit_limit_minor,
+        set_transaction_limit requires transaction_limit_minor including zero. Missing/zero credit adjustments
+        are rejected. Lost cards cannot be unlocked; locked cards may be reported lost directly. All writes
+        require prepare/authorize/execute; no PAN/CVV or bank integration.
     CardResponse:
       allOf:
       - $ref: '#/components/schemas/Envelope'
@@ -15843,7 +17376,7 @@ components:
           type: string
           enum:
           - CNY
-        charge_at: &id080
+        charge_at: &id084
           type: integer
           format: int64
           minimum: 0
@@ -15860,9 +17393,9 @@ components:
           type: integer
           format: int64
           minimum: 1
-        read_at: *id080
-        created_at: *id080
-        updated_at: *id080
+        read_at: *id084
+        created_at: *id084
+        updated_at: *id084
       required:
       - id
       - subscription_id
@@ -15887,7 +17420,7 @@ components:
           maxItems: 200
           items:
             $ref: '#/components/schemas/RenewalNotice'
-        last_checked_at: *id080
+        last_checked_at: *id084
         capacity_limited:
           type: boolean
         unread_count:
@@ -15945,7 +17478,7 @@ components:
           type: string
           minLength: 1
           maxLength: 64
-        amount_minor: &id081
+        amount_minor: &id085
           type: integer
           format: int64
           minimum: 0
@@ -15979,28 +17512,28 @@ components:
           type: boolean
           enum:
           - true
-        owner_share_minor: *id081
+        owner_share_minor: *id085
         participants:
           type: array
           minItems: 1
           maxItems: 19
           items:
             $ref: '#/components/schemas/AAShareInput'
-        payment_method: &id083
+        payment_method: &id087
           type: string
           enum:
           - simulation
           - wechat_manual
           description: Immutable channel; omitted means simulation. WeChat manual records never write
             financial balances.
-        recipient_hint: &id084
+        recipient_hint: &id088
           type: string
           maxLength: 128
           description: Owner supplied hint, not verified WeChat identity.
-        memo: &id085
+        memo: &id089
           type: string
           maxLength: 400
-        items: &id086
+        items: &id090
           type: array
           maxItems: 30
           items:
@@ -16024,10 +17557,10 @@ components:
       type: object
       additionalProperties: false
       properties:
-        id: *id013
+        id: *id014
         name:
           type: string
-        amount_minor: *id081
+        amount_minor: *id085
         status:
           type: string
           enum:
@@ -16044,7 +17577,7 @@ components:
           type: integer
           format: int64
           minimum: 0
-        operation_id: *id013
+        operation_id: *id014
         reported_at:
           type: integer
           format: int64
@@ -16064,11 +17597,11 @@ components:
       type: object
       additionalProperties: false
       properties:
-        id: *id013
-        owner_id: *id082
+        id: *id014
+        owner_id: *id086
         title:
           type: string
-        total_minor: *id081
+        total_minor: *id085
         currency:
           type: string
           enum:
@@ -16093,8 +17626,8 @@ components:
         invitation:
           type: string
           description: Private invitation; owner only. Never log or put in a URL.
-        collected_minor: *id081
-        outstanding_minor: *id081
+        collected_minor: *id085
+        outstanding_minor: *id085
         participants:
           type: array
           minItems: 2
@@ -16105,10 +17638,10 @@ components:
           type: integer
           format: int64
           minimum: 0
-        payment_method: *id083
-        recipient_hint: *id084
-        memo: *id085
-        items: *id086
+        payment_method: *id087
+        recipient_hint: *id088
+        memo: *id089
+        items: *id090
         platform_verified:
           type: boolean
           enum:
@@ -16152,7 +17685,7 @@ components:
           type: string
           minLength: 100
           maxLength: 128
-        participant_id: *id013
+        participant_id: *id014
       required:
       - invitation
       - participant_id
@@ -16170,10 +17703,10 @@ components:
       type: object
       additionalProperties: false
       properties:
-        owner_id: *id082
-        bill_id: *id013
-        participant_id: *id013
-        source_account_id: *id082
+        owner_id: *id086
+        bill_id: *id014
+        participant_id: *id014
+        source_account_id: *id086
       required:
       - owner_id
       - bill_id
@@ -16200,6 +17733,123 @@ components:
             maxItems: 50
             items:
               $ref: '#/components/schemas/AABillView'
+    BirthdayEntry:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 32
+        month_day:
+          type: string
+          pattern: ^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$
+          description: A real MM-DD calendar date validated in a leap reference year.
+      required:
+      - id
+      - name
+      - month_day
+    BirthdayUpcoming:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 32
+        month_day:
+          type: string
+          pattern: ^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$
+        next_date:
+          type: string
+          format: date
+        days_until:
+          type: integer
+          minimum: 0
+          maximum: 30
+      required:
+      - id
+      - name
+      - month_day
+      - next_date
+      - days_until
+    BirthdayCalendarInput:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version:
+          type: integer
+          format: int64
+          minimum: 1
+        enabled:
+          type: boolean
+        lead_days:
+          type: integer
+          minimum: 0
+          maximum: 30
+        entries:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/BirthdayEntry'
+      required:
+      - expected_version
+      - enabled
+      - lead_days
+      - entries
+    BirthdayCalendarView:
+      type: object
+      additionalProperties: false
+      properties:
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+        enabled:
+          type: boolean
+        lead_days:
+          type: integer
+          minimum: 0
+          maximum: 30
+        entries:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/BirthdayEntry'
+        upcoming:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/BirthdayUpcoming'
+        timezone:
+          type: string
+          enum:
+          - Asia/Shanghai
+        leap_day_policy:
+          type: string
+          enum:
+          - next_leap_year
+      required:
+      - version
+      - enabled
+      - lead_days
+      - entries
+      - upcoming
+      - timezone
+      - leap_day_policy
+    BirthdayCalendarResponse:
+      allOf:
+      - $ref: '#/components/schemas/Envelope'
+      - type: object
+        properties:
+          data:
+            $ref: '#/components/schemas/BirthdayCalendarView'
     RecipientSettings:
       type: object
       additionalProperties: false
@@ -16213,6 +17863,14 @@ components:
           type: integer
           format: int64
           minimum: 1
+        remarks:
+          type: object
+          maxProperties: 20
+          description: Own exact private labels (1..32 visible characters) mapped to recipient decimal
+            IDs. Never included in public search results or financial recipient fingerprints.
+          additionalProperties:
+            type: string
+            pattern: ^[1-9][0-9]*$
       required:
       - enabled
       - account_id
@@ -16243,20 +17901,62 @@ components:
           enum:
           - name
           - phone
+          - remark
         query:
           type: string
           minLength: 1
           maxLength: 128
-          description: Exact registered display name (at least two characters), or full phone. Never put
-            this field in a URL or log.
+          description: Exact registered display name (at least two characters), full phone, or own saved
+            private remark (1..32 visible characters). Never put this field in a URL or log.
       required:
       - kind
       - query
+    RecipientRemarkInput:
+      type: object
+      additionalProperties: false
+      properties:
+        remark:
+          type: string
+          minLength: 1
+          maxLength: 32
+        recipient_id:
+          type: string
+          pattern: ^[1-9][0-9]*$
+        recipient_version:
+          type: integer
+          format: int64
+          minimum: 1
+        expected_version:
+          type: integer
+          format: int64
+          minimum: 1
+        lookup:
+          type: object
+          additionalProperties: false
+          properties:
+            kind:
+              type: string
+              enum:
+              - name
+              - phone
+            query:
+              type: string
+              minLength: 1
+              maxLength: 128
+          required:
+          - kind
+          - query
+      required:
+      - remark
+      - recipient_id
+      - recipient_version
+      - expected_version
+      - lookup
     RecipientView:
       type: object
       additionalProperties: false
       properties:
-        id: &id087
+        id: &id091
           type: string
           pattern: ^[1-9][0-9]*$
         display_name:
@@ -16301,12 +18001,12 @@ components:
       type: object
       additionalProperties: false
       properties:
-        recipient_id: *id087
+        recipient_id: *id091
         recipient_version:
           type: integer
           format: int64
           minimum: 1
-        source_account_id: *id087
+        source_account_id: *id091
         amount_minor:
           type: integer
           format: int64
@@ -16360,13 +18060,13 @@ components:
       type: object
       additionalProperties: false
       properties:
-        participant_id: *id015
-        purpose: &id088
+        participant_id: *id016
+        purpose: &id092
           type: string
           enum:
           - report_paid
           - confirm_received
-        expected_version: &id089
+        expected_version: &id093
           type: integer
           format: int64
           minimum: 1
@@ -16378,14 +18078,14 @@ components:
       type: object
       additionalProperties: false
       properties:
-        participant_id: *id015
-        purpose: *id088
-        expected_version: *id089
-        intent_id: *id015
-        digest: &id090
+        participant_id: *id016
+        purpose: *id092
+        expected_version: *id093
+        intent_id: *id016
+        digest: &id094
           type: string
           pattern: ^[0-9a-f]{64}$
-        nonce: &id091
+        nonce: &id095
           type: string
           minLength: 64
           maxLength: 64
@@ -16402,11 +18102,11 @@ components:
       properties:
         bill:
           $ref: '#/components/schemas/AABillView'
-        participant_id: *id015
-        purpose: *id088
-        intent_id: *id015
-        digest: *id090
-        nonce: *id091
+        participant_id: *id016
+        purpose: *id092
+        intent_id: *id016
+        digest: *id094
+        nonce: *id095
         expires_at:
           type: integer
           format: int64
@@ -16428,7 +18128,388 @@ components:
         properties:
           data:
             $ref: '#/components/schemas/AAManualReview'
+    ExecutionScheduledTransferParameters:
+      type: object
+      additionalProperties: false
+      properties:
+        source_account_id: &id096
+          type: string
+          pattern: ^[1-9][0-9]*$
+        target_account_id: *id096
+        amount_minor:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 1000000000000
+        execute_at:
+          type: integer
+          format: int64
+          description: Exact future Unix milliseconds within30 days; execution authorization expires15
+            minutes after this time. No funds post before due.
+        description:
+          type: string
+          maxLength: 128
+      required:
+      - source_account_id
+      - target_account_id
+      - amount_minor
+      - execute_at
+      - description
+    ExecutionInvestmentAssessmentParameters:
+      type: object
+      additionalProperties: false
+      properties:
+        answers:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items:
+            type: integer
+            minimum: 1
+            maximum: 3
+      required:
+      - answers
+    ExecutionInvestmentOrderParameters:
+      type: object
+      additionalProperties: false
+      properties:
+        action:
+          type: string
+          enum:
+          - buy
+          - redeem
+        product_id:
+          type: string
+          enum:
+          - sim-cash-v1
+          - sim-bond-v1
+          - sim-equity-v1
+        account_id: *id096
+        amount_minor:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 1000000000000
+        assessment_id:
+          type: string
+          description: Owned completed assessment required for buying; not used as a substitute for financial
+            authorization.
+      required:
+      - action
+      - product_id
+      - account_id
+      - amount_minor
+      - assessment_id
+    ExecutionOccasionPlanParameters:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          maxLength: 96
+        birthday:
+          type: string
+          format: date
+        order_time:
+          type: string
+          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+          default: 09:00
+          description: Shanghai local HH:MM on the calendar day exactly two days before the birthday.
+            The immutable plan snapshot binds this time; scheduling still requires separate consent.
+        account_id: *id096
+        reserve_minor:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 1000000000000
+        items:
+          type: array
+          minItems: 1
+          maxItems: 2
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+            - flowers
+            - cake
+      required:
+      - name
+      - birthday
+      - account_id
+      - reserve_minor
+      - items
+    ExecutionOccasionOrderParameters:
+      type: object
+      additionalProperties: false
+      properties:
+        plan_id:
+          type: string
+          format: uuid
+        execute_at:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Zero explicitly means immediate local simulated order. Nonzero must equal funded
+            plan birthday-minus-two-days Shanghai due time (default09:00), within30 days.
+      required:
+      - plan_id
+      - execute_at
+    ExecutionOccasionReleaseParameters:
+      type: object
+      additionalProperties: false
+      properties:
+        plan_id:
+          type: string
+          format: uuid
+        account_id: *id096
+      required:
+      - plan_id
+      - account_id
+    InvestmentProduct:
+      type: object
+      additionalProperties: false
+      properties:
+        id: &id097
+          type: string
+        name: *id097
+        risk_level:
+          type: integer
+          minimum: 1
+          maximum: 3
+        minimum_minor:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000000
+        lock_days:
+          type: integer
+          minimum: 0
+        description: *id097
+        is_simulated:
+          type: boolean
+          enum:
+          - true
+      required:
+      - id
+      - name
+      - risk_level
+      - minimum_minor
+      - lock_days
+      - description
+      - is_simulated
+    ScenarioState:
+      type: object
+      additionalProperties: false
+      properties:
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/InvestmentProduct'
+        positions:
+          type: array
+          items:
+            $ref: '#/components/schemas/BankAccount'
+        operations:
+          type: array
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/ExecutionOperation'
+        is_simulated:
+          type: boolean
+          enum:
+          - true
+      required:
+      - products
+      - positions
+      - operations
+      - is_simulated
+    ScenarioResponse:
+      allOf:
+      - $ref: '#/components/schemas/Envelope'
+      - type: object
+        properties:
+          data:
+            $ref: '#/components/schemas/ScenarioState'
+        required:
+        - data
+    ScenarioOverviewInput:
+      type: object
+      additionalProperties: false
+      properties:
+        scenario:
+          type: string
+          enum: &id098
+          - transfer
+          - cards
+          - investment
+          - subscriptions
+          - birthday
+        account_id: &id099
+          type: string
+          pattern: ^[1-9][0-9]*$
+          maxLength: 19
+      required:
+      - scenario
+      - account_id
+    ScenarioOverviewItem:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        kind:
+          type: string
+          enum:
+          - source_account
+          - saved_recipient_reference
+          - card
+          - investment_product
+          - subscription
+          - registered_birthday
+        status:
+          type: string
+          enum:
+          - active
+          - frozen
+          - inactive
+          - closed
+          - requires_explicit_selection
+          - unbound
+          - locked
+          - lost
+          - catalog_only
+          - candidate
+          - cancelled
+          - recorded
+          - disabled
+        label:
+          type: string
+          maxLength: 128
+          description: System-owned simulated product name only; never customer names or merchant text.
+        currency:
+          type: string
+          enum:
+          - CNY
+        amount_minor:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000000
+        credit_limit_minor:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000000
+        credit_available_minor:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000000
+        transaction_limit_minor:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000000
+        minimum_minor:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 1000000000000
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+        risk_level:
+          type: integer
+          minimum: 1
+          maximum: 3
+        lock_days:
+          type: integer
+          minimum: 0
+          maximum: 3660
+        billing_interval:
+          type: string
+          enum:
+          - weekly
+          - monthly
+          - quarterly
+          - annual
+        next_billing_at:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Exact existing Unix milliseconds; not an execution schedule.
+        month_day:
+          type: string
+          pattern: ^[0-9]{2}-[0-9]{2}$
+        next_date:
+          type: string
+          format: date
+        days_until:
+          type: integer
+          minimum: 0
+          maximum: 3660
+      required:
+      - id
+      - kind
+      - status
+    ScenarioOverview:
+      type: object
+      additionalProperties: false
+      description: Server-owned limited read-only facts. No financial intent, grant, fee reservation,
+        supplier request or execution is created. Saved recipient IDs are unverified references requiring
+        explicit human selection; birthday dates come only from the user calendar.
+      properties:
+        scenario:
+          type: string
+          enum: *id098
+        account_id: *id099
+        user_id: *id099
+        is_simulated:
+          type: boolean
+          enum:
+          - true
+        items:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/ScenarioOverviewItem'
+        limitations:
+          type: array
+          minItems: 1
+          maxItems: 16
+          items:
+            type: string
+            minLength: 1
+            maxLength: 2048
+        truncated:
+          type: boolean
+      required:
+      - scenario
+      - account_id
+      - user_id
+      - is_simulated
+      - items
+      - limitations
+      - truncated
+    ScenarioOverviewResponse:
+      allOf:
+      - $ref: '#/components/schemas/Envelope'
+      - type: object
+        properties:
+          data:
+            $ref: '#/components/schemas/ScenarioOverview'
+        required:
+        - data
   responses:
+    StatementError:
+      description: Invalid upload, unauthenticated or unowned resource, conflict or dependency failure.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Envelope'
     InvalidArgument:
       description: INVALID_ARGUMENT
       content:

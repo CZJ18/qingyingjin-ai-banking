@@ -293,6 +293,7 @@ func (r *Core) Register(ctx context.Context, id int64, name string) (*entity.Use
 type TransactionFilter struct {
 	AccountID                     int64
 	Direction, Category, Merchant string
+	CanonicalCategory             string
 	From, To                      int64
 	Limit, Offset                 int
 }
@@ -307,6 +308,23 @@ func (r *Core) Transactions(ctx context.Context, user int64, f TransactionFilter
 	}
 	if f.Category != "" {
 		q = q.Where("category=?", f.Category)
+	}
+	if f.CanonicalCategory != "" {
+		normalized := "LOWER(BTRIM(category, ?))"
+		trimArgument := entity.CategoryWhitespace
+		if r.db.Dialector.Name() == "mysql" {
+			normalized = "LOWER(REGEXP_REPLACE(category, ?, ''))"
+			trimArgument = "^[" + entity.CategoryWhitespace + "]+|[" + entity.CategoryWhitespace + "]+$"
+		}
+		if f.CanonicalCategory == "uncategorized" {
+			q = q.Where(normalized+" NOT IN ?", trimArgument, entity.KnownCategoryAliases())
+		} else {
+			aliases := entity.CategoryAliases(f.CanonicalCategory)
+			if len(aliases) == 0 {
+				return nil, 0, entity.Fail("INVALID_ARGUMENT", "unknown canonical category")
+			}
+			q = q.Where(normalized+" IN ?", trimArgument, aliases)
+		}
 	}
 	if f.Merchant != "" {
 		q = q.Where("merchant_name=?", f.Merchant)

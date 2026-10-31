@@ -198,6 +198,8 @@ func TestTextFunctionToolsAndSamplingAreCompatible(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		io.WriteString(w, validResponse)
 	}, b)
+	// This protocol fixture includes history/schema text beyond the tiny 100-token admission budget.
+	h.(*gateway).cfg.Policy.ContextTokens = 2048
 	w := call(h, body, "", "Bearer "+token)
 	if w.Code != 200 {
 		t.Fatalf("%d %s", w.Code, w.Body.String())
@@ -335,8 +337,10 @@ func TestTimeoutAndProviderFailureKeepReservation(t *testing.T) {
 	}
 }
 func TestConfigRequiresSeparateCredentialAndOfficialTLSOrigin(t *testing.T) {
-	b := &memoryBudget{}
-	base := Config{Policy: policy(), GatewayToken: token, SupplierKey: supplier, Timeout: time.Second}
+	base := Config{Policy: policy(), GatewayToken: token, SupplierKey: supplier, Timeout: time.Second, VerifyIdentity: func(context.Context, string) (int64, error) { return 42, nil }}
+	a := constructorApproval(base.Policy)
+	base.Approval, base.RunID, base.Database = &a, a.RunID, a.Database
+	b := &approvalBoundBudget{fingerprint: a.Fingerprint()}
 	for _, mut := range []func(*Config){func(c *Config) { c.GatewayToken = "short" }, func(c *Config) { c.SupplierKey = token }, func(c *Config) { c.BaseURL = "http://api.deepseek.com/v1" }, func(c *Config) { c.BaseURL = "https://evil.example/v1" }, func(c *Config) { c.BaseURL = "https://api.deepseek.com/v1?x=1" }, func(c *Config) { c.BaseURL = "https://api.deepseek.com/beta" }} {
 		c := base
 		mut(&c)

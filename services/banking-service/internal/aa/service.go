@@ -61,7 +61,7 @@ func receiving(tx *gorm.DB, user, id int64) (entity.BankAccount, error) {
 	if e != nil {
 		return a, e
 	}
-	if !a.IsSimulated || a.Currency != "CNY" || a.SavingsGoalID != nil {
+	if !a.IsSimulated || a.Currency != "CNY" || a.SavingsGoalID != nil || (a.AccountType != "checking" && a.AccountType != "savings") {
 		return a, entity.Fail("INVALID_ARGUMENT", "AA requires a simulated CNY account without a savings goal")
 	}
 	if a.Status != "active" {

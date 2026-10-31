@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/google/uuid"
 	"github.com/qingyingjin/banking-service/internal/entity"
 	"github.com/qingyingjin/banking-service/internal/repository"
 	"github.com/qingyingjin/banking-service/internal/risk"
+	"github.com/qingyingjin/banking-service/internal/statement"
 	"strconv"
 	"strings"
 	"time"
@@ -127,21 +129,28 @@ func (s *Core) SetAccountStatus(ctx context.Context, m Meta, id int64, status st
 }
 
 type TransactionInput struct {
-	BankAccountID          int64  `json:"bank_account_id,string"`
-	ExternalTransactionID  string `json:"external_transaction_id"`
-	Direction              string `json:"direction"`
-	AmountMinor            int64  `json:"amount_minor"`
-	Currency               string `json:"currency,omitempty"`
-	Category               string `json:"category"`
-	MerchantName           string `json:"merchant_name"`
-	Description            string `json:"description"`
-	OccurredAt             int64  `json:"occurred_at"`
-	EffectMode             string `json:"effect_mode"`
-	ConfirmSimulatedEffect bool   `json:"confirm_simulated_effect"`
+	BankAccountID          int64             `json:"bank_account_id,string"`
+	ExternalTransactionID  string            `json:"external_transaction_id"`
+	Direction              string            `json:"direction"`
+	AmountMinor            int64             `json:"amount_minor"`
+	Currency               string            `json:"currency,omitempty"`
+	Category               string            `json:"category"`
+	MerchantName           string            `json:"merchant_name"`
+	Description            string            `json:"description"`
+	OccurredAt             int64             `json:"occurred_at"`
+	EffectMode             string            `json:"effect_mode"`
+	ConfirmSimulatedEffect bool              `json:"confirm_simulated_effect"`
+	Source                 *statement.Source `json:"source,omitempty"`
 }
 
 func (s *Core) ImportTransaction(ctx context.Context, m Meta, key string, in TransactionInput) (entity.Transaction, error) {
 	var zero entity.Transaction
+	if err := ValidateImportSource(in); err != nil {
+		return zero, err
+	}
+	if in.Source != nil && in.EffectMode != "record_only" {
+		return zero, entity.Fail("INVALID_ARGUMENT", "CSV uploads are record_only evidence, never current funds")
+	}
 	if err := risk.CheckSensitive(ctx, s.gateway, m.UserID, "import_transaction", in); err != nil {
 		return zero, err
 	}
@@ -178,6 +187,9 @@ func (s *Core) ImportTransaction(ctx context.Context, m Meta, key string, in Tra
 		}
 		ev := audit(m, "transaction.import", 0, "succeeded", "")
 		t := entity.Transaction{Base: entity.Base{UserID: m.UserID}, BankAccountID: a.ID, ExternalTransactionID: &in.ExternalTransactionID, Direction: in.Direction, AmountMinor: in.AmountMinor, Currency: in.Currency, Category: in.Category, MerchantName: in.MerchantName, Description: in.Description, OccurredAt: in.OccurredAt, Kind: "external", EffectMode: in.EffectMode, TraceID: m.TraceID, TaskID: m.TaskID, AuditID: ev.ID}
+		if in.Source != nil {
+			t.SourceMetadata, _ = json.Marshal(in.Source)
+		}
 		if in.EffectMode == "apply_simulated_effect" {
 			j := uuid.NewString()
 			t.JournalID = &j
@@ -203,6 +215,16 @@ func (s *Core) ImportTransaction(ctx context.Context, m Meta, key string, in Tra
 		}
 		return t, nil
 	})
+}
+
+func ValidateImportSource(in TransactionInput) error {
+	if in.Source == nil {
+		return nil
+	}
+	if in.EffectMode != "record_only" {
+		return entity.Fail("INVALID_ARGUMENT", "CSV evidence cannot change funds")
+	}
+	return statement.ValidateRecord(statement.Record{ExternalTransactionID: in.ExternalTransactionID, Direction: in.Direction, AmountMinor: in.AmountMinor, Currency: in.Currency, Category: in.Category, MerchantName: in.MerchantName, OccurredAt: in.OccurredAt, EffectMode: in.EffectMode, Source: *in.Source})
 }
 
 func (s *Core) authorizeFunding(ctx context.Context, tx *repository.Tx, m Meta, transactionID int64) error {

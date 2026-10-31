@@ -47,6 +47,7 @@ const nav = [
   { path: '/subscriptions', title: '订阅与代扣', icon: Repeat2 },
   { path: '/goals', title: '健康目标与目标金', icon: Heart },
   { path: '/planning', title: '动态资金规划', icon: Workflow },
+  { path: '/scenarios', title: '理财与跨场景计划', icon: Wallet },
   { path: '/security', title: '可信执行与安全', icon: ShieldCheck },
 ]
 const active = computed(() => nav.find((n) => n.path === route.path))
@@ -131,7 +132,8 @@ watch(
 watch(
   () => accounts.data.value,
   (rows) => {
-    if (rows?.length && !session.accountId) session.accountId = rows[0]!.id
+    if (rows && !rows.some((row) => row.id === session.accountId))
+      session.accountId = rows[0]?.id || ''
   },
 )
 watch(connection, (open) => {
@@ -412,7 +414,7 @@ async function disconnect() {
           </button>
         </div>
       </header>
-      <main id="main" tabindex="-1"><RouterView :key="session.sessionEpoch" /></main>
+      <main id="main" tabindex="-1"><RouterView :key="`${session.sessionEpoch}:${session.user?.id || 'guest'}`" /></main>
       <footer class="workspace-footer">
         <span><ShieldCheck :size="13" />模拟银行环境 · 非真实资金交易</span
         ><span>健康生活目标，让金融更有温度</span>

@@ -1,0 +1,75 @@
+[
+  {
+    "source": "output/banking-route-scope-fix-20261031/acceptance-index.json",
+    "export": "evidence\\01-banking-route-scope-fix-20261031-acceptance-index.json",
+    "sha256": "7aaa66e4c142fe4e884fdafe27919760d8839bc462ff9c9a74504f308632926d",
+    "historical_evidence": true
+  },
+  {
+    "source": "output/banking-user-advice-fix-20261031/acceptance-index.json",
+    "export": "evidence\\02-banking-user-advice-fix-20261031-acceptance-index.json",
+    "sha256": "62cd2d8ef9f21380b956090adfce6e69339d805c242a48ded58071ae10b4231e",
+    "historical_evidence": true
+  },
+  {
+    "source": "output/banking-real-user-trial-20261031/authorized-paid/acceptance-index.json",
+    "export": "evidence\\03-authorized-paid-acceptance-index.json",
+    "sha256": "682629d78a3a367b3faeda831e030a81137c6627f0d08ca9bb2b12351ca9f2b6",
+    "historical_evidence": true
+  },
+  {
+    "source": "output/banking-real-user-trial-20261031/authorized-paid/repair/changes.json",
+    "export": "evidence\\04-repair-changes.json",
+    "sha256": "8b67489f2cabf79f3c734107db0ed80f5e44ebfaefc53acfa43bbf5e42336486",
+    "historical_evidence": true
+  },
+  {
+    "source": "output/banking-real-user-trial-20261031/authorized-paid/repair/artifacts.json",
+    "export": "evidence\\05-repair-artifacts.json",
+    "sha256": "112b5529fcbd8be45edd9498d9b792d2f4ee26ec97fc9af56b9155fccf87a9db",
+    "historical_evidence": true
+  },
+  {
+    "source": "output/banking-user-closure-20261030/authorized-paid/acceptance-index.json",
+    "export": "evidence\\06-authorized-paid-acceptance-index.json",
+    "sha256": "799446358d72a167fffc1d71dc3c2c84c9579bfe2fba61c20d658c6b7d27d417",
+    "historical_evidence": true
+  },
+  {
+    "source": "output\\banking-competition-demo-20261031\\deployment.json",
+    "export": "evidence/demo-20261031-deployment.json",
+    "sha256": "df035d35769b720e6c2c1f972659b88ba56b5be79c8eddd31a9b6e5a7d676e1b",
+    "historical_evidence": false
+  },
+  {
+    "source": "output\\banking-competition-demo-20261031\\final-browser.json",
+    "export": "evidence/demo-20261031-final-browser.json",
+    "sha256": "382757a8d239adab303adfae6aa22cbd4214a08c899a91bbec5e54045ab67d20",
+    "historical_evidence": false
+  },
+  {
+    "source": "output\\banking-competition-demo-20261031\\integrity.json",
+    "export": "evidence/demo-20261031-integrity.json",
+    "sha256": "b25401e362b39dfe58e901d6f2f641052c78c09706a299d44049aa93c0fe3cac",
+    "historical_evidence": false
+  },
+  {
+    "source": "output\\banking-competition-demo-20261031\\changes.json",
+    "export": "evidence/demo-20261031-changes.json",
+    "sha256": "b6fd3de4710b4b8345e382306fae4c4ba6b7289d7b3812dcd916dcf16fea3157",
+    "historical_evidence": false
+  },
+  {
+    "source": "output\\banking-competition-demo-20261031\\acceptance-index.json",
+    "export": "evidence/demo-20261031-acceptance-index.json",
+    "sha256": "1155a8fc271e14c5ecf68d7947e408c771c7c49c18738590f6d6d6f6ad648b5d",
+    "historical_evidence": false
+  },
+  {
+    "source": "authorized v9 real acceptance, original evidence retained in operator workspace",
+    "export": "evidence/real-billing-v9-20261101.json",
+    "sha256": "6e2acd8be40cd23b9547c4f307267a5f7c0d5d720cfb20ef4dd993bfa8637daa",
+    "historical_evidence": true,
+    "not_authorization": true
+  }
+]

@@ -1,0 +1,26 @@
+{
+  "new_business_changes": [
+    {
+      "file": "frontend/ai-banking/src/pages/Billing.vue",
+      "before_sha256": "fb7b3080cef025b624eb44505e77afd08d2449b2ed23791fdcf76aadee9f9ce7",
+      "after_sha256": "bbe2fc24d2323c671a7365caed27e6c0f82a780d5b7d0f6f83cca0c2ac2bc38b"
+    },
+    {
+      "file": "frontend/ai-banking/tests/billing-saved-report.test.ts",
+      "before_sha256": null,
+      "after_sha256": "50dccb6361629f0cdbcaab8ae261ef783c758bc20541eb27dc2295dd6c2fab73"
+    },
+    {
+      "file": "frontend/ai-banking/LOCAL-BUSINESS.md",
+      "before_sha256": "cbe37cd5c36520d7f257d5b2ef8257206b8b84c6317e7d9051c175b6f53e2c54",
+      "after_sha256": "d1893922fa315147234b08c06df5b2ad857055e1f429b6d5597287b2f4054c23"
+    }
+  ],
+  "previous_Go_fix_now_actually_deployed": {
+    "banking-service": "090f23a8ef676c282629a6aad37fa2b8bdc0d7b8f0bba3150cd6866ef5ac6065",
+    "banking-model-gateway": "d0914de91560c6165d8640971880b57a8aa023b50615e1bff64ee370b63c637b"
+  },
+  "Go_or_Python_contract_changed": false,
+  "database_schema_changed": false,
+  "financial_execution_policy_or_budget_changed": false
+}

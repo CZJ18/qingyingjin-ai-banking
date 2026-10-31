@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"regexp"
 	"strconv"
@@ -12,11 +13,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/qingyingjin/banking-service/internal/coze"
 	"github.com/qingyingjin/banking-service/internal/entity"
 	"github.com/qingyingjin/banking-service/internal/identity"
 	"github.com/qingyingjin/banking-service/internal/orchestrator"
 	"github.com/qingyingjin/banking-service/internal/service"
 	"github.com/qingyingjin/banking-service/internal/skills"
+	"github.com/qingyingjin/banking-service/internal/taskproof"
 )
 
 // The bridge delegates only task-bound READ/PLAN/PREPARE identity. The JWT
@@ -26,9 +29,11 @@ type LangGraphExecutor interface {
 	PlanWithEvidence(context.Context, service.Meta, string, orchestrator.Bindings) ([]orchestrator.TaskSpec, string, error)
 }
 type LangGraphBridge struct {
-	keyHash    [32]byte
-	configured bool
-	runner     LangGraphExecutor
+	AdmissionSnapshot func(context.Context, string) (map[string]any, error)
+	ValidateTask      taskproof.Verify
+	keyHash           [32]byte
+	configured        bool
+	runner            LangGraphExecutor
 	// Used by the server to verify an active persisted simulation user.
 	ActiveUser func(context.Context, int64) error
 }
@@ -48,6 +53,23 @@ func validLangGraphTask(raw string) bool {
 	return err == nil && id.String() == m[1]
 }
 func registerLangGraph(user *gin.RouterGroup, auth *identity.Auth, bridge *LangGraphBridge, core *service.Core) {
+	user.GET("/model-admission", func(c *gin.Context) {
+		actor := c.MustGet("actor").(identity.Actor)
+		if actor.Kind != "user" {
+			respond(c, 403, "FORBIDDEN", "user identity required", nil)
+			return
+		}
+		if bridge == nil || bridge.AdmissionSnapshot == nil {
+			respond(c, 503, "MODEL_MONETARY_ADMISSION_REQUIRED", "model admission is not configured", map[string]string{"reason": "MODEL_ADMISSION_NOT_CONFIGURED"})
+			return
+		}
+		snapshot, e := bridge.AdmissionSnapshot(c.Request.Context(), c.GetHeader("Authorization"))
+		if e != nil {
+			coreError(c, entity.Fail(coze.BudgetCode(e), "model admission unavailable or outside approved scope"))
+			return
+		}
+		respond(c, 200, "OK", "", snapshot)
+	})
 	if bridge != nil && bridge.ActiveUser == nil && core != nil && core.Configured() {
 		bridge.ActiveUser = func(ctx context.Context, id int64) error {
 			v, err := core.User(ctx, id)
@@ -87,9 +109,36 @@ func registerLangGraph(user *gin.RouterGroup, auth *identity.Auth, bridge *LangG
 		}
 		c.Next()
 	})
-	g.POST("/delegations", func(c *gin.Context) {
+	g.POST("/background-delegations", func(c *gin.Context) {
 		a := c.MustGet("actor").(identity.Actor)
 		if a.Kind != "user" {
+			respond(c, 403, "FORBIDDEN", "authenticated user required", nil)
+			return
+		}
+		var in struct {
+			TaskID        string `json:"task_id"`
+			RequestDigest string `json:"request_digest"`
+		}
+		if e := decode(c, &in); e != nil {
+			coreError(c, e)
+			return
+		}
+		id, e := uuid.Parse(strings.TrimPrefix(in.TaskID, "lg-"))
+		_, hashErr := hex.DecodeString(in.RequestDigest)
+		if e != nil || in.TaskID != "lg-"+id.String() || len(in.RequestDigest) != 64 || hashErr != nil || in.RequestDigest != strings.ToLower(in.RequestDigest) {
+			respond(c, 400, "INVALID_ARGUMENT", "canonical owned task and digest required", nil)
+			return
+		}
+		cap, e := auth.IssueBackground(a, in.TaskID, in.RequestDigest, 24*time.Hour)
+		if e != nil {
+			respond(c, 503, "DEPENDENCY_UNAVAILABLE", "background delegation unavailable", nil)
+			return
+		}
+		respond(c, 200, "OK", "task-bound background delegation", gin.H{"capability": cap, "task_id": in.TaskID, "request_digest": in.RequestDigest, "expires_in_seconds": 86400})
+	})
+	g.POST("/delegations", func(c *gin.Context) {
+		a := c.MustGet("actor").(identity.Actor)
+		if a.Kind != "user" && a.Kind != "background" {
 			respond(c, 403, "FORBIDDEN", "user identity is required for delegation", nil)
 			return
 		}
@@ -105,7 +154,23 @@ func registerLangGraph(user *gin.RouterGroup, auth *identity.Auth, bridge *LangG
 			coreError(c, entity.Fail("INVALID_ARGUMENT", "LangGraph task namespace required"))
 			return
 		}
-		token, err := auth.IssueAgent(a.UserID, in.AgentType, in.TaskID, 2*time.Minute)
+		if a.Kind == "background" && !strings.HasPrefix(in.TaskID, a.TaskID+".") {
+			respond(c, 403, "FORBIDDEN", "background delegation is task-bound", nil)
+			return
+		}
+		if bridge.ValidateTask != nil {
+			uid, _ := strconv.ParseInt(a.UserID, 10, 64)
+			proof, e := bridge.ValidateTask(c.Request.Context(), uid, in.TaskID)
+			if e != nil || a.Kind == "background" && proof.RequestDigest != a.BackgroundDigest {
+				respond(c, 403, "FORBIDDEN", "active owned task journal required", nil)
+				return
+			}
+			a.TaskVersion, a.LeaseFingerprint, a.TaskRequestDigest = proof.Version, proof.LeaseFingerprint, proof.RequestDigest
+		} else if a.Kind == "background" {
+			respond(c, 503, "DEPENDENCY_UNAVAILABLE", "task state verification required", nil)
+			return
+		}
+		token, err := auth.IssueAgentForActor(a, in.AgentType, in.TaskID, 2*time.Minute)
 		if err != nil {
 			coreError(c, entity.Fail("INVALID_ARGUMENT", "registered specialist required"))
 			return
@@ -117,6 +182,14 @@ func registerLangGraph(user *gin.RouterGroup, auth *identity.Auth, bridge *LangG
 		if a.Kind != "agent" || !validLangGraphTask(a.TaskID) {
 			respond(c, 403, "FORBIDDEN", "signed LangGraph specialist required", nil)
 			return a, false
+		}
+		if bridge.ValidateTask != nil {
+			uid, _ := strconv.ParseInt(a.UserID, 10, 64)
+			proof, e := bridge.ValidateTask(c.Request.Context(), uid, a.TaskID)
+			if e != nil || a.TaskVersion != proof.Version || a.LeaseFingerprint != proof.LeaseFingerprint || a.TaskRequestDigest != proof.RequestDigest {
+				respond(c, 403, "FORBIDDEN", "current task lease required", nil)
+				return a, false
+			}
 		}
 		return a, true
 	}
@@ -138,11 +211,21 @@ func registerLangGraph(user *gin.RouterGroup, auth *identity.Auth, bridge *LangG
 			return
 		}
 		b, err := skills.Resolve(skills.Request{SkillID: in.SkillID, SkillVersion: in.SkillVersion, Agent: a.AgentType, Tool: in.Tool, Mode: in.ExecutionMode})
-		if err != nil || in.SkillID == "" || in.SkillVersion <= 0 || in.ExecutionMode != b.Mode || a.AgentType == "supervisor" || (b.Mode != "read_only" && b.Mode != "advice") {
+		if err != nil || in.SkillID == "" || in.SkillVersion <= 0 || in.ExecutionMode != b.Mode || (a.AgentType == "supervisor" && in.Tool != "model_smoke" && in.Tool != "get_scenario_overview") || (b.Mode != "read_only" && b.Mode != "advice") {
 			respond(c, 403, "FORBIDDEN", "registered specialist READ or PLAN tool required", nil)
 			return
 		}
-		ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
+		if in.Tool == "get_scenario_overview" {
+			if in.UseCoze {
+				coreError(c, entity.Fail("INVALID_TASK_PLAN", "scenario overview cannot request an additional model call"))
+				return
+			}
+			if e := orchestrator.ValidateParameters(in.Tool, in.Parameters, true); e != nil {
+				coreError(c, e)
+				return
+			}
+		}
+		ctx, cancel := context.WithTimeout(coze.WithDelegation(c.Request.Context(), strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer ")), 60*time.Second)
 		defer cancel()
 		out, err := bridge.runner.Run(ctx, orchestrator.Call{Meta: meta(c), TaskID: a.TaskID, AgentType: a.AgentType, SkillID: b.SkillID, SkillVersion: b.SkillVersion, Mode: b.Mode, Tool: in.Tool, Parameters: in.Parameters, UseCoze: in.UseCoze, InvocationKey: "langgraph:" + a.TaskID})
 		if ctx.Err() != nil {
@@ -181,7 +264,7 @@ func registerLangGraph(user *gin.RouterGroup, auth *identity.Auth, bridge *LangG
 			coreError(c, entity.Fail("INVALID_ARGUMENT", "bounded instruction required"))
 			return
 		}
-		ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
+		ctx, cancel := context.WithTimeout(coze.WithDelegation(c.Request.Context(), strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer ")), 60*time.Second)
 		defer cancel()
 		tasks, executeID, err := bridge.runner.PlanWithEvidence(ctx, meta(c), in.Instruction, in.Bindings)
 		if ctx.Err() != nil {

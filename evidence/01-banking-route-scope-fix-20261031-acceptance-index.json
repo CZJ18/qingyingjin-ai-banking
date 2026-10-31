@@ -1,0 +1,93 @@
+{
+  "status": "PASS_TWO_CROSS_PAGE_UX_FIXES_DEPLOYED_REAL_AI_NOT_ENABLED",
+  "date": "2026-10-31 Asia/Shanghai",
+  "url": "http://127.0.0.1:30432/assistant",
+  "old30430_preserved": true,
+  "statistics": {
+    "PASS": 10,
+    "FAIL": 0,
+    "PARTIAL": 0,
+    "BLOCKED": 1,
+    "SKIPPED": 1
+  },
+  "checks": [
+    {
+      "item": "Scoped draft, subscription semantics and existing frontend regressions",
+      "status": "PASS",
+      "test_count": 33,
+      "evidence": "command-005-draft-scope-existing-and-new-regression.json"
+    },
+    {
+      "item": "Frontend TypeScript check",
+      "status": "PASS",
+      "evidence": "command-006-draft-scope-final-types.json"
+    },
+    {
+      "item": "Actual new UI build/static bytes and exact reused Go/Python contracts",
+      "status": "PASS",
+      "evidence": "deployment.json"
+    },
+    {
+      "item": "Actual return from evidence details restores draft/form/validated preview without auto POST",
+      "status": "PASS",
+      "evidence": "restored-draft.json"
+    },
+    {
+      "item": "Actual delayed original report GET cannot cross account boundary",
+      "status": "PASS",
+      "evidence": "delayed-source-account-scope.json"
+    },
+    {
+      "item": "Fresh explicit calculation/selection, clearing on logout/account, no restored confirmation reply, saved trial retained",
+      "status": "PASS",
+      "evidence": "browser.json"
+    },
+    {
+      "item": "Subscription source reference carried; selected table and explicit user-wide summary/list scopes consistent",
+      "status": "PASS",
+      "evidence": "subscription-scope.json"
+    },
+    {
+      "item": "Mobile390px layout no overflow",
+      "status": "PASS",
+      "evidence": "subscription-scope-mobile.png"
+    },
+    {
+      "item": "Old task/usage/trial/transaction and fee/intent snapshots unchanged",
+      "status": "PASS",
+      "evidence": "integrity.json"
+    },
+    {
+      "item": "Rollback stops only new frontend containers and keeps data",
+      "status": "PASS",
+      "evidence": "command-030-stop-only-new-ui-rollback-preview.json"
+    },
+    {
+      "item": "New real AI conversation",
+      "status": "BLOCKED",
+      "reason": "No configured fresh model admission for this instance/scope; no new paid request or credential read."
+    },
+    {
+      "item": "Official provider billing reconciliation",
+      "status": "SKIPPED",
+      "reason": "No official bill provided; not part of these two UI fixes."
+    }
+  ],
+  "changes": "changes.json",
+  "commands": "commands.json",
+  "deployment": "deployment.json",
+  "browser": "browser.json",
+  "integrity": "integrity.json",
+  "rollback": "rollback.ps1",
+  "readiness": {
+    "http://127.0.0.1:30432/readyz": 200,
+    "http://127.0.0.1:30432/product/readyz": 200,
+    "http://127.0.0.1:30430/readyz": 200,
+    "http://127.0.0.1:30430/product/readyz": 200
+  },
+  "new_model_calls": 0,
+  "new_financial_intents": 0,
+  "new_Agent_tasks": 0,
+  "supplier_credentials_read": 0,
+  "note": "Temporary drafts do not survive page refresh; saved server trials do. Subscription management aggregates remain explicitly user-wide, while table selection and previous query reference are shown separately."
+}

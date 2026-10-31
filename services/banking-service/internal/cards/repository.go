@@ -25,7 +25,7 @@ func Read(db *gorm.DB, user int64) ([]Card, error) {
 	defaults := 0
 	seen := map[string]bool{}
 	for i, c := range out {
-		if uuid.Validate(c.ID) != nil || seen[c.ID] || Validate(Input{Action: "bind", AccountID: c.AccountID, Issuer: c.Issuer, Name: c.Name, LastFour: c.LastFour, CardType: c.CardType, CreditLimitMinor: c.CreditLimitMinor}) != nil || c.CreditUsedMinor < 0 || c.CreditUsedMinor > c.CreditLimitMinor || !c.IsSimulated || c.Currency != "CNY" || (c.Status != "active" && c.Status != "unbound") || c.Status == "unbound" && c.Default {
+		if uuid.Validate(c.ID) != nil || seen[c.ID] || Validate(Input{Action: "bind", AccountID: c.AccountID, Issuer: c.Issuer, Name: c.Name, LastFour: c.LastFour, CardType: c.CardType, CreditLimitMinor: c.CreditLimitMinor}) != nil || c.CreditUsedMinor < 0 || c.CreditUsedMinor > c.CreditLimitMinor || !c.IsSimulated || c.Currency != "CNY" || (c.Status != "active" && c.Status != "unbound" && c.Status != "locked" && c.Status != "lost") || c.Status != "active" && c.Default || c.TransactionLimitMinor != nil && (*c.TransactionLimitMinor < 0 || *c.TransactionLimitMinor > entity.MaxBalance) {
 			return nil, entity.Fail("DEPENDENCY_UNAVAILABLE", "invalid persisted card portfolio")
 		}
 		seen[c.ID] = true

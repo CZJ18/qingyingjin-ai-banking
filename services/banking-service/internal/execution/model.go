@@ -66,6 +66,9 @@ func strict(raw []byte, out any) error {
 }
 func marshal(v any) json.RawMessage { b, _ := json.Marshal(v); return b }
 func kindValid(s string) bool {
+	if scenarioKind(s) {
+		return true
+	}
 	switch s {
 	case "recipient_transfer", "aa_payment", "card_manage", "transfer", "savings_deposit", "savings_withdrawal", "cancel_subscription", "budget_rule_update", "account_status", "open_account", "import_transaction", "create_budget", "create_savings_goal", "subscription_manage":
 		return true

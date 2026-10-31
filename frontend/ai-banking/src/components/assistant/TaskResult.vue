@@ -1,14 +1,57 @@
 <script setup lang="ts">
+import { categoryLabel } from '@/lib/categories'
 import { computed } from 'vue'
 import { ArrowUpRight } from 'lucide-vue-next'
 import type { Schema } from '@/api/client'
-import { preparedOperationId, type TaskRow } from '@/components/agents/task-view'
+import { operationSuggestion, preparedOperationId, type TaskRow, type OperationSuggestion } from '@/components/agents/task-view'
 import Chart from '@/components/Chart.vue'
+import ScenarioOverview from '@/components/assistant/ScenarioOverview.vue'
 import JsonDetails from '@/components/JsonDetails.vue'
 import { money } from '@/lib/utils'
+import { billingFindingText } from '@/lib/business-copy'
+import { selectedExpenseActions } from '@/lib/expense-goal-actions'
+import {subscriptionManagementPath,subscriptionForecastView} from '@/lib/subscription-scope'
 const props = defineProps<{ task: TaskRow }>()
-defineEmits<{ inspect: [id: string] }>()
+defineEmits<{ inspect: [id: string]; goal: []; prepare: [proposal: OperationSuggestion] }>()
 const operationId = computed(() => preparedOperationId(props.task.output))
+const suggestion = computed(() => operationSuggestion(props.task))
+const scenarioResult = computed(() => {
+  const task = props.task
+  if (task.agent_type !== 'supervisor' || task.skill_id !== 'task_planning' ||
+    task.skill_version !== 1 || task.status !== 'succeeded' ||
+    task.output?.financial_execution_enabled !== false ||
+    task.tool && task.tool !== 'get_scenario_overview' ||
+    task.execution_mode && task.execution_mode !== 'read_only') return null
+  // Natural-language requests preserve tasks:[]; the persisted result still has
+  // a typed scenario DTO. Render that DTO without inventing missing plan fields.
+  const result = data.value
+  return typeof result.scenario === 'string' &&
+    ['transfer', 'cards', 'investment', 'subscriptions', 'birthday'].includes(result.scenario) &&
+    result.is_simulated === true && Array.isArray(result.items) && Array.isArray(result.limitations)
+    ? result : null
+})
+const isScenarioOverview = computed(() => props.task.tool === 'get_scenario_overview' || scenarioResult.value !== null)
+const operationNames: Record<string, string> = {
+  transfer:'账户转账',recipient_transfer:'收款人转账',scheduled_transfer:'定时转账',aa_payment:'AA付款',
+  cancel_subscription:'取消订阅',card_manage:'卡片管理',investment_assessment:'风险测评',investment_order:'理财申赎',
+  occasion_plan:'生日资金预留',occasion_order:'生日订购',occasion_release:'退回生日预留',
+  savings_deposit:'存入目标金',savings_withdrawal:'取出目标金',create_savings_goal:'创建目标金',budget_rule_update:'调整预算规则',
+}
+const actionNames: Record<string, string> = {lock:'锁定卡片',unlock:'解锁卡片',report_lost:'挂失卡片',apply:'申请卡片',bind:'绑定卡片',unbind:'解绑卡片',set_default:'设为默认卡',adjust_limit:'调整信用额度',set_transaction_limit:'调整交易限额',buy:'申购',redeem:'赎回'}
+const proposalFields = computed(() => {
+  const params = suggestion.value?.parameters as Record<string, unknown> | undefined
+  if (!params) return []
+  const result: {label:string;value:string}[] = []
+  for (const [key,label] of Object.entries({action:'建议操作',account_id:'账户编号',source_account_id:'转出账户编号',target_account_id:'转入账户编号',card_id:'卡片编号',subscription_id:'订阅编号',goal_id:'目标编号',product_id:'产品编号',plan_id:'计划编号',name:'对象称呼',birthday:'生日日期',description:'用途'})) {
+    const value = params[key]
+    if (typeof value === 'string' && value.length <= 256) result.push({label,value:key==='action' ? actionNames[value] || value : value})
+  }
+  for (const [key,label] of Object.entries({amount_minor:'建议金额',reserve_minor:'建议预留',credit_limit_minor:'建议信用额度',transaction_limit_minor:'建议单笔限额'})) {
+    const value=params[key]
+    if (typeof value==='number' && Number.isSafeInteger(value) && value>=0) result.push({label,value:money(value)})
+  }
+  return result
+})
 const record = (v: unknown): Record<string, unknown> =>
   v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {}
 const data = computed(() => {
@@ -23,9 +66,22 @@ const data = computed(() => {
 const billing = computed(() =>
   'category_breakdown' in data.value ? (data.value as Schema<'BillingReport'>) : null,
 )
+const billingActions = computed(() => {
+  const report = billing.value
+  if (!report?.report_id || !Array.isArray(report.category_breakdown)) return []
+  const observed = report.category_breakdown
+    .filter(row => Number.isSafeInteger(row.expense_minor) && row.expense_minor > 0 &&
+      Array.isArray(row.transaction_ids) && row.transaction_ids.length > 0)
+    .slice().sort((a, b) => b.expense_minor - a.expense_minor)
+  return selectedExpenseActions(observed.map(row => row.category)).slice(0, 3).map(action => ({
+    ...action,
+    evidence: observed.find(row => row.category === action.category)!,
+  }))
+})
 const subscription = computed(() =>
   'active_recurring_forecast' in data.value ? (data.value as Schema<'SubscriptionReport'>) : null,
 )
+const subscriptionForecast=computed(()=>subscriptionForecastView(subscription.value))
 const planning = computed(() =>
   'suggested_savings_minor' in data.value ? (data.value as Schema<'PlanningResult'>) : null,
 )
@@ -61,7 +117,7 @@ const destination = computed(() =>
   billing.value
     ? '/billing'
     : subscription.value
-      ? '/subscriptions'
+      ? subscriptionManagementPath(props.task.parameters)
       : planning.value
         ? '/planning'
         : lifestyle.value
@@ -71,7 +127,7 @@ const destination = computed(() =>
             : '/agents',
 )
 const title = computed(() =>
-  billing.value
+  isScenarioOverview.value ? '场景可用资源（只读）' : billing.value
     ? '财务分析摘要'
     : subscription.value
       ? '订阅支出与优化建议'
@@ -79,6 +135,8 @@ const title = computed(() =>
         ? '资金规划方案'
         : lifestyle.value
           ? '生活目标资金方案'
+          : suggestion.value
+            ? '待核对的操作建议'
           : operationId.value
             ? '已准备的金融操作意向'
             : props.task.agent_type === 'supervisor'
@@ -119,7 +177,7 @@ const chart = computed(() => ({
       itemStyle: { borderWidth: 3, borderColor: '#fff', borderRadius: 4 },
       data:
         billing.value?.category_breakdown?.map((c) => ({
-          name: c.category,
+          name: categoryLabel(c.category),
           value: c.expense_minor / 100,
         })) || [],
     },
@@ -135,9 +193,12 @@ const chart = computed(() => ({
       </div>
       <RouterLink :to="destination">{{ action }}<ArrowUpRight :size="15" /></RouterLink>
     </header>
+    <h4 v-if="billing">结论</h4>
     <p v-if="task.output?.explanation" class="result-explanation">{{ task.output.explanation }}</p>
-    <template v-if="billing"
-      ><div class="result-metrics">
+    <p v-else-if="billing" class="result-note">以下为服务端账单统计；尚无本次模型文字解读。</p>
+    <ScenarioOverview v-if="isScenarioOverview" :result="scenarioResult" />
+    <template v-else-if="billing"
+      ><h4>数据依据</h4><p class="result-note">已记录 {{ billing.transaction_count }} 笔交易。金额来自 Go 账单工具，模型不能修改。</p><div class="result-metrics">
         <div>
           <span>总收入</span><strong>{{ money(billing.total_income) }}</strong>
         </div>
@@ -153,27 +214,49 @@ const chart = computed(() => ({
         <div>
           <h4>消费结构</h4>
           <div v-for="c in billing.category_breakdown" :key="c.category" class="result-row">
-            <span>{{ c.category }}</span
+            <span>{{ categoryLabel(c.category) }}</span
             ><b>{{ money(c.expense_minor) }}</b>
           </div>
         </div>
       </div>
       <p v-else class="result-note">当前分析区间没有消费分类记录。</p>
       <p v-for="f in billing.findings" :key="f.finding_id" class="result-note">
-        {{ f.description }}
-      </p></template
+        {{ billingFindingText(f, billing) }}
+      </p>
+      <h4>分析局限</h4>
+      <p class="result-note">尚未核验是否覆盖完整月份。没有记录不等于没有花费，不能据此确认下月可节省金额，也不能将收入记录当作可用余额。</p>
+      <h4>具体建议</h4>
+      <section v-if="billingActions.length" aria-label="按账单生成的可选行动">
+        <p class="result-note">以下是规则生成的可选行动，与上方模型解读分开。由你决定是否试行，不会替你选择削减类别或修改预算。</p>
+        <ol class="result-note">
+          <li v-for="action in billingActions" :key="action.category">
+            <strong>{{ action.title }}</strong>
+            <p>{{ categoryLabel(action.category) }}已记录 {{ money(action.evidence.expense_minor) }} · {{ action.evidence.transaction_ids.length }} 笔；记录金额不是可节省额度。</p>
+            <p>{{ action.action }}</p>
+            <p>怎么复盘：{{ action.check }}</p>
+            <RouterLink :to="{path:'/billing',query:{report_id:billing.report_id,category:action.category}}">核对{{ categoryLabel(action.category) }}明细 →</RouterLink>
+          </li>
+        </ol>
+        <p class="result-note">先试行、记录并在一周后核对总支出。完整月份账单尚未核实，不能据此承诺下月能省到目标金额；必要生活支出优先保留。</p>
+      </section>
+      <ol v-else class="result-note"><li>补齐上一完整月份账单，再选择你愿意调整的开支，保留必要生活支出。</li><li>将目标拆解为每周观察，试行后对比实际花费；不把延期消费或未确认取消记作已节省。</li></ol>
+      <button type="button" class="result-goal-link" @click="$emit('goal')">设置下月少花目标 →</button>
+      <p v-if="task.output?.workflow_execute_id" class="result-note">模型费用未正式对账；响应或用量记录不代表已结算。原始调用依据可在执行详情中查看。</p>
+    </template
     >
     <template v-else-if="subscription"
-      ><div class="result-metrics">
+      ><p v-if="!subscription.subscriptions.length" class="result-note" role="status">当前账户和分析区间未识别到订阅候选，暂无法估算；这不代表实际订阅费用为零。可到订阅管理核对已登记项目及扣费记录。</p>
+      <div class="result-metrics">
         <div>
-          <span>月度订阅预测</span
-          ><strong>{{ money(subscription.active_recurring_forecast.monthly_minor) }}</strong>
+          <span>全部活跃订阅确认停扣后的月度费用参考</span
+          ><strong>{{ subscriptionForecast.activeMinor===null ? '暂无法估算' : money(subscriptionForecast.activeMinor) }}</strong>
         </div>
         <div>
           <span>重复订阅线索</span
           ><strong>{{ subscription.duplicate_groups?.length ?? 0 }}<small>组</small></strong>
         </div>
       </div>
+      <p v-if="subscription.subscriptions.length" class="result-note">该金额以已识别活跃订阅全部确认停扣为条件，没有可估算的活跃记录时保留未知。不是下月实际账单，不是已节省金额，也不会增加可用余额。</p>
       <div
         v-for="entry in subscription.subscriptions"
         :key="entry.subscription.id"
@@ -303,10 +386,18 @@ const chart = computed(() => ({
         待补充：{{ missing }}
       </p></template
     >
+    <template v-else-if="suggestion">
+      <h4>{{ operationNames[suggestion.kind] || '业务操作' }} · 模拟业务</h4>
+      <dl class="proposal-fields"><div v-for="field in proposalFields" :key="field.label"><dt>{{ field.label }}</dt><dd>{{ field.value }}</dd></div></dl>
+      <p class="result-note">这是待核对的业务参数，尚未通过账户归属、余额和风控校验，也未创建金融操作意向。</p>
+      <p class="result-note">请先核对建议。下一步由 Go 按当前账户状态校验并创建待授权意向，实际执行仍需你单独授权。</p>
+      <JsonDetails :value="suggestion" label="核对建议的操作参数" />
+      <button type="button" class="result-goal-link" @click="$emit('prepare', suggestion)">核对并创建操作意向 →</button>
+    </template>
     <template v-else
       ><p class="result-note">该步骤已返回服务端记录，可展开业务详情核对具体字段。</p></template
     >
-    <div v-if="pendingActions.length" class="result-warning">
+    <div v-if="pendingActions.length && !suggestion" class="result-warning">
       <h4>待确认操作</h4>
       <p v-for="(a, i) in pendingActions" :key="i">{{ a.type }}</p>
       <RouterLink to="/agents">核对操作详情并确认</RouterLink>
@@ -317,11 +408,12 @@ const chart = computed(() => ({
         <summary>查看数据来源</summary>
         <p>{{ evidence }}</p>
       </details>
-      <JsonDetails :value="task.output" label="查看业务详情与完整返回" />
+      <JsonDetails v-if="!isScenarioOverview" :value="task.output" label="查看业务详情与完整返回" />
     </footer>
   </article>
 </template>
 <style scoped>
+.proposal-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:16px 0}.proposal-fields div{min-width:0}.proposal-fields dt{font-size:13px;color:#64748b}.proposal-fields dd{margin:5px 0 0;font-size:14px;overflow-wrap:anywhere}
 .business-result {
   margin: 0 !important;
   padding: 24px !important;

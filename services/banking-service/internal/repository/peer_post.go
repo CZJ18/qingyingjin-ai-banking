@@ -43,6 +43,9 @@ func postCrossUserJournals(db *gorm.DB, op *entity.OperationIntent, source, targ
 		if prefix == "aa" {
 			merchant = "模拟AA结算"
 		}
+		if prefix == "scenario" {
+			merchant = "模拟场景内部划转"
+		}
 		journal := uuid.NewString()
 		auditID := uuid.NewString()
 		external := prefix + ":" + op.ID + ":" + direction

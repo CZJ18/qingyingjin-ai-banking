@@ -57,4 +57,18 @@ func registerRecipients(user *gin.RouterGroup, core *service.Core, auth *useraut
 		v, e := core.Recipients().Search(c.Request.Context(), meta(c).UserID, in)
 		finish(c, v, e, 200)
 	})
+	g.PUT("/remarks", func(c *gin.Context) {
+		var in recipients.RemarkInput
+		if e := decode(c, &in); e != nil {
+			coreError(c, e)
+			return
+		}
+		actor := c.MustGet("actor").(identity.Actor)
+		if e := auth.AllowRecipientLookup(c.Request.Context(), actor.UserID, c.ClientIP()); e != nil {
+			coreError(c, e)
+			return
+		}
+		v, e := core.Recipients().SaveRemark(c.Request.Context(), meta(c).UserID, in)
+		finish(c, v, e, 200)
+	})
 }

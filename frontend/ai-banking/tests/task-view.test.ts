@@ -77,6 +77,14 @@ describe('Agent workbench evidence', () => {
     expect(taskControls('interrupted')).toEqual({ run: true, cancel: true })
     expect(taskControls('succeeded')).toEqual({ run: false, cancel: false })
   })
+  it('does not offer replay for an unknown model outcome', () => {
+    expect(taskControls('failed', 'MODEL_OUTCOME_UNKNOWN')).toEqual({run:false,cancel:true})
+    expect(taskControls('interrupted', 'TOOL_OUTCOME_UNKNOWN')).toEqual({run:false,cancel:true})
+    expect(taskControls('failed', 'MODEL_BUDGET_UNAVAILABLE')).toEqual({run:true,cancel:true})
+  })
+  it('does not offer blind replay of legacy Coze failures', () => {
+    expect(taskControls('failed', 'COZE_UNAVAILABLE').run).toBe(false)
+  })
   it('opens only a native prepared intent and never offers financial execution from task data', () => {
     const out = {
       skill_id: 'operation_preparation',

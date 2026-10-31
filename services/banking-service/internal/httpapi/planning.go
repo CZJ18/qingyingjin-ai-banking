@@ -3,6 +3,7 @@ package httpapi
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/qingyingjin/banking-service/internal/entity"
+	"github.com/qingyingjin/banking-service/internal/identity"
 	"github.com/qingyingjin/banking-service/internal/planning"
 	"strconv"
 )
@@ -17,6 +18,19 @@ func registerPlanning(user, tools *gin.RouterGroup, s *planning.Service) {
 		c.Next()
 	}
 	g := user.Group("/financial-plans", ready)
+	g.GET("", func(c *gin.Context) {
+		if c.MustGet("actor").(identity.Actor).Kind != "user" {
+			respond(c, 403, "FORBIDDEN", "user identity required", nil)
+			return
+		}
+		limit, offset, e := lifestylePage(c)
+		if e != nil {
+			coreError(c, e)
+			return
+		}
+		out, e := s.Plans(c.Request.Context(), meta(c).UserID, limit, offset)
+		finish(c, out, e, 200)
+	})
 	g.POST("", func(c *gin.Context) {
 		input(c, func(in planning.CreateInput) (any, error) { return s.Create(c.Request.Context(), meta(c), in) }, 201)
 	})

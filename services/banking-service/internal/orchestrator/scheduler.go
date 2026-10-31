@@ -244,7 +244,7 @@ func dynamicVerification(tx *gorm.DB, j Job, t AgentTask, out AgentOutput) error
 		return e
 	}
 	clean := map[string]json.RawMessage{}
-	for _, key := range []string{"from", "to", "account_id"} {
+	for _, key := range []string{"to", "account_id"} {
 		if val, ok := params[key]; ok {
 			clean[key] = val
 		}

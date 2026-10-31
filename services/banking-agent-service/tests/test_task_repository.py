@@ -58,6 +58,26 @@ def test_body_limit_and_json_contract():
             body(invalid)
 
 
+def test_history_pagination_is_owned_read_only_and_does_not_expose_capabilities(tasks):
+    repo, user = tasks
+    first = repo.submit(user, "history-first", "first", {"instruction": "first"}, "trace")
+    second = repo.submit(user, "history-second", "second", {"instruction": "second"}, "trace")
+    repo.repository.ensure_identity(user + "-other", None, "test")
+    repo.submit(user + "-other", "history-other", "other", {"instruction": "foreign"}, "trace")
+    events_before = repo.events(user, first["task_id"], 0, 100)
+    page = repo.list_recent(user, 1, 0)
+    assert page["total"] == 2
+    assert [x["task_id"] for x in page["items"]] == [second["task_id"]]
+    assert page["items"][0]["instruction"] == "second"
+    assert set(page["items"][0]) == {
+        "task_id", "status", "version", "instruction", "display_title", "error_code", "created_at", "updated_at"
+    }
+    assert repo.list_recent(user, 1, 1)["items"][0]["task_id"] == first["task_id"]
+    assert repo.list_recent(user, 1, 2)["items"] == []
+    assert repo.get(user, first["task_id"])["status"] == "queued"
+    assert repo.events(user, first["task_id"], 0, 100) == events_before
+
+
 def test_task_replay_lease_confirmation_and_tenant_isolation(tasks):
     from banking_agent.errors import DomainError
 

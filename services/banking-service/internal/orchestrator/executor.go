@@ -7,6 +7,7 @@ import (
 	"errors"
 	"github.com/google/uuid"
 	"github.com/qingyingjin/banking-service/internal/outbound"
+	"github.com/qingyingjin/banking-service/internal/scenariooverview"
 	"github.com/qingyingjin/banking-service/internal/skills"
 	"io"
 	"net/http"
@@ -61,6 +62,13 @@ func NewHTTPExecutor(baseURL string, auth *identity.Auth, runner WorkflowRunner,
 	ids := map[string]string{}
 	for role, id := range workflowIDs {
 		if id != "" {
+			if direct, ok := runner.(interface{ DirectProvider() bool }); ok && direct.DirectProvider() {
+				if !coze.DirectWorkflowAllowed(role, id) {
+					return nil, errors.New("direct mode permits only the exact local Supervisor or opt-in billing/lifestyle explanation adapters")
+				}
+				ids[role] = id
+				continue
+			}
 			if _, e := planning.ID(id); e != nil {
 				return nil, errors.New("invalid configured workflow ID")
 			}
@@ -89,6 +97,40 @@ func (x *HTTPExecutor) Run(ctx context.Context, c Call) (AgentOutput, error) {
 	if e := ValidateParameters(c.Tool, c.Parameters, true); e != nil {
 		return out, e
 	}
+	if c.Tool == "model_smoke" {
+		direct, ok := x.coze.(interface{ DirectProvider() bool })
+		if !ok || !direct.DirectProvider() || c.UseCoze || x.workflows["supervisor"] != "direct_provider" {
+			return out, entity.Fail("MODEL_MONETARY_ADMISSION_REQUIRED", "isolated direct smoke runner required")
+		}
+		if !coze.HasDelegation(ctx) {
+			token, e := x.auth.IssueAgent(strconv.FormatInt(c.Meta.UserID, 10), "supervisor", c.TaskID, 2*time.Minute)
+			if e != nil {
+				return out, entity.Fail("MODEL_MONETARY_ADMISSION_REQUIRED", "task delegation unavailable")
+			}
+			ctx = coze.WithDelegation(ctx, token)
+		}
+		r, e := x.coze.RunSyncWorkflow(ctx, coze.RunRequest{WorkflowID: "direct_provider_smoke", Parameters: map[string]any{}})
+		if e != nil {
+			if code := coze.BudgetCode(e); code != "" {
+				return out, entity.Fail(code, "direct smoke admission or response failed")
+			}
+			return out, entity.Fail("MODEL_OUTCOME_UNKNOWN", "direct smoke response not verified")
+		}
+		var result struct {
+			Response string `json:"model_response"`
+			Model    string `json:"model"`
+			Smoke    bool   `json:"smoke_only"`
+		}
+		if workflowOutput(r, &result) != nil || result.Response != "BANKING_SMOKE_OK" || result.Model == "" || !result.Smoke {
+			return out, invalidOutput()
+		}
+		out.Result, _ = json.Marshal(result)
+		out.WorkflowExecuteID = r.ExecuteID
+		return out, nil
+	}
+	if c.Tool == "get_scenario_overview" && c.UseCoze {
+		return out, entity.Fail("INVALID_TASK_PLAN", "scenario overview cannot request a model call")
+	}
 	if c.UseCoze && (x.coze == nil || x.workflows[c.AgentType] == "") {
 		return out, entity.Fail("COZE_UNAVAILABLE", "published specialist workflow is not configured")
 	}
@@ -98,6 +140,15 @@ func (x *HTTPExecutor) Run(ctx context.Context, c Call) (AgentOutput, error) {
 	if p.Mode == "intent" {
 		if !c.Confirmed {
 			return out, entity.Fail("CONFIRMATION_REQUIRED", "intent proposal requires explicit user confirmation")
+		}
+		if c.Tool == "require_gateway" {
+			result, err := suggestionResult(c.Parameters)
+			if err != nil {
+				return out, err
+			}
+			out.Result = result
+			out.NextActions = append(out.NextActions, NextAction{Type: "review_operation_proposal", RequiresConfirmation: true})
+			return out, nil
 		}
 		if c.Tool != "create_cancel_intent" || x.gateway == nil {
 			return out, entity.Fail("GATEWAY_UNAVAILABLE", "module 8 proposal gateway is required")
@@ -129,6 +180,13 @@ func (x *HTTPExecutor) Run(ctx context.Context, c Call) (AgentOutput, error) {
 		}
 	}
 	if c.UseCoze {
+		delegation, e := x.auth.IssueAgent(strconv.FormatInt(c.Meta.UserID, 10), c.AgentType, c.TaskID, 2*time.Minute)
+		if e != nil {
+			return out, entity.Fail("MODEL_MONETARY_ADMISSION_REQUIRED", "task delegation unavailable")
+		}
+		if !coze.HasDelegation(ctx) {
+			ctx = coze.WithDelegation(ctx, delegation)
+		}
 		if e := x.explain(ctx, c, &out); e != nil {
 			return out, e
 		}
@@ -138,6 +196,9 @@ func (x *HTTPExecutor) Run(ctx context.Context, c Call) (AgentOutput, error) {
 
 func (x *HTTPExecutor) bank(ctx context.Context, c Call) (json.RawMessage, error) {
 	method, path, body := "POST", "/api/v1/"+c.AgentType+"/"+c.Tool, c.Parameters
+	if c.Tool == "get_scenario_overview" && c.AgentType == "supervisor" {
+		path = "/api/v1/scenarios/get_scenario_overview"
+	}
 	if c.AgentType == "subscription" {
 		path = "/api/v1/subscriptions/" + c.Tool
 	}
@@ -282,6 +343,24 @@ func rawSchema(name string, raw []byte) error {
 
 func (x *HTTPExecutor) validateBank(c Call, out *AgentOutput) error {
 	switch c.AgentType {
+	case "supervisor":
+		if c.Tool != "get_scenario_overview" {
+			return invalidOutput()
+		}
+		var in scenariooverview.Input
+		var v scenariooverview.Output
+		if strictJSON(c.Parameters, &in) != nil {
+			return invalidOutput()
+		}
+		var err error
+		v, err = scenariooverview.DecodeOutput(out.Result, in, c.Meta.UserID)
+		if err != nil {
+			return invalidOutput()
+		}
+		for _, item := range v.Items {
+			out.Evidence = append(out.Evidence, Evidence{Type: item.Kind, ID: item.ID})
+		}
+		return nil
 	case "lifestyle":
 		var in lifestyle.IDInput
 		_ = json.Unmarshal(c.Parameters, &in)
@@ -461,6 +540,13 @@ func (x *HTTPExecutor) explain(ctx context.Context, c Call, out *AgentOutput) er
 		return x.explainLifestyle(ctx, c, out)
 	}
 	safeResult, err := explanationData(out.Result)
+	modelEvidence := out.Evidence
+	if c.AgentType == "billing" {
+		safeResult, err = billingExplanationData(out.Result)
+		if err == nil {
+			modelEvidence, err = billingExplanationEvidence(out.Evidence)
+		}
+	}
 	if err != nil {
 		return invalidOutput()
 	}
@@ -469,7 +555,7 @@ func (x *HTTPExecutor) explain(ctx context.Context, c Call, out *AgentOutput) er
 		AgentType string          `json:"agent_type"`
 		Result    json.RawMessage `json:"authoritative_result"`
 		Evidence  []Evidence      `json:"evidence"`
-	}{c.TaskID, c.AgentType, safeResult, out.Evidence})
+	}{c.TaskID, c.AgentType, safeResult, modelEvidence})
 	r, e := x.coze.RunSyncWorkflow(ctx, coze.RunRequest{WorkflowID: x.workflows[c.AgentType], TraceID: c.Meta.TraceID, Parameters: map[string]any{"input_string": string(payload)}})
 	if e != nil {
 		if code := coze.BudgetCode(e); code != "" {
@@ -492,7 +578,7 @@ func (x *HTTPExecutor) explain(ctx context.Context, c Call, out *AgentOutput) er
 	if result.TaskID != c.TaskID || result.AgentType != c.AgentType {
 		return entity.Fail("MODEL_OUTPUT_INVALID", "specialist output identity or explanation invalid")
 	}
-	if err = validateExplanation(result.Explanation, result.EvidenceIDs, out.Evidence); err != nil {
+	if err = validateExplanation(result.Explanation, result.EvidenceIDs, modelEvidence); err != nil {
 		return err
 	}
 	out.Explanation = result.Explanation
@@ -512,6 +598,17 @@ func (x *HTTPExecutor) PlanWithEvidence(ctx context.Context, m service.Meta, ins
 		key = "planner:" + uuid.NewString()
 	}
 	ctx = coze.WithIdentity(ctx, m.UserID, key)
+	task := m.TaskID
+	if task == "" {
+		task = key
+	}
+	delegation, delegateErr := x.auth.IssueAgent(strconv.FormatInt(m.UserID, 10), "supervisor", task, 2*time.Minute)
+	if delegateErr != nil {
+		return nil, "", entity.Fail("MODEL_MONETARY_ADMISSION_REQUIRED", "task delegation unavailable")
+	}
+	if !coze.HasDelegation(ctx) {
+		ctx = coze.WithDelegation(ctx, delegation)
+	}
 	if x.coze == nil || x.workflows["supervisor"] == "" {
 		return nil, "", entity.Fail("COZE_UNAVAILABLE", "published Supervisor workflow is not configured")
 	}
@@ -539,6 +636,9 @@ func (x *HTTPExecutor) PlanWithEvidence(ctx context.Context, m service.Meta, ins
 		return nil, "", e
 	}
 	tasks, e := ValidateTasks(result.Tasks)
+	if e == nil {
+		e = validateAccountBindings(tasks, bindings)
+	}
 	if e == nil {
 		e = validateLifestyleBindings(tasks, bindings)
 	}

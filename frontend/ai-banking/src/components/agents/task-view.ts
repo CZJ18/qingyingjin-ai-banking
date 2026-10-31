@@ -1,5 +1,6 @@
 /** Presentation of observed task data. Missing execution facts stay missing. */
 import { minor } from '../../lib/utils'
+import type { Schema } from '@/api/client'
 export type ResultRecord = Record<string, unknown>
 export function record(value: unknown): ResultRecord {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as ResultRecord) : {}
@@ -129,9 +130,9 @@ export function agentRows(raw: unknown, rawEvents: unknown): TaskRow[] {
   }
   return [...rows.values()]
 }
-export function taskControls(status: string) {
+export function taskControls(status: string, errorCode = '') {
   return {
-    run: ['queued', 'failed', 'interrupted'].includes(status),
+    run: ['queued', 'failed', 'interrupted'].includes(status) && !['MODEL_OUTCOME_UNKNOWN','TOOL_OUTCOME_UNKNOWN','MODEL_REQUEST_CONFLICT','COZE_UNAVAILABLE'].includes(errorCode),
     cancel: !!status && !['succeeded', 'cancelled'].includes(status),
   }
 }
@@ -195,6 +196,25 @@ export function preparedOperationId(raw: unknown): string {
     /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(id)
     ? id
     : ''
+}
+
+export type OperationSuggestion = Pick<Schema<'ExecutionPrepareInput'>, 'kind' | 'parameters' | 'expires_in_seconds'>
+const suggestionKinds = new Set(['transfer','cancel_subscription','savings_deposit','savings_withdrawal','create_savings_goal','budget_rule_update','card_manage','recipient_transfer','aa_payment','scheduled_transfer','investment_assessment','investment_order','occasion_plan','occasion_order','occasion_release'])
+function safeSuggestion(value: unknown, depth = 0): boolean {
+  if (depth > 20) return false
+  if (value == null || typeof value === 'string' || typeof value === 'boolean') return true
+  if (typeof value === 'number') return Number.isSafeInteger(value)
+  if (Array.isArray(value)) return value.every(v => safeSuggestion(v, depth + 1))
+  if (typeof value !== 'object') return false
+  return Object.entries(value).every(([key, v]) => !new Set(['confirmed','authorization_id','authorization','authorizations','confirmation_nonce','nonce','signature','user_id','owner_id','owner_engine','agent_type','lease_token','token','bearer','service_key','api_key','password','secret','access_token','refresh_token','agent_token','x_banking_agent_key']).has(key.toLowerCase().replaceAll('-', '_')) && (!key.endsWith('_minor') || typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 && v <= 1e12) && safeSuggestion(v, depth + 1))
+}
+export function operationSuggestion(raw: unknown): OperationSuggestion | null {
+  const task = record(raw), output = record(task.output), data = record(output.result), proposal = record(data.operation_proposal)
+  if (task.agent_type !== 'supervisor' || task.tool !== 'require_gateway' || task.status !== 'succeeded' || task.skill_id !== 'operation_preparation' || output.financial_execution_enabled !== false || data.requires_user_preparation !== true || data.server_validated !== false || data.authorization_granted !== false || !suggestionKinds.has(text(proposal.kind)) || !proposal.parameters || Array.isArray(proposal.parameters) || typeof proposal.parameters !== 'object' || !safeSuggestion(proposal.parameters)) return null
+  if (proposal.expires_in_seconds !== undefined && (typeof proposal.expires_in_seconds !== 'number' || !Number.isSafeInteger(proposal.expires_in_seconds) || proposal.expires_in_seconds < 1 || proposal.expires_in_seconds > 900)) return null
+  // Query data is reactive in the browser. Serialize the already bounded JSON
+  // rather than structuredClone, which cannot clone a Vue Proxy.
+  return { kind: proposal.kind as OperationSuggestion['kind'], parameters: JSON.parse(JSON.stringify(proposal.parameters)) as OperationSuggestion['parameters'], ...(proposal.expires_in_seconds !== undefined ? { expires_in_seconds: proposal.expires_in_seconds as number } : {}) }
 }
 export function agentTrace(rawEvents: unknown): TaskTrace {
   const events = Array.isArray(rawEvents) ? rawEvents.map(record) : []

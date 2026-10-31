@@ -60,6 +60,58 @@ func registerLifestyle(user, tools *gin.RouterGroup, s *lifestyle.Service) {
 		c.Next()
 	}
 	g := user.Group("", guard, ready)
+	g.GET("/lifestyle-goals", func(c *gin.Context) {
+		limit, offset, e := lifestylePage(c)
+		if e != nil {
+			coreError(c, e)
+			return
+		}
+		out, e := s.Goals(c.Request.Context(), meta(c).UserID, limit, offset)
+		finish(c, out, e, 200)
+	})
+	g.POST("/expense-trials", func(c *gin.Context) {
+		input(c, func(in lifestyle.ExpenseTrialInput) (any, error) {
+			return s.StartExpenseTrial(c.Request.Context(), meta(c), c.GetHeader("Idempotency-Key"), in)
+		}, 201)
+	})
+	g.GET("/expense-trials", func(c *gin.Context) {
+		account, e := strconv.ParseInt(c.Query("account_id"), 10, 64)
+		if e != nil || account <= 0 {
+			coreError(c, entity.Fail("INVALID_ARGUMENT", "positive account scope required"))
+			return
+		}
+		limit, offset, e := lifestylePage(c)
+		if e != nil {
+			coreError(c, e)
+			return
+		}
+		out, e := s.ExpenseTrials(c.Request.Context(), meta(c).UserID, account, limit, offset)
+		finish(c, out, e, 200)
+	})
+	g.GET("/expense-trials/:id", func(c *gin.Context) {
+		id, e := pathID(c)
+		if e != nil {
+			coreError(c, e)
+			return
+		}
+		out, e := s.ExpenseTrial(c.Request.Context(), meta(c).UserID, id)
+		finish(c, out, e, 200)
+	})
+	g.POST("/expense-trials/:id/reviews", func(c *gin.Context) {
+		id, e := pathID(c)
+		if e != nil {
+			coreError(c, e)
+			return
+		}
+		input(c, func(in lifestyle.ExpenseTrialReviewInput) (any, error) {
+			return s.ReviewExpenseTrial(c.Request.Context(), meta(c), c.GetHeader("Idempotency-Key"), id, in)
+		}, 200)
+	})
+	g.POST("/lifestyle-goals/expense-reduction-preview", func(c *gin.Context) {
+		input(c, func(in lifestyle.ExpensePreviewInput) (any, error) {
+			return s.PreviewExpenseReduction(c.Request.Context(), meta(c).UserID, in)
+		}, 200)
+	})
 	g.POST("/lifestyle-goals/parse", func(c *gin.Context) {
 		input(c, func(in lifestyle.ParseInput) (any, error) {
 			return s.Parse(coze.WithIdentity(c.Request.Context(), meta(c).UserID, "lifestyle-parse:"+uuid.NewString()), in, c.GetString("trace_id"))

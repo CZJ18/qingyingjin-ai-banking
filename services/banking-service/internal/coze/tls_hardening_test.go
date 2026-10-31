@@ -2,6 +2,7 @@ package coze
 
 import (
 	"context"
+	"github.com/qingyingjin/banking-service/internal/outbound"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,7 +16,7 @@ func TestCertificateFailureNeverDowngradesOrReturnsOutput(t *testing.T) {
 		w.Write([]byte(`{"code":0,"execute_id":"1","data":"{}"}`))
 	}))
 	defer s.Close()
-	c, e := New(s.URL, "synthetic-pat-must-not-leak", time.Second)
+	c, e := New(s.URL, "synthetic-pat-must-not-leak", time.Second, outbound.TestPolicy())
 	if e != nil {
 		t.Fatal(e)
 	}

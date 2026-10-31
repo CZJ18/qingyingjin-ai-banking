@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import {
   DialogRoot,
   DialogPortal,
@@ -18,6 +18,7 @@ import Button from './ui/button/Button.vue'
 import Status from './Status.vue'
 import JsonDetails from './JsonDetails.vue'
 const props = defineProps<{ banking?: boolean }>()
+const emit = defineEmits<{ 'server-view': [view: Schema<'ExecutionView'>] }>()
 const object = (v: unknown): Record<string, unknown> =>
   v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {}
 const sourceSnapshot = computed(() => object(view.value?.operation.snapshot?.source_account))
@@ -29,7 +30,7 @@ const cardDetails = computed(() => {
   return { ...saved, ...parameters }
 })
 const recipientDetails = computed(() => object(view.value?.operation.snapshot?.recipient))
-const cardActionLabel: Record<string,string> = {bind:'绑定模拟卡',unbind:'解绑模拟卡',set_default:'设为默认卡'}
+const cardActionLabel: Record<string,string> = {bind:'绑定模拟卡',apply:'申请模拟卡',unbind:'解绑模拟卡',set_default:'设为默认卡',adjust_limit:'调整模拟信用额度',set_transaction_limit:'设置单笔交易限额',lock:'锁定卡片',unlock:'解锁卡片',report_lost:'挂失卡片（不可直接解锁）'}
 const open = ref(false),
   busy = ref(false),
   view = ref<Schema<'ExecutionView'>>(),
@@ -39,9 +40,30 @@ const open = ref(false),
   ui = useUI(),
   session = useSession()
 const executeKeys = new Map<string, string>()
+function acceptView(result: Schema<'ExecutionView'>) {
+  view.value = result
+  emit('server-view', result)
+}
+const uploadedStatement = computed(() => view.value?.operation.kind === 'import_transaction' &&
+  object(view.value.operation.parameters).effect_mode === 'record_only' &&
+  object(object(view.value.operation.parameters).source).kind === 'unverified_csv_upload')
 let active = true
 let pendingPreparation: { payload: string; key: string } | undefined
-const currentSession = (epoch: number) => active && sessionVersion() === epoch
+let sessionScope = 0
+// Only transient UI state is discarded. Server intents, authorizations and
+// idempotency history remain available for explicit re-query after login.
+watch(() => [session.connected, session.sessionEpoch, session.user?.id], () => {
+  sessionScope++
+  open.value = false
+  view.value = undefined
+  ack.value = false
+  error.value = ''
+  busy.value = false
+  pendingPreparation = undefined
+  executeKeys.clear()
+}, { flush: 'sync' })
+const currentSession = (epoch: number, scope: number) =>
+  active && session.connected && sessionVersion() === epoch && sessionScope === scope
 const now = ref(Date.now())
 let clock: ReturnType<typeof setInterval> | undefined
 onMounted(() => {
@@ -60,9 +82,9 @@ const expired = computed(
     ['pending_authorization', 'authorized'].includes(view.value.operation.status),
 )
 async function reject() {
-  if (busy.value || !view.value || expired.value) return
+  if (!session.connected || busy.value || !view.value || expired.value) return
   busy.value = true
-  const epoch = sessionVersion()
+  const epoch = sessionVersion(), scope = sessionScope
   error.value = ''
   ack.value = false
   try {
@@ -78,20 +100,22 @@ async function reject() {
         },
       },
     )
-    if (!currentSession(epoch)) return
-    view.value = rejected
+    if (!currentSession(epoch, scope)) return
+    acceptView(rejected)
     ui.notify('已拒绝这项金融操作')
     await qc.invalidateQueries()
   } catch (e) {
-    if (!currentSession(epoch)) return
+    if (!currentSession(epoch, scope)) return
     error.value = (e as Error).message + '。请查询最终状态。'
   } finally {
-    busy.value = false
+    if (currentSession(epoch, scope)) busy.value = false
   }
 }
 async function prepare(
   kind: Schema<'ExecutionPrepareInput'>['kind'],
   parameters: Schema<'ExecutionPrepareInput'>['parameters'],
+  expiresInSeconds?: number,
+  idempotencyKey?: string,
 ) {
   if (busy.value) return
   if (!session.connected) {
@@ -99,29 +123,43 @@ async function prepare(
     return
   }
   busy.value = true
-  const epoch = sessionVersion()
+  const epoch = sessionVersion(), scope = sessionScope
   error.value = ''
   view.value = undefined
   ack.value = false
   open.value = true
   try {
-    const payload = JSON.stringify({ kind, parameters })
-    if (pendingPreparation?.payload !== payload)
-      pendingPreparation = { payload, key: crypto.randomUUID() }
-    const prepared = await api.prepare({ kind, parameters }, pendingPreparation.key)
-    if (!currentSession(epoch)) return
-    view.value = prepared
-    pendingPreparation = undefined
+    if (idempotencyKey !== undefined && (typeof idempotencyKey !== 'string' || !/^agent-op-[a-f0-9]{64}$/.test(idempotencyKey)))
+      throw new Error('操作建议幂等标识无效，未创建金融操作意向。')
+    const readiness=await request<{ready:boolean}>('/api/v1/execution/readiness')
+    if(!currentSession(epoch, scope))return
+    if(readiness.ready!==true)throw new Error('金融执行策略未就绪，未创建操作意向。')
+    const body = { kind, parameters, ...(expiresInSeconds !== undefined ? { expires_in_seconds: expiresInSeconds } : {}) }
+    const payload = JSON.stringify(body)
+    // A task proposal supplies its stable source key. Successful preparation
+    // must not turn the next click on that same proposal into a new intent.
+    let requestKey = idempotencyKey
+    if (requestKey === undefined) {
+      if (pendingPreparation?.payload !== payload)
+        pendingPreparation = { payload, key: crypto.randomUUID() }
+      requestKey = pendingPreparation.key
+    }
+    const prepared = await api.prepare(body, requestKey)
+    if (!currentSession(epoch, scope)) return
+    acceptView(prepared)
+    if (idempotencyKey === undefined) pendingPreparation = undefined
   } catch (e) {
-    if (!currentSession(epoch)) return
-    error.value = (e as Error).message
+    if (!currentSession(epoch, scope)) return
+    error.value = (e as {code?:string}).code==='DEPENDENCY_UNAVAILABLE'
+      ? '金融执行策略暂不可用，未创建操作意向。请检查服务配置后再试。'
+      : (e as Error).message
   } finally {
-    busy.value = false
+    if (currentSession(epoch, scope)) busy.value = false
   }
 }
 async function inspect(id: string) {
   if (busy.value || !session.connected) return
-  const epoch = sessionVersion()
+  const epoch = sessionVersion(), scope = sessionScope
   busy.value = true
   error.value = ''
   view.value = undefined
@@ -129,21 +167,21 @@ async function inspect(id: string) {
   open.value = true
   try {
     const inspected = await request<Schema<'ExecutionView'>>(`/api/v1/execution/operations/${id}`)
-    if (!currentSession(epoch)) return
-    view.value = inspected
+    if (!currentSession(epoch, scope)) return
+    acceptView(inspected)
   } catch (e) {
-    if (!currentSession(epoch)) return
+    if (!currentSession(epoch, scope)) return
     error.value = (e as Error).message
   } finally {
-    busy.value = false
+    if (currentSession(epoch, scope)) busy.value = false
   }
 }
 async function refresh() {
   if (view.value) await inspect(view.value.operation.id)
 }
 async function execute() {
-  if (busy.value || !view.value || !ack.value || expired.value) return
-  const ownEpoch = sessionVersion()
+  if (!session.connected || busy.value || !view.value || !ack.value || expired.value) return
+  const ownEpoch = sessionVersion(), scope = sessionScope
   busy.value = true
   error.value = ''
   const id = view.value.operation.id
@@ -161,8 +199,8 @@ async function execute() {
           },
         },
       )
-    if (!currentSession(ownEpoch)) return
-    view.value = current
+    if (!currentSession(ownEpoch, scope)) return
+    acceptView(current)
     if (current.operation.status !== 'authorized')
       throw new Error('服务器未授予有效执行授权：' + current.operation.status)
     if (!executeKeys.has(id)) executeKeys.set(id, crypto.randomUUID())
@@ -179,28 +217,33 @@ async function execute() {
         key: executeKeys.get(id),
       },
     )
-    if (!currentSession(ownEpoch)) return
-    view.value = executed
+    if (!currentSession(ownEpoch, scope)) return
+    acceptView(executed)
     ui.notify('服务器操作状态：' + view.value.operation.status)
     await qc.invalidateQueries()
   } catch (e) {
-    if (!currentSession(ownEpoch)) return
+    if (!currentSession(ownEpoch, scope)) return
     error.value = (e as Error).message + '。请查询最终状态后决定下一步。'
     try {
-      view.value = await request<Schema<'ExecutionView'>>(`/api/v1/execution/operations/${id}`)
+      const inspected = await request<Schema<'ExecutionView'>>(`/api/v1/execution/operations/${id}`)
+      if (!currentSession(ownEpoch, scope)) return
+      acceptView(inspected)
     } catch {
       /* Keep outcome unknown until an explicit server query succeeds. */
     }
   } finally {
-    busy.value = false
+    if (currentSession(ownEpoch, scope)) busy.value = false
   }
 }
 defineExpose({ prepare, inspect })
 const executable = (status: string) => ['pending_authorization', 'authorized'].includes(status)
+const scenarioDue=computed(()=>['scheduled_transfer','occasion_order'].includes(view.value?.operation.kind||'')?Number(object(view.value?.operation.parameters).execute_at)||0:0)
+const waitingSchedule=computed(()=>scenarioDue.value>now.value&&view.value?.operation.status==='authorized')
 const kindLabel: Record<string, string> = {
   aa_payment: '支付本人AA分摊',
   recipient_transfer: '向已选收款人转账',
   card_manage: '管理模拟银行卡',
+  scheduled_transfer:'定时模拟转账',investment_assessment:'保存模拟风险测评',investment_order:'模拟理财申赎',occasion_plan:'预留庆祝资金',occasion_order:'模拟鲜花和蛋糕订购',occasion_release:'退回庆祝剩余预留',
   transfer: '模拟银行转账',
   cancel_subscription: '取消模拟订阅',
   create_savings_goal: '创建目标金',
@@ -230,7 +273,7 @@ const riskLabel: Record<string, string> = {
         @pointer-down-outside="busy && $event.preventDefault()"
         ><DialogTitle><ShieldCheck :size="23" />可信金融操作确认</DialogTitle
         ><DialogDescription
-          >这是模拟银行操作。请核对服务器生成的操作意向，确认后才会授权执行。</DialogDescription
+          >{{ uploadedStatement ? '用户上传记录未经银行核验；仅补录分析数据，不改变账户余额。请核对当前这一笔账单和来源后单独授权。' : '这是模拟银行操作。请核对服务器生成的操作意向，确认后才会授权执行。' }}</DialogDescription
         >
         <div v-if="props.banking" class="banking-simulation">比赛模拟环境 · 非真实资金交易</div>
         <div v-if="busy && !view" class="skeleton-group" aria-busy="true">
@@ -239,7 +282,7 @@ const riskLabel: Record<string, string> = {
         </div>
         <template v-if="view"
           ><div class="operation-header">
-            <b>{{ kindLabel[view.operation.kind] || view.operation.kind }}</b
+            <b>{{ uploadedStatement ? '补录上传账单（只读分析）' : kindLabel[view.operation.kind] || view.operation.kind }}</b
             ><Status :value="view.operation.status" />
           </div>
           <dl v-if="view.operation.kind === 'card_manage'" class="detail-grid">
@@ -248,9 +291,11 @@ const riskLabel: Record<string, string> = {
             <dt>模拟卡尾号</dt><dd>•••• {{ cardDetails.last_four }}</dd>
             <dt>关联模拟账户</dt><dd>{{ cardDetails.account_id }}</dd>
             <dt>资金影响</dt><dd>仅更改卡片管理信息，不扣款、不增加余额。</dd>
+            <template v-if="cardDetails.action==='adjust_limit'"><dt>新模拟信用额度</dt><dd>{{money(Number(cardDetails.credit_limit_minor))}}</dd></template>
+            <template v-if="cardDetails.action==='set_transaction_limit'"><dt>新单笔限额</dt><dd>{{money(Number(cardDetails.transaction_limit_minor))}}（0表示阻止卡片转账）</dd></template>
           </dl>
           <div v-else class="confirmation-amount">
-            <span>本次操作金额 · 人民币</span
+            <span>{{ uploadedStatement ? '本次补录金额 · 人民币' : '本次操作金额 · 人民币' }}</span
             ><strong>{{ money(view.operation.amount_minor) }}</strong>
           </div>
           <dl v-if="view.operation.kind === 'recipient_transfer'" class="detail-grid">
@@ -310,9 +355,11 @@ const riskLabel: Record<string, string> = {
           </dl>
           <div class="warning-note">
             <AlertTriangle :size="18" /><span
-              >执行前会再次核验账户、余额和资源版本。取消订阅仅修改模拟银行状态，不代表商户已取消代扣。</span
+              >{{ uploadedStatement ? '仅将这笔上传记录关联到所选模拟账户供分析；文件和行摘要用于追溯，不代表银行核验或真实资金账户接入。' : '执行前会再次核验账户、余额和资源版本。取消订阅仅修改模拟银行状态，不代表商户已取消代扣。' }}</span
             >
           </div>
+          <p v-if="scenarioDue" class="warning-note">本次单独授权仅适用于 {{date(scenarioDue)}} 的这一次模拟操作；资金和风险在到期时重新核验，授权截止为 {{date(view.operation.expires_at)}}。过期不续期。可以在场景计划页撤销待执行操作。</p>
+          <p v-if="waitingSchedule">已授权等待约定时间，尚未转账或下单。关闭弹窗不撤销这份已明确授予的定时授权。</p>
           <div v-for="r in view.risk_events" :key="r.id" class="risk-row">
             {{ r.rule_name }} · {{ r.decision }} · {{ r.error_code }}
             <JsonDetails v-if="props.banking" :value="r.evidence" label="风险核验证据" />
@@ -328,7 +375,7 @@ const riskLabel: Record<string, string> = {
           <p v-if="expired" class="form-error" role="alert">
             该金融操作意向已过期，请关闭后重新准备。
           </p>
-          <label v-if="executable(view.operation.status)" class="checkbox-label"
+          <label v-if="executable(view.operation.status)&&!waitingSchedule" class="checkbox-label"
             ><input
               type="checkbox"
               v-model="ack"
@@ -347,7 +394,7 @@ const riskLabel: Record<string, string> = {
             @click="reject"
             >拒绝此操作</Button
           ><Button
-            v-if="view && executable(view.operation.status)"
+            v-if="view && executable(view.operation.status)&&!waitingSchedule"
             @click="execute"
             :disabled="busy || !ack || expired"
             >{{ busy ? '正在处理…' : '授权并执行' }}</Button

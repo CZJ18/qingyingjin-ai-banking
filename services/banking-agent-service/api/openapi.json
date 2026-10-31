@@ -151,6 +151,156 @@
             }
           }
         }
+      },
+      "get": {
+        "tags": [
+          "Agent Tasks"
+        ],
+        "summary": "History",
+        "operationId": "history_api_v1_agent_tasks_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000000,
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentTaskPageEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ARGUMENT / INVALID_INPUT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND / SOURCE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_CONFLICT / SOURCE_VERSION_CONFLICT / PROFILE_VERSION_CONFLICT / IDENTITY_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "INVALID_ARGUMENT: body too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "INVALID_ARGUMENT: schema validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "SOURCE_OUTPUT_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "BANKING_UNAVAILABLE / DEPENDENCY_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/agent-tasks/{task_id}": {
@@ -2674,6 +2824,74 @@
         ],
         "title": "AgentTaskEnvelope"
       },
+      "AgentTaskPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AgentTaskSummary"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "AgentTaskPage"
+      },
+      "AgentTaskPageEnvelope": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "request_id": {
+            "type": "string",
+            "title": "Request Id"
+          },
+          "trace_id": {
+            "type": "string",
+            "title": "Trace Id"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AgentTaskPage"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "request_id",
+          "trace_id",
+          "data"
+        ],
+        "title": "AgentTaskPageEnvelope"
+      },
       "AgentTaskRequest": {
         "properties": {
           "tasks": {
@@ -2802,6 +3020,66 @@
           "parameters"
         ],
         "title": "AgentTaskSpec"
+      },
+      "AgentTaskSummary": {
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "pattern": "^lg-[0-9a-f-]{36}$",
+            "title": "Task Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "interrupted",
+              "waiting_confirmation",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          },
+          "instruction": {
+            "type": "string",
+            "title": "Instruction"
+          },
+          "display_title": {
+            "type": "string",
+            "maxLength": 512,
+            "title": "Display Title",
+            "default": ""
+          },
+          "error_code": {
+            "type": "string",
+            "title": "Error Code"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task_id",
+          "status",
+          "version",
+          "instruction",
+          "error_code",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AgentTaskSummary"
       },
       "AgentTaskView": {
         "properties": {

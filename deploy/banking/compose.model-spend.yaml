@@ -18,10 +18,44 @@ services:
       - --price-evidence-file
       - /run/secrets/model-price-evidence
       - --confirm-price-review
+      - --approval-file
+      - /run/secrets/model-call-approval.json
+      - --approval-sha256
+      - ${BANKING_MODEL_NEW_APPROVAL_SHA256:?independently confirm NEW approval digest}
+      - --run-id
+      - ${BANKING_MODEL_APPROVED_RUN_ID:?explicit NEW approved run identifier}
+      - --execution-plan-file
+      - /run/secrets/model-execution-plan.json
+      - --execution-plan-sha256
+      - ${BANKING_MODEL_EXECUTION_PLAN_SHA256:?independently review exact READY plan bytes}
+      - --confirm-execution-plan-sha256
+      - ${BANKING_MODEL_EXECUTION_CONFIRMATION_SHA256:?separate explicit execution confirmation; never infer from approval}
+      - --workflow-policy-file
+      - /run/secrets/workflow-policy.json
+      - --permission-review-file
+      - /run/secrets/permission-review.json
+      - --permission-review-sha256
+      - ${BANKING_MODEL_PERMISSION_REVIEW_SHA256:?independently confirm permission review digest}
+      - --permission-evidence-file
+      - /run/secrets/supplier-permission-evidence
+      - --coze-scope-env-file
+      - /run/secrets/coze-scope.env
+      - --published-canvas-file
+      - /run/secrets/published-canvas.json
+      - --gateway-origin
+      - ${BANKING_MODEL_REVIEWED_GATEWAY_ORIGIN:?exact reviewed gateway origin}
+      - --allow-runtime-scope-probe
     volumes:
       - ${BANKING_MODEL_GATEWAY_ENV_FILE:?private gateway env}:/run/secrets/model-gateway.env:ro
       - ${BANKING_MODEL_SPEND_POLICY_FILE:?verified policy file}:/run/secrets/model-spend-policy.json:ro
       - ${BANKING_MODEL_PRICE_EVIDENCE_FILE:?independent price and bound evidence}:/run/secrets/model-price-evidence:ro
+      - ${BANKING_MODEL_NEW_APPROVAL_FILE:?NEW approval only; never discover historical approvals}:/run/secrets/model-call-approval.json:ro
+      - ${BANKING_MODEL_EXECUTION_PLAN_FILE:?reviewed concrete execution plan after fresh preflight}:/run/secrets/model-execution-plan.json:ro
+      - ${BANKING_MODEL_WORKFLOW_POLICY_FILE:?reviewed published workflow pins}:/run/secrets/workflow-policy.json:ro
+      - ${BANKING_MODEL_PERMISSION_REVIEW_FILE:?new permission review}:/run/secrets/permission-review.json:ro
+      - ${BANKING_MODEL_PERMISSION_EVIDENCE_FILE:?independent supplier permission evidence}:/run/secrets/supplier-permission-evidence:ro
+      - ${BANKING_MODEL_COZE_SCOPE_ENV_FILE:?explicit scope-only credential file}:/run/secrets/coze-scope.env:ro
+      - ${BANKING_MODEL_PUBLISHED_CANVAS_FILE:?reviewed published Canvas bytes}:/run/secrets/published-canvas.json:ro
     ports: ['127.0.0.1:18160:8092']
     networks: [banking-internal, banking-egress, coze-local]
     depends_on:

@@ -78,7 +78,10 @@ func TestSubscriptionDetectionUsesBusinessDefaultWindow(t *testing.T) {
 	if err := ValidateParameters("detect_subscriptions", json.RawMessage(`{}`), true); err != nil {
 		t.Fatalf("the subscription API supports its bounded default three-month window: %v", err)
 	}
-	if err := ValidateParameters("detect_subscriptions", json.RawMessage(`{"timezone":"UTC"}`), true); err == nil {
-		t.Fatal("unsupported fields must still be rejected")
+	if err := ValidateParameters("detect_subscriptions", json.RawMessage(`{"timezone":"UTC"}`), true); err != nil {
+		t.Fatal("valid timezone must agree with the public input contract", err)
+	}
+	if err := ValidateParameters("detect_subscriptions", json.RawMessage(`{"timezone":"Mars/Olympus"}`), true); err == nil {
+		t.Fatal("unsupported timezone must be rejected")
 	}
 }

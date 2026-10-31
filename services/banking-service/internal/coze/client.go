@@ -10,6 +10,7 @@ import (
 	"github.com/qingyingjin/banking-service/internal/outbound"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -19,6 +20,8 @@ import (
 )
 
 type Client struct {
+	bridge                 *workflowBridge
+	protocolTestDispatch   bool
 	costCurrency, costUnit string
 	base, pat              string
 	http                   *http.Client
@@ -63,7 +66,8 @@ func New(base, pat string, timeout time.Duration, policies ...outbound.Policy) (
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") || strings.TrimSpace(pat) == "" || timeout <= 0 {
 		return nil, errors.New("invalid Coze client configuration")
 	}
-	return &Client{base: strings.TrimRight(base, "/"), pat: pat, http: &http.Client{Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
+	ip := net.ParseIP(u.Hostname())
+	return &Client{protocolTestDispatch: p.Environment == "test" && ip != nil && ip.IsLoopback(), base: strings.TrimRight(base, "/"), pat: pat, http: &http.Client{Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
 
 // RunWorkflow has no automatic retry: retrying a POST can create a duplicate run.
@@ -77,8 +81,7 @@ func (c *Client) RunSyncWorkflow(ctx context.Context, in RunRequest) (RunRespons
 	return c.run(ctx, in, false)
 }
 
-func (c *Client) run(ctx context.Context, in RunRequest, async bool) (RunResponse, error) {
-	var out RunResponse
+func (c *Client) run(ctx context.Context, in RunRequest, async bool) (out RunResponse, err error) {
 	id, idErr := strconv.ParseInt(in.WorkflowID, 10, 64)
 	if idErr != nil || id <= 0 || strconv.FormatInt(id, 10) != in.WorkflowID {
 		return out, errors.New("invalid workflow ID")
@@ -100,6 +103,22 @@ func (c *Client) run(ctx context.Context, in RunRequest, async bool) (RunRespons
 	}
 	if len(body) > 1024*1024 {
 		return out, errors.New("workflow request too large")
+	}
+	// Only reviewed synchronous scopes may use the monetary bridge. Ordinary
+	// workflows, async runs and missing runtime proof remain closed before POST.
+	if !c.protocolTestDispatch && (c.bridge == nil || async) {
+		return out, ErrMonetaryAdmissionRequired
+	}
+	var capability, graphDigest string
+	if !c.protocolTestDispatch {
+		grant, grantError := c.bridge.grant(ctx, in.WorkflowID, parameters)
+		if grantError != nil {
+			return out, grantError
+		}
+		if e := c.verifyRuntime(ctx, in.WorkflowID, grant); e != nil {
+			return out, e
+		}
+		capability, graphDigest = grant.Capability, grant.WorkflowSHA256
 	}
 	var reservation string
 	identity, _ := ctx.Value(identityKey{}).(modelIdentity)
@@ -128,6 +147,10 @@ func (c *Client) run(ctx context.Context, in RunRequest, async bool) (RunRespons
 					slog.Warn("model_unknown_accounting_unavailable", "reservation_id", reservation, "owner_id", identity.owner)
 				}
 				slog.Warn("model_outcome_unknown_reserved", "reservation_id", reservation, "owner_id", identity.owner)
+				// Never expose a partial response or a retryable availability
+				// error while persistent accounting still marks this call unknown.
+				out = RunResponse{}
+				err = errors.Join(ErrOutcomeUnknown, err)
 			}
 		}()
 	}
@@ -137,15 +160,31 @@ func (c *Client) run(ctx context.Context, in RunRequest, async bool) (RunRespons
 	}
 	req.Header.Set("Authorization", "Bearer "+c.pat)
 	req.Header.Set("Content-Type", "application/json")
+	if capability != "" {
+		req.Header.Set("X-Banking-Model-Capability", capability)
+		req.Header.Set("X-Banking-Workflow-SHA256", graphDigest)
+	}
 	if in.TraceID != "" {
 		req.Header.Set("X-Trace-ID", in.TraceID)
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
+		if c.meter != nil {
+			// A dispatched workflow may already have reached its supplier. The
+			// deferred accounting retains the hold; expose the same uncertainty
+			// to the task and UI rather than a retryable availability error.
+			return out, ErrOutcomeUnknown
+		}
 		return out, errors.New("Coze transport unavailable")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
+		// Correlate an upstream rejection without logging credentials, request
+		// parameters or an untrusted error body. Accounting remains unknown.
+		slog.Warn("coze_workflow_rejected", "workflow_id", in.WorkflowID, "trace_id", in.TraceID, "reservation_id", reservation, "http_status", resp.StatusCode)
+		if c.meter != nil {
+			return out, ErrOutcomeUnknown
+		}
 		return out, fmt.Errorf("Coze HTTP status %d", resp.StatusCode)
 	}
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024+1))
@@ -181,6 +220,7 @@ func (c *Client) run(ctx context.Context, in RunRequest, async bool) (RunRespons
 		return RunResponse{}, errors.New("invalid Coze response")
 	}
 	if *out.Code != 0 {
+		slog.Warn("coze_workflow_rejected", "workflow_id", in.WorkflowID, "trace_id", in.TraceID, "reservation_id", reservation, "http_status", resp.StatusCode, "business_code", *out.Code, "response_sha256", fmt.Sprintf("%x", sha256.Sum256(raw)))
 		return RunResponse{}, fmt.Errorf("Coze business code %d", *out.Code)
 	}
 	if out.ExecuteID == "" {

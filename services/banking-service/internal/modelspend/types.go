@@ -6,6 +6,7 @@ import "errors"
 var (
 	ErrPolicy        = errors.New("MODEL_SPEND_POLICY_INVALID")
 	ErrQuota         = errors.New("MODEL_SPEND_QUOTA_EXCEEDED")
+	ErrUserQuota     = errors.New("MODEL_USER_MONTHLY_QUOTA_EXCEEDED")
 	ErrConflict      = errors.New("MODEL_SPEND_CONFLICT")
 	ErrUnknown       = errors.New("MODEL_SPEND_OUTCOME_UNKNOWN")
 	ErrUnavailable   = errors.New("MODEL_SPEND_UNAVAILABLE")

@@ -1,0 +1,20 @@
+CREATE TABLE banking_expense_trials (
+ id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ user_id BIGINT NOT NULL,
+ account_id BIGINT NOT NULL,
+ billing_report_id CHAR(36) NOT NULL,
+ baseline_digest CHAR(64) NOT NULL,
+ target_period VARCHAR(7) NOT NULL,
+ target_minor BIGINT NOT NULL CHECK(target_minor>0 AND target_minor<=1000000000000),
+ category VARCHAR(32) NOT NULL CHECK(category IN ('shopping','subscriptions','sports','other')),
+ started_at BIGINT NOT NULL,
+ ends_at BIGINT NOT NULL CHECK(ends_at>started_at),
+ status VARCHAR(16) NOT NULL CHECK(status IN ('active','completed')),
+ version BIGINT NOT NULL CHECK(version>0),
+ review_json JSON,
+ created_at BIGINT NOT NULL,
+ updated_at BIGINT NOT NULL,
+ KEY expense_trial_owner(user_id,account_id,id),
+ FOREIGN KEY(user_id,account_id) REFERENCES banking_bank_accounts(user_id,id),
+ FOREIGN KEY(billing_report_id) REFERENCES banking_billing_reports(id)
+) ENGINE=InnoDB;

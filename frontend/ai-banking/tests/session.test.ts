@@ -28,6 +28,20 @@ function identity(id: string) {
   )
 }
 describe('Authenticated reference isolation', () => {
+  it('restores the selected account only for its verified user and stores no account data', async () => {
+    const s = useSession()
+    identity('a')
+    await s.connect('token-a')
+    s.accountId = '102'
+    s.disconnect()
+    await s.connect('token-a')
+    expect(s.accountId).toBe('102')
+    identity('b')
+    await s.connect('token-b')
+    expect(s.accountId).toBe('')
+    expect(values.get('qingrongjin.refs.v1.a')).toContain('"account":"102"')
+    expect(values.get('qingrongjin.refs.v1.a')).not.toContain('balance')
+  })
   it('keeps legacy jobs, LangGraph tasks and numeric goal references in their own namespaces', async () => {
     identity('a')
     const s = useSession()

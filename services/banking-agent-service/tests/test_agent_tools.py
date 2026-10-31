@@ -1,6 +1,7 @@
 import asyncio
 import importlib
 import json
+from copy import deepcopy
 
 import httpx
 import pytest
@@ -76,6 +77,24 @@ def execute(handler, task=None, key=KEY):
 
 def test_implementation_is_available():
     assert importlib.util.find_spec("banking_agent.agent_tools") is not None
+
+
+@pytest.mark.asyncio
+async def test_background_delegation_is_bound_and_not_sent_to_model_run():
+    def handler(req):
+        assert req.url.path == "/api/v1/langgraph/background-delegations"
+        assert json.loads(req.content) == {"task_id": TASK, "request_digest": "a" * 64}
+        assert req.headers["authorization"] == "Bearer user-secret"
+        assert req.headers["x-banking-agent-key"] == KEY
+        return response({"task_id": TASK, "request_digest": "a" * 64,
+                         "capability": "bgt1.encrypted-fixture", "expires_in_seconds": 86400})
+
+    bridge = client(handler)
+    try:
+        result = await bridge.background_delegation("user-secret", TASK, "a" * 64, "trace")
+        assert result["capability"] == "bgt1.encrypted-fixture"
+    finally:
+        await bridge.close()
 
 
 @pytest.mark.parametrize("status,code", [(409, "MODEL_OUTCOME_UNKNOWN"), (429, "MODEL_QUOTA_EXCEEDED"), (503, "COZE_UNAVAILABLE"), (422, "INVALID_TASK_PLAN"), (422, "MODEL_OUTPUT_INVALID"), (422, "INPUT_REQUIRED")])
@@ -391,6 +410,152 @@ def test_signed_gateway_prepares_transfer_and_checks_amount():
     assert err.value.status == 502
 
 
+def gateway_task(body):
+    return dict(
+        key="prepare",
+        agent_type="supervisor",
+        tool="require_gateway",
+        skill_id="operation_preparation",
+        skill_version=1,
+        execution_mode="intent",
+        parameters=body,
+    )
+
+
+HUMAN_OPERATION_PARAMETERS = {
+    "card_manage": {"action": "bind", "card_id": "2"},
+    "recipient_transfer": {
+        "source_account_id": "2", "recipient_id": "3", "amount_minor": 120,
+    },
+    "aa_payment": {"source_account_id": "2", "share_id": "3"},
+    "scheduled_transfer": {
+        "source_account_id": "2", "recipient_id": "3", "amount_minor": 120,
+        "execute_at": 1900000000000,
+    },
+    "investment_assessment": {"answers": [1, 2, 3]},
+    "investment_order": {
+        "source_account_id": "2", "product_id": "3", "amount_minor": 120,
+    },
+    "occasion_plan": {"title": "Dinner", "budget_minor": 120},
+    "occasion_order": {"plan_id": "2", "amount_minor": 120},
+    "occasion_release": {"plan_id": "2"},
+}
+
+
+@pytest.mark.parametrize("kind", HUMAN_OPERATION_PARAMETERS)
+@pytest.mark.parametrize("ttl", [None, 1, 900])
+def test_human_only_gateway_returns_unverified_proposal_without_any_http(kind, ttl):
+    body = {"kind": kind, "parameters": deepcopy(HUMAN_OPERATION_PARAMETERS[kind])}
+    if ttl is not None:
+        body["expires_in_seconds"] = ttl
+    out = execute(lambda req: pytest.fail("human-only proposal made an HTTP request"), gateway_task(body))
+    assert out == {
+        "skill_id": "operation_preparation",
+        "skill_version": 1,
+        "rule_version": "1",
+        "task_id": TASK + ".prepare",
+        "agent_type": "supervisor",
+        "status": "succeeded",
+        "result": {
+            "operation_proposal": body,
+            "requires_user_preparation": True,
+            "server_validated": False,
+            "authorization_granted": False,
+        },
+        "evidence": [],
+        "errors": [],
+        "next_actions": [{"type": "review_operation_proposal", "requires_confirmation": True}],
+        "explanation": "",
+        "workflow_execute_id": "",
+        "financial_execution_enabled": False,
+    }
+
+
+def test_human_only_proposal_skips_delegation_and_request_helpers(monkeypatch):
+    module = importlib.import_module("banking_agent.agent_tools")
+
+    async def forbidden(*args, **kwargs):
+        pytest.fail("a proposal called a delegated HTTP helper")
+
+    monkeypatch.setattr(module.AgentBankingClient, "_delegate", forbidden)
+    monkeypatch.setattr(module.AgentBankingClient, "_request", forbidden)
+    out = execute(lambda req: pytest.fail("request"), gateway_task({"kind": "card_manage", "parameters": {}}))
+    assert out["result"]["server_validated"] is False
+
+
+def test_human_only_proposal_is_a_deep_copy_of_safe_typed_suggestions():
+    body = {"kind": "investment_assessment", "parameters": {"answers": [{"choice": 1}]}}
+    original = deepcopy(body)
+    out = execute(lambda req: pytest.fail("request"), gateway_task(body))
+    proposal = out["result"]["operation_proposal"]
+    body["parameters"]["answers"][0]["choice"] = 2
+    assert proposal == original
+    proposal["parameters"]["answers"][0]["choice"] = 3
+    assert body["parameters"]["answers"][0]["choice"] == 2
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"kind": "unknown_operation", "parameters": {}},
+        {"kind": "", "parameters": {}},
+        {"kind": True, "parameters": {}},
+        {"kind": "card_manage"},
+        {"kind": "card_manage", "parameters": []},
+        {"kind": "card_manage", "parameters": {}, "unexpected": "field"},
+        *[
+            {"kind": "card_manage", "parameters": {}, "expires_in_seconds": ttl}
+            for ttl in (0, 901, True, 1.0, "1", None)
+        ],
+        {"kind": "investment_order", "parameters": {"amount_minor": 120.5}},
+        {"kind": "investment_assessment", "parameters": {"answers": [1.0]}},
+    ],
+)
+def test_invalid_gateway_proposal_body_is_rejected_without_http(body):
+    with pytest.raises(DomainError) as err:
+        execute(lambda req: pytest.fail("invalid proposal made an HTTP request"), gateway_task(body))
+    assert (err.value.code, err.value.status) == ("INVALID_ARGUMENT", 400)
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["authorization", "authorization_id", "authorizations", "confirmation_nonce", "nonce",
+     "signature", "user_id", "owner_id", "token", "access_token", "agent_token", "bearer",
+     "service_key", "lease_token", "capability", "background_capability", "User-ID"],
+)
+def test_human_only_proposal_rejects_nested_identity_and_authorization_material(key):
+    body = {"kind": "card_manage", "parameters": {"nested": [{key: "forged"}]}}
+    with pytest.raises(DomainError) as err:
+        execute(lambda req: pytest.fail("unsafe proposal made an HTTP request"), gateway_task(body))
+    assert (err.value.code, err.value.status) == ("INVALID_ARGUMENT", 400)
+
+
+@pytest.mark.parametrize("kind", ["transfer", "savings_deposit", "savings_withdrawal", "cancel_subscription"])
+def test_ordinary_gateway_intent_still_delegates_and_prepares_real_operation(kind):
+    body = {"kind": kind, "parameters": {"source_account_id": "2", "amount_minor": 120}}
+    requests = []
+
+    def handler(req):
+        requests.append(req)
+        if req.url.path.endswith("delegations"):
+            assert json.loads(req.content) == {"task_id": TASK + ".prepare", "agent_type": "supervisor"}
+            return response(delegation("supervisor", "prepare"))
+        assert req.url.path == "/api/v1/execution/operations"
+        assert req.headers["authorization"] == "Bearer short-lived-agent"
+        assert req.headers["idempotency-key"] == "langgraph:" + TASK + ".prepare"
+        assert json.loads(req.content) == body
+        op = operation()
+        op.update(agent="supervisor", kind=kind, task_id=TASK + ".prepare", amount_minor=120,
+                  source_account_id="2", parameters=body["parameters"])
+        return response({"operation": op})
+
+    out = execute(handler, gateway_task(body))
+    assert len(requests) == 2
+    assert out["result"]["id"] == operation()["id"]
+    assert "operation_proposal" not in out["result"]
+    assert out["next_actions"] == [{"type": "authorize_operation", "requires_confirmation": True}]
+
+
 @pytest.mark.parametrize("value", [{"user_id": "43"}, {"financial_execution_enabled": True}])
 def test_nested_owner_and_execution_flags_are_verified(value):
     def handler(req):
@@ -571,3 +736,20 @@ def test_billing_cannot_reuse_lifestyle_text_evidence_or_nullable_money_exceptio
     with pytest.raises(DomainError) as err:
         execute(handler)
     assert err.value.status == 502
+
+
+def test_project_monetary_quota_preserves_safe_code():
+    upstream = httpx.Response(429, json={"code": "MODEL_SPEND_QUOTA_EXCEEDED", "message": "secret-upstream-text"})
+    agent_class = importlib.import_module("banking_agent.agent_tools").AgentBankingClient
+    code, message = asyncio.run(agent_class._business_failure(upstream, "TOOL_UPSTREAM_ERROR", "unavailable"))
+    assert code == "MODEL_SPEND_QUOTA_EXCEEDED"
+    assert "secret-upstream-text" not in message
+
+
+@pytest.mark.parametrize("status,expected", [(403, "MODEL_APPROVAL_REQUIRED"), (429, "MODEL_APPROVAL_LIMIT_EXCEEDED"), (503, "MODEL_EXECUTION_CONFIRMATION_REQUIRED"), (503, "MODEL_BUDGET_UNAVAILABLE")])
+def test_approval_failure_preserves_safe_code(status, expected):
+    upstream = httpx.Response(status, json={"code": expected, "message": "secret-upstream-text"})
+    agent_class = importlib.import_module("banking_agent.agent_tools").AgentBankingClient
+    code, message = asyncio.run(agent_class._business_failure(upstream, "TOOL_UPSTREAM_ERROR", "unavailable"))
+    assert code == expected
+    assert "secret-upstream-text" not in message

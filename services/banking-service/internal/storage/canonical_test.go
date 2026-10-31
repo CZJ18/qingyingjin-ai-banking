@@ -55,7 +55,7 @@ func TestManifestHasExactlyBusinessSchemaAndSpecialKeys(t *testing.T) {
 		}
 		seen[table] = true
 	}
-	if len(seen) != 52 || len(primaryKey("banking_core_idempotency")) != 3 || primaryKey("banking_transfer_approvals")[0] != "transfer_id" || primaryKey("banking_model_spend_pools")[0] != "project_id" {
+	if len(seen) != 56 || !seen["banking_expense_trials"] || len(primaryKey("banking_core_idempotency")) != 3 || primaryKey("banking_transfer_approvals")[0] != "transfer_id" || primaryKey("banking_model_spend_pools")[0] != "project_id" {
 		t.Fatal("manifest drift")
 	}
 	// The allowlist must cover the real persisted schema, rather than merely
@@ -78,7 +78,7 @@ func TestManifestHasExactlyBusinessSchemaAndSpecialKeys(t *testing.T) {
 			found[match[1]] = true
 		}
 	}
-	for _, filename := range []string{"model_budget_018_mysql.sql", "model_accounting_019_mysql.sql", "model_spend_020_mysql.sql"} {
+	for _, filename := range []string{"model_budget_018_mysql.sql", "model_accounting_019_mysql.sql", "model_spend_020_mysql.sql", "model_monthly_021_mysql.sql", "expense_trials_022_mysql.sql"} {
 		raw, e := os.ReadFile(filepath.Join("..", "migration", filename))
 		if e != nil {
 			t.Fatal(e)

@@ -9,6 +9,7 @@ import (
 	"github.com/qingyingjin/banking-service/internal/phoneid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"strconv"
 )
 
 type Service struct{ db *gorm.DB }
@@ -33,7 +34,7 @@ func settings(raw sql.NullString) (Settings, error) {
 	if !raw.Valid {
 		return v, nil
 	}
-	if len(raw.String) > 4096 || json.Unmarshal([]byte(raw.String), &v) != nil || v.Version < 1 || v.AccountID < 0 || v.Enabled && v.AccountID <= 0 {
+	if len(raw.String) > 4096 || json.Unmarshal([]byte(raw.String), &v) != nil || v.Version < 1 || v.AccountID < 0 || v.Enabled && v.AccountID <= 0 || !validRemarks(v.Remarks) {
 		return Settings{}, entity.Fail("DEPENDENCY_UNAVAILABLE", "invalid recipient directory state")
 	}
 	return v, nil
@@ -62,7 +63,7 @@ func usable(db *gorm.DB, user, id int64) (entity.BankAccount, error) {
 	if e != nil {
 		return a, e
 	}
-	if !a.IsSimulated || a.Currency != "CNY" || a.SavingsGoalID != nil {
+	if !a.IsSimulated || a.Currency != "CNY" || a.SavingsGoalID != nil || (a.AccountType != "checking" && a.AccountType != "savings") {
 		return a, entity.Fail("INVALID_ARGUMENT", "simulated CNY ordinary account required")
 	}
 	if a.Status != "active" {
@@ -102,7 +103,7 @@ func (s *Service) Configure(ctx context.Context, user int64, in SettingsInput) (
 			}
 			id = in.AccountID
 		}
-		out = Settings{Enabled: in.Enabled, AccountID: id, Version: old.Version + 1}
+		out = Settings{Enabled: in.Enabled, AccountID: id, Version: old.Version + 1, Remarks: old.Remarks}
 		raw, _ := json.Marshal(out)
 		return tx.Model(&entity.User{}).Where("id=?", user).UpdateColumn("transfer_directory", string(raw)).Error
 	})
@@ -125,11 +126,23 @@ func (s *Service) Search(ctx context.Context, user int64, in SearchInput) (Searc
 		enabled = "(u.transfer_directory::jsonb->>'enabled')='true'"
 	}
 	field := "u.display_name"
+	var value any = q
 	if in.Kind == "phone" {
 		field = "u.phone_number"
 	}
+	if in.Kind == "remark" {
+		own, err := s.Settings(ctx, user)
+		if err != nil {
+			return out, err
+		}
+		id, ok := own.Remarks[q]
+		if !ok {
+			return out, nil
+		}
+		field, value = "u.id", id
+	}
 	var rows []record
-	e = db.Joins(join).Where("u.id<>? AND u.status=? AND u.phone_verified_at>0 AND u.transfer_directory IS NOT NULL AND "+enabled+" AND "+field+"=? AND a.status=? AND a.currency=? AND a.is_simulated=? AND a.savings_goal_id IS NULL", user, "active", q, "active", "CNY", true).Select("u.id,u.display_name,u.phone_number,u.phone_verified_at,u.phone_verification_method,u.transfer_directory,a.display_name AS account_name,a.masked_account_number AS account_masked_number").Order("u.id").Limit(21).Scan(&rows).Error
+	e = db.Joins(join).Where("u.id<>? AND u.status=? AND u.phone_verified_at>0 AND u.transfer_directory IS NOT NULL AND "+enabled+" AND "+field+"=? AND a.status=? AND a.currency=? AND a.is_simulated=? AND a.savings_goal_id IS NULL AND a.account_type IN ('checking','savings')", user, "active", value, "active", "CNY", true).Select("u.id,u.display_name,u.phone_number,u.phone_verified_at,u.phone_verification_method,u.transfer_directory,a.display_name AS account_name,a.masked_account_number AS account_masked_number").Order("u.id").Limit(21).Scan(&rows).Error
 	if e != nil {
 		return out, e
 	}
@@ -152,6 +165,91 @@ func (s *Service) Search(ctx context.Context, user int64, in SearchInput) (Searc
 		out.Items = append(out.Items, item)
 	}
 	return out, nil
+}
+
+func (s *Service) SaveRemark(ctx context.Context, user int64, in RemarkInput) (out Settings, err error) {
+	label, e := normalizeRemark(in.Remark)
+	if e != nil {
+		return out, e
+	}
+	if user <= 0 || in.RecipientID <= 0 || in.RecipientID == user || in.RecipientVersion < 1 || in.ExpectedVersion < 1 || (in.Lookup.Kind != "name" && in.Lookup.Kind != "phone") {
+		return out, entity.Fail("INVALID_ARGUMENT", "selected recipient, current versions and exact name/phone lookup required")
+	}
+	proof, e := NormalizeQuery(in.Lookup)
+	if e != nil {
+		return out, e
+	}
+	// Search first applies the same visibility rules and does not disclose IDs.
+	found, e := s.Search(ctx, user, in.Lookup)
+	if e != nil {
+		return out, e
+	}
+	matched := false
+	for _, r := range found.Items {
+		if r.ID == in.RecipientID && r.Version == in.RecipientVersion {
+			matched = true
+		}
+	}
+	if !matched {
+		return out, entity.Fail("STATE_CONFLICT", "search and explicitly select the recipient again")
+	}
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if e := aa.LockUsers(tx, user, in.RecipientID); e != nil {
+			return e
+		}
+		owner, e := row(tx, user)
+		if e != nil {
+			return e
+		}
+		old, e := settings(owner.TransferDirectory)
+		if e != nil {
+			return e
+		}
+		if old.Version != in.ExpectedVersion {
+			return entity.Fail("VERSION_CONFLICT", "receiving settings changed")
+		}
+		target, e := row(tx, in.RecipientID)
+		if e != nil {
+			return e
+		}
+		current, e := settings(target.TransferDirectory)
+		if e != nil {
+			return e
+		}
+		actual := target.DisplayName
+		if in.Lookup.Kind == "phone" {
+			actual = target.PhoneNumber.String
+		}
+		if proof != actual || !current.Enabled || current.Version != in.RecipientVersion || !target.PhoneNumber.Valid || target.PhoneVerifiedAt <= 0 {
+			return entity.Fail("VERSION_CONFLICT", "recipient lookup changed; search again")
+		}
+		if _, e := usable(tx, in.RecipientID, current.AccountID); e != nil {
+			return e
+		}
+		id := strconv.FormatInt(in.RecipientID, 10)
+		if prior, ok := old.Remarks[label]; ok {
+			if prior != id {
+				return entity.Fail("STATE_CONFLICT", "this private remark already identifies another recipient")
+			}
+			out = old
+			return nil
+		}
+		if len(old.Remarks) >= 20 {
+			return entity.Fail("INVALID_ARGUMENT", "at most twenty private recipient remarks")
+		}
+		if old.Remarks == nil {
+			old.Remarks = map[string]string{}
+		}
+		old.Remarks[label] = id
+		old.Version++
+		raw, e := json.Marshal(old)
+		if e != nil || len(raw) > 4096 {
+			return entity.Fail("INVALID_ARGUMENT", "private remarks exceed directory size")
+		}
+		out = old
+		return tx.Model(&entity.User{}).Where("id=?", user).UpdateColumn("transfer_directory", string(raw)).Error
+	})
+	return
 }
 
 // Resolve must run after the caller holds both sorted user locks in its transaction.

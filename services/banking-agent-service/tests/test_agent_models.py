@@ -31,6 +31,21 @@ def test_skill_role_tool_and_mode_are_bound():
             spec(**change)
 
 
+def test_smoke_is_fixed_standalone_and_cannot_include_financial_tools():
+    from banking_agent.agent_models import AgentSubmit
+    smoke = spec(key="smoke", agent_type="supervisor", tool="model_smoke",
+                 skill_id="task_planning", parameters={}).model_dump()
+    assert AgentSubmit.model_validate({"tasks": [smoke], "max_attempts": 1}).tasks[0].tool == "model_smoke"
+    for change in ({"parameters": {"input": "custom"}}, {"use_coze": True},
+                   {"dependencies": ["billing"]}):
+        with pytest.raises(ValidationError):
+            AgentSubmit.model_validate({"tasks": [smoke | change]})
+    for change in ({"tasks": [smoke, spec().model_dump()]}, {"bindings": {"account_id": "1"}},
+                   {"max_attempts": 2}):
+        with pytest.raises(ValidationError):
+            AgentSubmit.model_validate({"tasks": [smoke], "max_attempts": 1} | change)
+
+
 def test_plan_rejects_cycles_and_mixed_instruction_tasks():
     from banking_agent.agent_models import AgentSubmit
 

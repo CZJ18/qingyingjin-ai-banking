@@ -1,0 +1,108 @@
+{
+  "status": "PASS_SELECTED_NONPAID_PUBLICATION_CHECKS",
+  "checks": [
+    {
+      "check": "Five relevant Go packages pass",
+      "exit_code": 0,
+      "command": [
+        "go.exe",
+        "test",
+        "-buildvcs=false",
+        "./internal/orchestrator",
+        "./internal/coze",
+        "./internal/modelgateway",
+        "./cmd/model-gateway",
+        "./internal/modelspend"
+      ],
+      "new_model_calls": 0
+    },
+    {
+      "check": "Current source Go core builds",
+      "exit_code": 0,
+      "command": [
+        "go.exe",
+        "build",
+        "-buildvcs=false",
+        "-o",
+        "D:/智慧农业/output/banking-competition-submission-20261101/work/banking-core.exe",
+        "./cmd/server"
+      ],
+      "new_model_calls": 0
+    },
+    {
+      "check": "Current source model gateway builds",
+      "exit_code": 0,
+      "command": [
+        "go.exe",
+        "build",
+        "-buildvcs=false",
+        "-o",
+        "D:/智慧农业/output/banking-competition-submission-20261101/work/model-gateway.exe",
+        "./cmd/model-gateway"
+      ],
+      "new_model_calls": 0
+    },
+    {
+      "check": "Vue type check and production build pass",
+      "exit_code": 0,
+      "command": [
+        "node.exe",
+        "C:/Program Files/nodejs/node_modules/npm/bin/npm-cli.js",
+        "run",
+        "build"
+      ],
+      "new_model_calls": 0
+    },
+    {
+      "check": "38 frontend test files,261tests pass",
+      "exit_code": 0,
+      "command": [
+        "node.exe",
+        "C:/Program Files/nodejs/node_modules/npm/bin/npm-cli.js",
+        "test"
+      ],
+      "new_model_calls": 0
+    },
+    {
+      "check": "Actual src/banking_agent compiles without configuration imports",
+      "exit_code": 0,
+      "command": [
+        "-c",
+        "from pathlib import Path;import compileall;p=Path(\"src/banking_agent\");assert p.is_dir(),p;assert compileall.compile_dir(str(p),quiet=1);print(\"PASS: compiled actual Agent source without importing configuration\")"
+      ],
+      "new_model_calls": 0
+    },
+    {
+      "check": "PDF/DOCX content and native PowerPoint layout checks pass",
+      "exit_code": 0,
+      "command": [
+        "python.exe",
+        "output/banking-github-20261101/render_and_verify.py",
+        "verify"
+      ],
+      "new_model_calls": 0
+    }
+  ],
+  "this_is_not_an_independent_security_audit": true,
+  "does_not_redeploy_current_containers": true,
+  "formal_supplier_reconciliation": false,
+  "initial_failure_causes_retained": [
+    {
+      "failure": "Go direct payload snapshot still pinned to pre-alternative prompt",
+      "fix": "Pin current serialized payload; keep exact comparison and historical approvals unchanged"
+    },
+    {
+      "failure": "Old frontend test fixtures lacked skill_version1/current cache scope and authenticated session",
+      "fix": "Update synthetic fixtures only; keep production validation unchanged and assert missing version is rejected"
+    },
+    {
+      "invalid_check": "Initial compileall banking_agent printed Cannot list and returned0",
+      "fix": "Assert actual src/banking_agent exists before compiling; not counted as a valid pass"
+    }
+  ],
+  "upstream_import_style": {
+    "status": "PARTIAL",
+    "full_repository_whitespace_check_exit_code": 2,
+    "reason": "Imported upstream backend/IDL retain28files with pre-existing trailing spaces or final blank lines; original upstream code retained, not rewritten for formatting. Banking business paths checked separately."
+  }
+}

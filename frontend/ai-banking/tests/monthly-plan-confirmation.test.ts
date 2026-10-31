@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createSSRApp, h } from 'vue'
 import { renderToString } from '@vue/server-renderer'
 import MonthlyPlanConfirmation from '../src/components/agents/MonthlyPlanConfirmation.vue'
+import TaskResult from '../src/components/assistant/TaskResult.vue'
 
 const monthlyTask = () => {
   const id = 'lg-12345678-1234-4234-9234-123456789abc'
@@ -44,5 +45,25 @@ describe('monthly final plan presentation', () => {
     const html = await render(task)
     expect(html).toContain('该方案确认已失效')
     expect(html.match(/<button[^>]*disabled/g)).toHaveLength(2)
+  })
+  it('forwards the billing suggestion goal button to the containing assistant', async () => {
+    const task = monthlyTask(), selectedGoals: string[] = []
+    Object.assign(task.confirmation.parameters_view.suggestions.plan.result, {
+      report_id: 'synthetic-monthly-report', total_income: 0, total_expense: 24000,
+      transaction_count: 3, category_breakdown: [], findings: [], anomalies: [],
+    })
+    let triggerGoal: (() => void) | undefined
+    const app = createSSRApp(MonthlyPlanConfirmation, {
+      task, busy: false, epoch: 7, onGoal: () => selectedGoals.push('open-existing-goal-form'),
+    })
+    app.component('RouterLink', { setup(_, { slots }) { return () => h('a', slots.default?.()) } })
+    app.mixin({ created() {
+      if (this.$.type === TaskResult) triggerGoal = () => this.$emit('goal')
+    } })
+    const html = await renderToString(app)
+    expect(html).toContain('设置下月少花目标 →')
+    expect(triggerGoal).toBeTypeOf('function')
+    triggerGoal!()
+    expect(selectedGoals).toEqual(['open-existing-goal-form'])
   })
 })

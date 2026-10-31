@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "purpose": "Exact published Canvas snapshots from a previously authorized isolated acceptance; not an approval or grant",
+  "workflows": [
+    {
+      "file": "supervisor-v0.0.10.canvas.json",
+      "raw_canvas_sha256": "5490489e99aee70fdda45582162884960039a67df1dd59dafe191021fbcb92b4",
+      "scope": "readonly synthetic billing only",
+      "authorization_included": false
+    },
+    {
+      "file": "billing-v0.0.9.canvas.json",
+      "raw_canvas_sha256": "8a03f48aae45d8c9a78932f93084f07601d161d0b64dda96cbebbe87ef52ebe3",
+      "scope": "readonly synthetic billing only",
+      "authorization_included": false
+    }
+  ]
+}

@@ -40,6 +40,11 @@ const goal = useQuery({
   enabled: computed(() => s.connected && !!s.lifestyleGoalId),
   queryFn: ({ signal }) => api.lifestyle.goal(s.lifestyleGoalId, signal),
 })
+const ownedGoals=useQuery({
+ queryKey:computed(()=>['owned-lifestyle-goals',s.sessionEpoch]),
+ enabled:computed(()=>s.connected),
+ queryFn:({signal})=>request<Schema<'LifestyleGoalView'>[]>('/api/v2/lifestyle-goals?limit=100&offset=0',{signal}),
+})
 const budgets = useQuery({
   queryKey: computed(() => ['lifestyle-budgets', s.sessionEpoch]),
   enabled: computed(() => s.connected),
@@ -178,6 +183,7 @@ async function save() {
     reset()
     ui.notify('生活目标已保存，尚未执行金融操作')
     await goal.refetch()
+    await ownedGoals.refetch()
   })
 }
 async function generateReport() {
@@ -316,7 +322,7 @@ async function decide(row: Schema<'LifestyleRecommendation'>, decision: 'accept'
             @change="selectGoal(($event.target as HTMLSelectElement).value)"
           >
             <option value="">请选择</option>
-            <option v-for="id in s.lifestyleGoalIds" :key="id" :value="id">目标 #{{ id }}</option>
+            <option v-for="item in ownedGoals.data.value" :key="item.goal.id" :value="item.goal.id">{{ item.versions[0]?.text || '生活目标' }} · #{{ item.goal.id }}</option>
           </select></label
         >
         <form @submit.prevent="selectGoal(lookup.trim())">
@@ -330,6 +336,9 @@ async function decide(row: Schema<'LifestyleRecommendation'>, decision: 'accept'
           >
         </form>
       </div>
+      <p v-if="ownedGoals.isLoading.value">正在读取你保存的生活目标…</p>
+      <p v-else-if="ownedGoals.error.value" role="alert">生活目标列表暂时无法读取。<Button variant="outline" @click="ownedGoals.refetch()">重试目标列表</Button></p>
+      <p v-else-if="ownedGoals.data.value?.length===0">你还没有保存生活目标；已保存内容会从服务器恢复，不需要记住编号。</p>
       <State
         v-if="s.lifestyleGoalId"
         :connected="s.connected"

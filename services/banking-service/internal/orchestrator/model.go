@@ -7,6 +7,7 @@ import (
 )
 
 type TaskSpec struct {
+	UseCoze       bool            `json:"use_coze,omitempty"`
 	SkillID       string          `json:"skill_id,omitempty"`
 	SkillVersion  int64           `json:"skill_version,omitempty"`
 	Blocked       bool            `json:"blocked,omitempty"`

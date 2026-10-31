@@ -75,6 +75,8 @@ func TestPinnedSDKToolCallHistoryIndexAndForbiddenChoiceAreAccepted(t *testing.T
 			w.Header().Set("Content-Type", "application/json")
 			io.WriteString(w, validResponse)
 		}, b)
+		// This protocol fixture includes history/schema text beyond the tiny 100-token admission budget.
+		h.(*gateway).cfg.Policy.ContextTokens = 2048
 		if w := call(h, body, "", "Bearer "+token); w.Code != 200 {
 			t.Errorf("SDK field incompatibility status=%d body=%s", w.Code, w.Body.String())
 		}

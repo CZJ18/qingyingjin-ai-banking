@@ -7,11 +7,13 @@ import (
 	"github.com/qingyingjin/banking-service/internal/entity"
 	"github.com/qingyingjin/banking-service/internal/lifestyle"
 	"github.com/qingyingjin/banking-service/internal/planning"
+	"github.com/qingyingjin/banking-service/internal/scenariooverview"
 	"github.com/qingyingjin/banking-service/internal/skills"
 	"github.com/qingyingjin/banking-service/internal/subscription"
 	"io"
 	"regexp"
 	"strconv"
+	"time"
 )
 
 type ToolPolicy struct {
@@ -40,6 +42,12 @@ func ValidateTasks(tasks []TaskSpec) ([]TaskSpec, error) {
 	out := append([]TaskSpec{}, tasks...)
 	for i := range out {
 		t := &out[i]
+		if t.Tool == "get_scenario_overview" && t.UseCoze {
+			return nil, entity.Fail("INVALID_TASK_PLAN", "scenario overview is deterministic and cannot request a specialist model call")
+		}
+		if t.Tool == "model_smoke" && (len(out) != 1 || t.UseCoze || len(t.Dependencies) != 0) {
+			return nil, entity.Fail("INVALID_TASK_PLAN", "fixed smoke must be standalone without Coze or tool dependencies")
+		}
 		binding, err := skills.Resolve(skills.Request{SkillID: t.SkillID, SkillVersion: t.SkillVersion, Agent: t.AgentType, Tool: t.Tool, Mode: t.ExecutionMode})
 		if err != nil {
 			return nil, err
@@ -188,9 +196,10 @@ func ValidateParameters(tool string, raw json.RawMessage, complete bool) error {
 			if e := strictJSON(raw, &in); e != nil {
 				return e
 			}
-			// The subscription service owns the bounded default three-month
-			// window and validates any supplied dates and account ownership.
-			// Keep the same DTO contract for user and delegated read calls.
+			if complete {
+				_, _, _, err := subscription.NormalizeDetection(in, time.Now().UTC())
+				return err
+			}
 		} else {
 			var in struct{}
 			return strictJSON(raw, &in)
@@ -209,6 +218,24 @@ func ValidateParameters(tool string, raw json.RawMessage, complete bool) error {
 			return e
 		}
 	case "supervisor":
+		if tool == "get_scenario_overview" {
+			var in scenariooverview.Input
+			if e := strictJSON(raw, &in); e != nil {
+				return e
+			}
+			return in.Validate()
+		}
+		if tool == "require_gateway" {
+			var fields map[string]json.RawMessage
+			if json.Unmarshal(raw, &fields) == nil && fields != nil && len(fields) == 0 {
+				if complete {
+					return entity.Fail("INPUT_REQUIRED", "explicit operation kind and parameters required")
+				}
+				return nil
+			}
+			_, err := parseOperationSuggestion(raw)
+			return err
+		}
 		if tool == "plan_instruction" {
 			var in struct {
 				Instruction string   `json:"instruction"`
@@ -237,6 +264,9 @@ func ValidateOutput(call Call, out AgentOutput) error {
 		}
 	}
 	for _, a := range out.NextActions {
+		if a.Type == "review_operation_proposal" && call.Tool == "require_gateway" && call.Confirmed && a.RequiresConfirmation {
+			continue
+		}
 		if a.Type == "confirm_cancel_intent" && call.Tool == "create_cancel_intent" && call.Confirmed && a.RequiresConfirmation {
 			continue
 		}

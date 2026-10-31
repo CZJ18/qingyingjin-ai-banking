@@ -200,7 +200,7 @@ func snapshot(tx *gorm.DB, user int64, settings Settings, now time.Time) (Snapsh
 		if len(entries) > 10000 {
 			return s, entity.Fail("ANALYSIS_LIMIT", "savings evidence limit")
 		}
-		gf := GoalFunds{ID: id, TargetMinor: g.TargetMinor, CurrentMinor: a.BalanceMinor, MonthlyMinor: plan.MonthlyMinor, Eligible: g.Status == "active" && a.Status == "active" && g.StartsAt <= now.UnixMilli() && g.EndsAt > now.UnixMilli()}
+		gf := GoalFunds{ID: id, TargetMinor: g.TargetMinor, CurrentMinor: a.BalanceMinor, MonthlyMinor: plan.MonthlyMinor, EndsAt: g.EndsAt, Eligible: g.Status == "active" && a.Status == "active" && g.StartsAt <= now.UnixMilli() && g.EndsAt > now.UnixMilli()}
 		for _, l := range entries {
 			if l.DeltaMinor > 0 {
 				gf.DepositedThisPeriodMinor += l.DeltaMinor

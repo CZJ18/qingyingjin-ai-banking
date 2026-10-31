@@ -48,8 +48,8 @@ func spendSchemaFixture(t *testing.T) (*sql.DB, string) {
 	}
 	t.Cleanup(conn.Close)
 	var version int
-	if err = conn.SQL.QueryRow("SELECT MAX(version) FROM banking_schema_migrations").Scan(&version); err != nil || version != 20 {
-		t.Fatal("runner must migrate the isolated fixture to schema 020 first")
+	if err = conn.SQL.QueryRow("SELECT MAX(version) FROM banking_schema_migrations").Scan(&version); err != nil || version != CurrentVersion {
+		t.Fatal("runner must migrate the isolated fixture to current schema first")
 	}
 	return conn.SQL, cfg.DatabaseDriver
 }

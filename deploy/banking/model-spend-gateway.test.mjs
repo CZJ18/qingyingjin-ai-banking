@@ -14,7 +14,7 @@ test('gateway rejects implicit hosts, insecure production, ambiguous origins and
   const c=buildGatewayConfig({...env,BANKING_ENVIRONMENT:'production',DEEPSEEK_GATEWAY_BASE_URL:'https://model-gateway.example/v1',DEEPSEEK_GATEWAY_ALLOWED_ORIGIN:'https://model-gateway.example'})
   assert.equal(c.gateway,true)
 })
-const proof={object:'list',data:[{id:'synthetic-model'}],model_spend_enforcement:{mode:'conservative_project_lifetime',project_id:'synthetic-project',policy_sha256:'a'.repeat(64),max_output_tokens:4096}}
+const proof={object:'list',data:[{id:'synthetic-model'}],model_spend_enforcement:{mode:'conservative_project_lifetime',user_monthly_identity_required:true,project_id:'synthetic-project',policy_sha256:'a'.repeat(64),max_output_tokens:4096}}
 test('verification is authenticated GET only and requires enforcement proof, not model availability alone',async()=>{
   const c=buildGatewayConfig(env);let count=0
   const ok=await verifyGateway(c,async(url,o)=>{count++;assert.equal(url,env.DEEPSEEK_GATEWAY_BASE_URL+'/models');assert.equal(o.method,'GET');assert.equal(o.headers.Authorization,'Bearer '+token);assert.equal(o.redirect,'error');return Response.json(proof)})
@@ -27,4 +27,9 @@ test('development can verify the same credential at an explicitly configured loo
   assert.equal(c.baseURL,env.DEEPSEEK_GATEWAY_BASE_URL)
   await verifyGateway(c,async url=>{assert.equal(url,'http://127.0.0.1:18160/v1/models');return Response.json(proof)})
   assert.throws(()=>buildGatewayConfig({...env,DEEPSEEK_GATEWAY_VERIFY_BASE_URL:'http://another-service:18160/v1'}))
+})
+
+test('project-only proof cannot authorize a user-monthly deployment',async()=>{
+  const c=buildGatewayConfig(env)
+  await assert.rejects(verifyGateway(c,async()=>Response.json({...proof,model_spend_enforcement:{...proof.model_spend_enforcement,user_monthly_identity_required:false}})))
 })

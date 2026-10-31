@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"regexp"
+	"unicode/utf8"
 
 	"github.com/qingyingjin/banking-service/internal/modelspend"
 )
@@ -28,6 +29,9 @@ type chatRequest struct {
 	Tools      []tool          `json:"tools,omitempty"`
 	ToolChoice json.RawMessage `json:"tool_choice,omitempty"`
 	N          *int64          `json:"n,omitempty"`
+	Thinking   *struct {
+		Type string `json:"type"`
+	} `json:"thinking,omitempty"`
 }
 type message struct {
 	Role       string     `json:"role"`
@@ -55,10 +59,13 @@ type tool struct {
 
 var fnName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]{0,63}$`)
 var invalidRequest = errors.New("invalid model request")
+var inputContextExceeded = errors.New("model input context limit exceeded")
 
 func parseRequest(raw []byte, p modelspend.Policy) (chatRequest, error) {
 	var r chatRequest
-	if modelspend.StrictJSON(raw, &r, requestLimit) != nil || len(bytes.TrimSpace(raw)) == 0 || bytes.TrimSpace(raw)[0] != '{' {
+	// Reject malformed text before JSON decoding can replace it: dispatch uses
+	// the original bytes, so validation must not silently normalize them.
+	if !utf8.Valid(raw) || modelspend.StrictJSON(raw, &r, requestLimit) != nil || len(bytes.TrimSpace(raw)) == 0 || bytes.TrimSpace(raw)[0] != '{' {
 		return r, invalidRequest
 	}
 	if r.Model != p.Model || r.MaxTokens == nil || *r.MaxTokens < 1 || *r.MaxTokens > p.MaxOutputTokens || len(r.Messages) == 0 || len(r.Messages) > 256 || r.N != nil && *r.N != 1 || r.StreamOptions != nil && !r.Stream {
@@ -68,6 +75,11 @@ func parseRequest(raw []byte, p modelspend.Policy) (chatRequest, error) {
 		return r, invalidRequest
 	}
 	if r.ResponseFormat != nil && r.ResponseFormat.Type != "text" && r.ResponseFormat.Type != "json_object" {
+		return r, invalidRequest
+	}
+	// Explicit non-thinking is supported for bounded smoke requests. Do not infer
+	// permission for other supplier extensions or unreviewed thinking controls.
+	if r.Thinking != nil && r.Thinking.Type != "disabled" {
 		return r, invalidRequest
 	}
 	if len(r.Stop) > 16 || len(r.Tools) > 128 {
@@ -137,6 +149,23 @@ func parseRequest(raw []byte, p modelspend.Policy) (chatRequest, error) {
 		if len(r.Tools) == 0 && choice != "none" && choice != "auto" {
 			return r, invalidRequest
 		}
+	}
+	// Fail closed before budget reservation. Count serialized UTF-8 bytes rather
+	// than a characters/4 estimate: text, history, tool arguments and schemas all
+	// consume input. A byte budget deliberately rejects some inputs that a vendor
+	// tokenizer could fit. Framing is additionally charged per message/tool; this
+	// is an admission bound, not supplier-reported token usage or settlement.
+	input, err := json.Marshal(struct {
+		Messages []message       `json:"messages"`
+		Tools    []tool          `json:"tools,omitempty"`
+		Choice   json.RawMessage `json:"tool_choice,omitempty"`
+	}{r.Messages, r.Tools, r.ToolChoice})
+	if err != nil {
+		return r, invalidRequest
+	}
+	bound := int64(len(input)) + 32 + 16*int64(len(r.Messages)+len(r.Tools))
+	if p.ContextTokens <= 0 || bound > p.ContextTokens {
+		return r, inputContextExceeded
 	}
 	return r, nil
 }

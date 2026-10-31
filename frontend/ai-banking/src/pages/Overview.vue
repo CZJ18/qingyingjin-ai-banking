@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { categoryLabel } from '@/lib/categories'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuery } from '@tanstack/vue-query'
@@ -28,6 +29,7 @@ import {
 import { useSession } from '@/lib/store'
 import { useAccounts, useSavings, useOperations, period, currentMonth } from '@/lib/queries'
 import { api, request, type Schema } from '@/api/client'
+import { useTaskHistory } from '@/lib/task-history'
 import { money, date } from '@/lib/utils'
 import State from '@/components/State.vue'
 import Status from '@/components/Status.vue'
@@ -47,9 +49,12 @@ const thisMonth = currentMonth(),
   appliedSearch = ref(''),
   direction = ref(''),
   detailId = ref('')
+const taskHistory = useTaskHistory()
 function openJob(id: string) {
-  s.selectedJob = id
-  void router.push('/agents')
+  const engine = id.startsWith('lg-') ? 'langgraph' : 'legacy'
+  if (engine === 'langgraph') s.saveAgentTask(id)
+  else s.saveJob(id)
+  void router.push({ path: '/agents', query: { history: engine } })
 }
 function billingQuery(selectedMonth: string) {
   return api.billing({
@@ -143,6 +148,7 @@ function refresh() {
   void operations.refetch()
   if (s.planId) void plan.refetch()
   if (s.jobIds.length) void jobs.refetch()
+  void taskHistory.refetch()
 }
 </script>
 <template>
@@ -309,7 +315,7 @@ function refresh() {
                       <div>
                         <button @click="detailId = t.id">
                           {{ t.merchant_name || t.description || '银行交易' }}</button
-                        ><span>{{ t.category }}</span>
+                        ><span>{{ categoryLabel(t.category) }}</span>
                       </div>
                     </div>
                   </td>
@@ -459,13 +465,18 @@ function refresh() {
         </header>
         <State
           :connected="s.connected"
-          :loading="jobs.isLoading.value"
-          :error="jobs.error.value"
-          :empty="!jobs.data.value?.length"
+          :loading="jobs.isLoading.value || taskHistory.isLoading.value"
+          :error="jobs.error.value || taskHistory.error.value"
+          :empty="!jobs.data.value?.length && !taskHistory.items.value.length"
           title="暂无金融任务"
           description="发起账单、订阅或资金规划任务后查看执行记录。"
-          @retry="jobs.refetch()"
-          ><button
+          @retry="taskHistory.refetch(); s.jobIds.length && jobs.refetch()"
+          ><button v-for="item in taskHistory.items.value.slice(0, 3)" :key="item.task_id"
+            class="overview-job-row" :aria-label="'查看协同任务 ' + item.task_id" @click="openJob(item.task_id)">
+            <div><b :title="item.instruction">{{ item.instruction || '金融协同任务' }}</b>
+              <span>{{ date(Date.parse(item.created_at)) }} · {{ item.task_id.slice(0, 16) }}</span></div>
+            <Status :value="item.status" />
+          </button><button
             v-for="j in jobs.data.value"
             :key="j.job.id"
             class="overview-job-row"
@@ -518,7 +529,7 @@ function refresh() {
                 </div>
                 <div>
                   <dt>分类</dt>
-                  <dd>{{ detail.data.value.category }}</dd>
+                  <dd>{{ categoryLabel(detail.data.value.category) }}</dd>
                 </div>
                 <div>
                   <dt>记账方式</dt>
@@ -1061,6 +1072,9 @@ function refresh() {
   font-size: 14px;
   font-weight: 500;
   color: #172033;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .overview-job-row div > span {
   font-size: 12px;

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { categoryLabel } from '@/lib/categories'
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import * as echarts from 'echarts/core'
 import { PieChart } from 'echarts/charts'
@@ -61,7 +62,7 @@ function render() {
         borderWidth: 0,
         textStyle: { color: '#fff', fontSize: 13 },
         formatter: (p: { name: string; value: number }) =>
-          `${echarts.format.encodeHTML(p.name)}<br/>${money(p.value * 100)} · ${props.total > 0 ? (((p.value * 100) / props.total) * 100).toFixed(1) : '0.0'}%`,
+          `${echarts.format.encodeHTML(categoryLabel(p.name))}<br/>${money(p.value * 100)} · ${props.total > 0 ? (((p.value * 100) / props.total) * 100).toFixed(1) : '0.0'}%`,
       },
       series: [
         {
@@ -131,14 +132,14 @@ onBeforeUnmount(() => {
           v-for="row in rows"
           :key="row.category"
           :class="{ highlighted: hovered === row.category }"
-          :aria-label="'查看' + row.category + '交易'"
+          :aria-label="'查看' + categoryLabel(row.category) + '交易'"
           @mouseenter="highlight(row.category)"
           @mouseleave="highlight('')"
           @focus="highlight(row.category)"
           @blur="highlight('')"
           @click="$emit('filter', row.category)"
         >
-          <i :style="{ background: color(row.category) }" /><span>{{ row.category }}</span
+          <i :style="{ background: color(row.category) }" /><span>{{ categoryLabel(row.category) }}</span
           ><b>{{ money(row.expense_minor) }}</b
           ><small>{{ total > 0 ? ((row.expense_minor / total) * 100).toFixed(1) : '0.0' }}%</small>
         </button>

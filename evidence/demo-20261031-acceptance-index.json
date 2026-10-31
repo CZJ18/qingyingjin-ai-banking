@@ -1,0 +1,104 @@
+{
+  "status": "PASS_LOCAL_ENGINEERING_AND_BROWSER_DELIVERY_REAL_MODEL_RETEST_PENDING",
+  "counts": {
+    "PASS": 12,
+    "FAIL": 0,
+    "PARTIAL": 1,
+    "BLOCKED": 2,
+    "SKIPPED": 1
+  },
+  "checks": [
+    {
+      "item": "Snapshot regression reproduced before repair",
+      "status": "PASS",
+      "evidence_or_reason": "command-005-red-saved-report-component.json"
+    },
+    {
+      "item": "Snapshot failure not reported as zero: reproduced and repaired",
+      "status": "PASS",
+      "evidence_or_reason": "command-058-red-unavailable-snapshot-is-not-zero.json"
+    },
+    {
+      "item": "Current Vue source 37 regressions and TypeScript check",
+      "status": "PASS",
+      "evidence_or_reason": "final_web.py"
+    },
+    {
+      "item": "Fixed Go binary actually deployed, gateway SHA verified",
+      "status": "PASS",
+      "evidence_or_reason": "deployment.json"
+    },
+    {
+      "item": "Actual current Go/Python contracts and Vue static bytes",
+      "status": "PASS",
+      "evidence_or_reason": "deployment.json"
+    },
+    {
+      "item": "500yuan conditional proposal, owned report, no auto regeneration",
+      "status": "PASS",
+      "evidence_or_reason": "browser.json"
+    },
+    {
+      "item": "Account/invalid link boundaries and empty evidence",
+      "status": "PASS",
+      "evidence_or_reason": "final-browser.json"
+    },
+    {
+      "item": "Trial and review persisted after refresh",
+      "status": "PASS",
+      "evidence_or_reason": "browser.json"
+    },
+    {
+      "item": "Two deterministic read-only scenarios and database results",
+      "status": "PASS",
+      "evidence_or_reason": "browser.json"
+    },
+    {
+      "item": "Original fee/unknown/intent records retained",
+      "status": "PASS",
+      "evidence_or_reason": "integrity.json"
+    },
+    {
+      "item": "MP4 after-login browser demonstration",
+      "status": "PASS",
+      "evidence_or_reason": "video-delivery.json"
+    },
+    {
+      "item": "Stop-only rollback retains data, WhatIf verified",
+      "status": "PASS",
+      "evidence_or_reason": "rollback.ps1"
+    },
+    {
+      "item": "New repaired full real-model retest",
+      "status": "BLOCKED",
+      "evidence_or_reason": "No new exact fee approval/plan confirmation for a new trial; previous failure closed that cycle"
+    },
+    {
+      "item": "Formal supplier bill reconciliation",
+      "status": "BLOCKED",
+      "evidence_or_reason": "No original supplier statement"
+    },
+    {
+      "item": "Three arbitrary natural-language scenarios on repaired runtime",
+      "status": "PARTIAL",
+      "evidence_or_reason": "Historical real NL exists; this round exercises deterministic tool paths without model calls"
+    },
+    {
+      "item": "Bank/merchant production execution",
+      "status": "SKIPPED",
+      "evidence_or_reason": "Simulated business, no institution integration"
+    }
+  ],
+  "url": "http://127.0.0.1:30436",
+  "new_model_requests": 0,
+  "supplier_credentials_read": 0,
+  "old_app_30432_preserved": true,
+  "new_core_contains_prior_compressed_evidence_fix": true,
+  "new_web_contains_original_snapshot_viewer": true,
+  "official_supplier_bill_reconciled": false,
+  "commands": "commands.json",
+  "rollback": "rollback.ps1",
+  "changes": "changes.json",
+  "deployment": "deployment.json",
+  "video": "video-delivery.json"
+}

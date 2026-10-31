@@ -29,13 +29,13 @@ func coreError(c *gin.Context, err error) {
 		status = 400
 	case "NOT_FOUND":
 		status = 404
-	case "FORBIDDEN":
+	case "FORBIDDEN", "MODEL_APPROVAL_REQUIRED":
 		status = 403
-	case "RECIPIENT_RATE_LIMITED", "MODEL_QUOTA_EXCEEDED":
+	case "RECIPIENT_RATE_LIMITED", "MODEL_QUOTA_EXCEEDED", "MODEL_USER_MONTHLY_QUOTA_EXCEEDED", "MODEL_SPEND_QUOTA_EXCEEDED", "MODEL_APPROVAL_LIMIT_EXCEEDED":
 		status = 429
 	case "IDEMPOTENCY_CONFLICT", "VERSION_CONFLICT", "STATE_CONFLICT", "PARSE_IN_PROGRESS", "PARSE_OUTCOME_UNKNOWN", "MODEL_OUTCOME_UNKNOWN", "MODEL_REQUEST_CONFLICT":
 		status = 409
-	case "DEPENDENCY_UNAVAILABLE", "COZE_UNAVAILABLE", "STORAGE_FROZEN", "MODEL_BUDGET_UNAVAILABLE":
+	case "DEPENDENCY_UNAVAILABLE", "COZE_UNAVAILABLE", "STORAGE_FROZEN", "MODEL_BUDGET_UNAVAILABLE", "MODEL_MONETARY_ADMISSION_REQUIRED", "MODEL_EXECUTION_CONFIRMATION_REQUIRED":
 		status = 503
 	}
 	respond(c, status, code, message, nil)
@@ -108,8 +108,10 @@ func input[T any](c *gin.Context, fn func(T) (any, error), status int) {
 	finish(c, data, err, status)
 }
 func registerCore(user *gin.RouterGroup, s *service.Core) {
+	registerStatementImport(user, s)
 	registerAA(user, s)
 	registerRenewals(user, s)
+	registerBirthdays(user, s)
 	user.GET("/cards", func(c *gin.Context) {
 		if c.MustGet("actor").(identity.Actor).Kind != "user" {
 			respond(c, 403, "FORBIDDEN", "card management requires the user", nil)
@@ -252,7 +254,7 @@ func registerCore(user *gin.RouterGroup, s *service.Core) {
 				return
 			}
 		}
-		v, total, err := s.Transactions(c.Request.Context(), meta(c).UserID, service.TransactionFilter{AccountID: account, Direction: c.Query("direction"), Category: c.Query("category"), Merchant: c.Query("merchant"), From: from, To: to, Limit: o.Limit, Offset: o.Offset})
+		v, total, err := s.Transactions(c.Request.Context(), meta(c).UserID, service.TransactionFilter{AccountID: account, Direction: c.Query("direction"), Category: c.Query("category"), CanonicalCategory: c.Query("canonical_category"), Merchant: c.Query("merchant"), From: from, To: to, Limit: o.Limit, Offset: o.Offset})
 		normalized := legacy.NormalizeListOptions(o)
 		finish(c, gin.H{"items": v, "total": total, "limit": normalized.Limit, "offset": normalized.Offset}, err, 200)
 	})

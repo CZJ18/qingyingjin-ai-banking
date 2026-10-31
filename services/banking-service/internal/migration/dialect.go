@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const CurrentVersion = 20
+const CurrentVersion = 23
 
 // Apply retains the existing caller contract; detect the actual connected
 // database rather than trusting a mismatched environment label.
@@ -54,5 +54,14 @@ func Apply(ctx context.Context, db *sql.DB) error {
 	if err := applyModelAccounting(ctx, db, dialect); err != nil {
 		return err
 	}
-	return applyModelSpend(ctx, db, dialect)
+	if err := applyModelSpend(ctx, db, dialect); err != nil {
+		return err
+	}
+	if err := applyModelMonthly(ctx, db, dialect); err != nil {
+		return err
+	}
+	if err := applyExpenseTrials(ctx, db, dialect); err != nil {
+		return err
+	}
+	return applyBirthdays(ctx, db, dialect)
 }

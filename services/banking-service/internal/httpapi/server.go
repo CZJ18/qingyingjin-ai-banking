@@ -142,6 +142,16 @@ func newWithLifestyle(auth *identity.Auth, log *slog.Logger, checks map[string]C
 	r.GET("/readyz", func(c *gin.Context) {
 		states := map[string]string{}
 		ready := true
+		if gateway != nil {
+			ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
+			err := gateway.CheckReady(ctx)
+			cancel()
+			states["execution_policy"] = "ready"
+			if err != nil {
+				states["execution_policy"] = "unavailable"
+				ready = false
+			}
+		}
 		for name, check := range checks {
 			ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
 			err := check(ctx)
@@ -173,7 +183,14 @@ func newWithLifestyle(auth *identity.Auth, log *slog.Logger, checks map[string]C
 			c.Abort()
 			return
 		}
-		actor, err := auth.UserContext(c.Request.Context(), strings.TrimPrefix(raw, "Bearer "))
+		var actor identity.Actor
+		var err error
+		credential := strings.TrimPrefix(raw, "Bearer ")
+		if strings.HasPrefix(credential, "bgt1.") && c.Request.Method == "POST" && c.Request.URL.Path == "/api/v1/langgraph/delegations" {
+			actor, err = auth.BackgroundContext(c.Request.Context(), credential)
+		} else {
+			actor, err = auth.UserContext(c.Request.Context(), credential)
+		}
 		if err != nil {
 			if gateway != nil && sensitiveExecutionPath(c.Request.Method, c.Request.URL.Path) {
 				executionDenial(c, gateway, nil, "EXECUTE", "UNAUTHENTICATED")

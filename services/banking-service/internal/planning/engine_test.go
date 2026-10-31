@@ -6,6 +6,48 @@ func ptr(n int64) *int64 { return &n }
 func sample() Snapshot {
 	return Snapshot{Period: "2026-10", Settings: Settings{LivingRemainingMinor: ptr(30000), EssentialRemainingMinor: ptr(20000), SafetyReserveMinor: 10000, CashBufferMinor: 5000, FutureIncomeMinor: ptr(0)}, BalanceMinor: 100000, Goals: []GoalFunds{{ID: 2, TargetMinor: 100000, MonthlyMinor: 40000, Eligible: true}, {ID: 1, TargetMinor: 100000, MonthlyMinor: 30000, Eligible: true}}, Blockers: []string{}, ReviewNotes: []string{}}
 }
+
+func TestExplicitGoalPriorityAndDeadlineRemainWithinSafeCash(t *testing.T) {
+	s := sample()
+	s.Settings.GoalPriorityIDs = []int64{2, 1}
+	s.Goals[0].EndsAt = 1793491200000 // 2026-11-01T00:00:00Z, exclusive deadline
+	result, err := Calculate(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	option := result.Options[1]
+	if option.Allocations[0].GoalID != 2 || option.Allocations[0].AmountMinor != 40000 || option.Allocations[1].AmountMinor != 1250 {
+		t.Fatal(option)
+	}
+	if option.Allocations[0].RequiredMonthlyMinor != 100000 || !option.Allocations[0].DeadlineRisk {
+		t.Fatal("unfunded deadline not reported", option)
+	}
+	if option.RetainedMinor < 45000 {
+		t.Fatal("priority consumed protected reserves")
+	}
+	s.Settings.GoalPriorityIDs = []int64{2, 2}
+	if _, err := Calculate(s); err == nil {
+		t.Fatal("duplicate priority accepted")
+	}
+}
+
+func TestDeadlineReviewCountsCurrentMonthDepositsExactlyOnce(t *testing.T) {
+	s := sample()
+	s.Goals = []GoalFunds{{ID: 1, TargetMinor: 120000, CurrentMinor: 10000, MonthlyMinor: 10000, DepositedThisPeriodMinor: 10000, Eligible: true, EndsAt: 1822348800000}}
+	result, err := Calculate(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Options[0].Allocations[0].DeadlineRisk {
+		t.Fatal("on-track monthly deposit was ignored", result.Options[0])
+	}
+	s.Goals[0] = GoalFunds{ID: 1, TargetMinor: 10000, CurrentMinor: 3000, MonthlyMinor: 10000, DepositedThisPeriodMinor: 3000, Eligible: true, EndsAt: 1793491200000}
+	s.BalanceMinor = 49000 // safe cap 4000; even aggressive savings leave a deadline gap
+	result, err = Calculate(s)
+	if err != nil || !result.Options[2].Allocations[0].DeadlineRisk {
+		t.Fatal("current deposits counted twice", result, err)
+	}
+}
 func TestRules(t *testing.T) {
 	for _, tc := range []struct {
 		name   string

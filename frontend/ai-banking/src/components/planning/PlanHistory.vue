@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { planReason } from '@/lib/business-copy'
 import { computed, ref, watch } from 'vue'
 import { ArrowRight, Clock3 } from 'lucide-vue-next'
 import type { Schema } from '@/api/client'
@@ -82,7 +83,7 @@ function delta(key: (typeof fields)[number]['key']) {
                 <b>v{{ v.version }}<span v-if="v.id === ordered[0]?.id">最新</span></b
                 ><small>{{ date(v.created_at) }}</small>
               </div>
-              <p>{{ v.reason }}</p>
+              <p>{{ planReason(v.reason) }}</p>
               <span class="version-state">{{
                 v.needs_confirmation ? '待确认规划建议' : '规划建议已确认'
               }}</span>
@@ -99,7 +100,8 @@ function delta(key: (typeof fields)[number]['key']) {
               current.version
             }}
           </h3>
-          <p>{{ current.reason }}</p>
+          <p>{{ planReason(current.reason) }}</p>
+          <JsonDetails label="查看原始更新原因" :value="current.reason" />
         </div>
         <span><Clock3 :size="14" />{{ date(current.created_at) }}</span>
       </header>

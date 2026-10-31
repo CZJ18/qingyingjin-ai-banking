@@ -61,28 +61,7 @@ func Normalize(in Input) (Normalized, error) {
 	return p, nil
 }
 func category(raw string) (string, bool) {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "dining", "food", "餐饮", "饮食", "groceries", "食品":
-		return "dining", true
-	case "transport", "transportation", "交通":
-		return "transport", true
-	case "shopping", "购物":
-		return "shopping", true
-	case "sports", "exercise", "fitness", "运动":
-		return "sports", true
-	case "subscription", "subscriptions", "订阅":
-		return "subscriptions", true
-	case "housing", "住房", "rent":
-		return "housing", true
-	case "medical", "healthcare", "医疗":
-		return "medical", true
-	case "education", "教育":
-		return "education", true
-	case "other", "其他":
-		return "other", true
-	default:
-		return "uncategorized", false
-	}
+	return entity.CanonicalCategory(raw)
 }
 func evidence(t entity.Transaction) Evidence {
 	cat, _ := category(t.Category)

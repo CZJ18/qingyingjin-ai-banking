@@ -4,6 +4,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/qingyingjin/banking-service/internal/cards"
 	"github.com/qingyingjin/banking-service/internal/entity"
+	"github.com/qingyingjin/banking-service/internal/service"
 	"gorm.io/gorm"
 	"time"
 )
@@ -16,7 +17,7 @@ func cardSnapshot(tx *gorm.DB, user int64, p cards.Input) ([]cards.Card, error) 
 	if e != nil {
 		return nil, e
 	}
-	if p.Action == "bind" || p.Action == "set_default" {
+	if p.Action == "bind" || p.Action == "apply" || p.Action == "set_default" {
 		id := p.AccountID
 		if p.Action == "set_default" {
 			for _, c := range portfolio {
@@ -33,7 +34,7 @@ func cardSnapshot(tx *gorm.DB, user int64, p cards.Input) ([]cards.Card, error) 
 		if e != nil {
 			return nil, e
 		}
-		if !a.IsSimulated || a.Currency != "CNY" {
+		if !a.IsSimulated || a.Currency != "CNY" || (a.AccountType != "checking" && a.AccountType != "savings") {
 			return nil, entity.Fail("FORBIDDEN", "simulated CNY account required")
 		}
 		if a.Status != "active" {
@@ -44,6 +45,22 @@ func cardSnapshot(tx *gorm.DB, user int64, p cards.Input) ([]cards.Card, error) 
 		return nil, e
 	}
 	return portfolio, nil
+}
+
+func checkTransferCard(tx *gorm.DB, user int64, p service.TransferInput) error {
+	if p.CardID == "" {
+		return nil
+	}
+	portfolio, e := cards.Read(tx, user)
+	if e != nil {
+		return e
+	}
+	for _, c := range portfolio {
+		if c.ID == p.CardID {
+			return cards.CheckPayment(c, p.SourceAccountID, p.AmountMinor)
+		}
+	}
+	return entity.Fail("NOT_FOUND", "owned card not found")
 }
 func cardPolicy(tx *gorm.DB, op *entity.OperationIntent) error {
 	var p cards.Input

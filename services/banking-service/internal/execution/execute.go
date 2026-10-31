@@ -79,6 +79,16 @@ func (s *Service) Execute(ctx context.Context, a identity.Actor, m service.Meta,
 			return entity.Fail("STATE_CONFLICT", "operation state or version changed")
 		}
 		now := time.Now().UnixMilli()
+		due, e := scheduledDue(op)
+		if e != nil {
+			return e
+		}
+		if due > now && op.ExpiresAt > now && consent.ExpiresAt > now {
+			// The persisted, exact consent remains unconsumed until the due time.
+			// No balance, financial journal, child authorization or result is created.
+			out, e = view(tx, op)
+			return e
+		}
 		op.RiskLevel = "high"
 		if op.ExpiresAt <= now || consent.ExpiresAt <= now {
 			op.Status = "expired"
@@ -154,6 +164,10 @@ func (s *Service) Execute(ctx context.Context, a identity.Actor, m service.Meta,
 	return out, s.failOperation(ctx, a, m, "EXECUTE", id, err)
 }
 func (s *Service) perform(ctx context.Context, tx *gorm.DB, m service.Meta, op *entity.OperationIntent) (any, string, error) {
+	if scenarioKind(op.Kind) {
+		value, err := performScenario(ctx, tx, m, op)
+		return value, "", err
+	}
 	core := service.New(repository.New(tx), risk.TrustedGateway{})
 	sub := subscription.New(repository.New(tx), risk.TrustedGateway{}, s.simulator)
 	switch op.Kind {

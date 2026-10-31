@@ -1,0 +1,131 @@
+{
+  "status": "PASS",
+  "url": "http://127.0.0.1:30436",
+  "containers": {
+    "qyj-competition-demo-20261031-core": {
+      "name": "/qyj-competition-demo-20261031-core",
+      "id": "a6f7ae63ac937acb765ecf0d10b385ca59759989b1c3b66ed4ce8160f045542d",
+      "image": "sha256:cddbc9ce72ba82fe2afb2173e4b5f437535e45bcdf7cd1f6d920de86c7c61148",
+      "running": true,
+      "started": "2026-10-31T11:00:53.876650475Z",
+      "user": "65532:65532"
+    },
+    "qyj-competition-demo-20261031-agent": {
+      "name": "/qyj-competition-demo-20261031-agent",
+      "id": "d95577f058d0e054574ee1a643302eda8694cdd931c1af10d30eae26c55f8f89",
+      "image": "sha256:df6329e5d6006283629e2a69bb48b032a6ce592d8f82c8b065861328829c86b5",
+      "running": true,
+      "started": "2026-10-31T11:00:55.052026978Z",
+      "user": "10001:10001"
+    },
+    "qyj-competition-demo-20261031-web": {
+      "name": "/qyj-competition-demo-20261031-web",
+      "id": "412505e5eb5f6477770c664fe0fd88aa39aefce50f515172d025ab22be8ace14",
+      "image": "sha256:da09c3583f2bb020c1dc925f3f403cb6307d78fb06a370f81cec0a800dccafe2",
+      "running": true,
+      "started": "2026-10-31T11:08:22.222916926Z",
+      "user": "65532:65532"
+    },
+    "qyj-competition-demo-20261031-ingress": {
+      "name": "/qyj-competition-demo-20261031-ingress",
+      "id": "738821e0b99fcb08aca012ec330997312fe2a4d226a9fb21e11597ce5a4c7c37",
+      "image": "sha256:70729b46c69b4f1e97c4822c1af3df53a1476cf5ddc6c087c0c10bc3a5678c2f",
+      "running": true,
+      "started": "2026-10-31T11:00:57.098181046Z",
+      "user": "65532:65532"
+    }
+  },
+  "actual_binary_sha256": {
+    "banking-service": "090f23a8ef676c282629a6aad37fa2b8bdc0d7b8f0bba3150cd6866ef5ac6065",
+    "banking-model-gateway": "d0914de91560c6165d8640971880b57a8aa023b50615e1bff64ee370b63c637b"
+  },
+  "Go_contract_sha256": "28a21811da9530d58f85a2448cccd48a67c0c7c180173114623c68efb9da3fb1",
+  "Python_contract_sha256": "1a36b4a1f183f7a34936be943d3221f10e3c52d43d74840d9e67c886c82f0087",
+  "Vue_assets_sha256": {
+    "agent-client-C8lPblY_.js": "a3f2dbc1bd1ffd8c70f43679036ee638202f9ed9b86c3aeab29bd438bbc5c500",
+    "Agents-0XZkHxra.js": "65b0eb721f4ed8c8f48f38704dea761eae2c80eb1df344b14651332c52401573",
+    "Agents-BlGI4alb.css": "cd2a795f5e11d296f870143c0e0c600443e527993bb7030f649694da14353942",
+    "Assistant-aA01Kjoz.css": "7aaa24509e55bac76afeef980461f06f7f5fff04a3956674feba085bf0678df0",
+    "Assistant-BxCCYb_G.js": "202e1b4434cf800316de4dcb315823632d266b16255b3e4499a147c0b2f67f2a",
+    "Billing-6Bi-ZD15.css": "c3db99a5a7d71e3f3a913b62200340bee73e4a298fd43d09c4ee5738817516ea",
+    "Billing-B5NjbzNK.js": "68498d26e76f76ab7d03c43840a292bf44038f9ab7178d7dcbab2fd292c3ca3e",
+    "categories-BUjUeyTV.js": "21d310cc2b150dc24ea16674aff06a782d1ed551867a70c8ef7c39171b1fe501",
+    "Chart.vue_vue_type_script_setup_true_lang-B529Zlov.js": "54b79b88e2a6dd9650b065dae4f6866deda2c105ee7d36a3ef08d4e14bfdb9f3",
+    "clock-3-BH9ZQQcg.js": "a8bb926418282a05cfbf916f57c67fe35af0329a00d33a65a58354a87d926f09",
+    "credit-card-CDn6qNSe.js": "37f8ffcc4dddf587062ee78f3fb650965f360e0461ce3185e642d0cfebd653fc",
+    "ExecutionDialog-BaeDSpg3.js": "8b6e8d06023ce72f704bc151cdcb8ddf44f147bd147ab36d06432dbccd40c589",
+    "ExecutionDialog-CYQQos6-.css": "95c4bac60bacad0ada95125203537dd2e4da24c152d0acb11cc2550188132e7a",
+    "Goals-CeKatt3u.css": "9b26859033d84221321351d1592cd473b32c9da0bfd4162cbd4893c41a183375",
+    "Goals-clDt9Qzk.js": "e02862ee216e54dec7927117f555c27310326fe1558655aa9b08e1954c48eaf4",
+    "index-Ct9bDjPK.js": "6385624f60b39a58a25691d114d07f0ee1ab6b59427f1501238331b6f386262e",
+    "index-DEKZXz79.css": "eb89ed9ef31e516f5f2a5483bfe755ff6176faa6647ea2f7e1506e40afdfad21",
+    "JsonDetails.vue_vue_type_script_setup_true_lang-zU2Tiiu0.js": "354646566265f1ac264173154c2ec13430c30300cd6f00e06ffd105b93ad44d8",
+    "Overview-87GLaW53.js": "781c5eacbac3f76483318dcb239a5746e3ca59dab74e5be0a21c823ad455fcfb",
+    "Overview-d6IRsYje.css": "a415e58cd57a13113a0bc98c6ecd67be1f8ac0020d66ac5564ac346fb247a9e8",
+    "p6-workbench-CnKLv9kd.js": "2cdc7ba9a818348ef75dbaec0d96684be6f2f1420200ecdbdea8607329fdcb27",
+    "p6-workbench-FcR-WQu_.css": "0c5b1d0bdcaf85be8dcfb434a6adefe6cad1998a0836daf0b677d600c0b03446",
+    "Planning-C-yDa-7G.css": "c0c92566321768c8103d99aaa9eb24469f54e421a38a42a63a2472fd449a3e50",
+    "Planning-C3cK_tJ-.js": "a20f96e9298c7503be5903971e2f1efa73d0089e71cb752a5bc38253dd120c53",
+    "plus-CfEj2SpW.js": "58781c9b9054a0c37e7fd14e464e451a81981dc96e711c083bd9017cded2c872",
+    "product-actions-CPIDfHb7.js": "2d0dfb0a2f24ef95e5504b15e75bd8b18a537b63a84ea5c0a5e59ceddcc20adb",
+    "refresh-cw-RNzJJmn4.js": "1f1f4b63d3e652791527ef349154463e5301dfaa8c1fe7f0a76c627dd4e493c5",
+    "Scenarios-Bv_3megH.css": "56e80990baaee68951a7c33fd67685fc705f16e7bdcb2e87c314f76a75483bdf",
+    "Scenarios-C6BHkKb-.js": "fe60f802251b9c147e3f817dbf9545db3e753ea4e304a5c8d84c0b961f909bf3",
+    "search-lceD4F_w.js": "b0909e72f00bb047f045deedf1a7515cb5756421007483d79b28fd9ef007eb22",
+    "Security-BzMcoVXX.js": "e2b4fc303fd49a9016d2cbf152a6465331b4bb22c23080f74ac6b171a755f3a5",
+    "Security-RfjpaTca.css": "f4cb50401eb26b1fcaa924022cbbed0ffb69042736b9db33449f796c6cf81437",
+    "State.vue_vue_type_script_setup_true_lang-BaLv8hEm.js": "03aba50f698ae6a4379f73dd0a7628b714e8ede44343e11e505b96c59fcc5584",
+    "subscription-scope-CzL-ATv-.js": "57473d5f123594639189570186320cca8137a40e9aeaca0dd82ae0acfe1fcbbb",
+    "Subscriptions-BDw4d40u.css": "ff384ca7d33ff6216a30fe270f9f87ec60b6ae91fec277ef84b960435d6bd106",
+    "Subscriptions-CYQhLSbC.js": "0206ab07c71dc4e08c5fa68b727107141302c67340f9364c00adbfe5e097e67d",
+    "target-DqtQ0lzL.js": "78e9458f5c7013a09d5d0dde8d539d4a615a1c1a759c04ccf8295591ffaf6a8d",
+    "task-history-CGG43AcN.js": "ca707126e3dc473fc0fef246d280b9cb35266c66e7352ae02edf7dfff1dcf275"
+  },
+  "database": "banking_savings_loop_20261030_test",
+  "Agent_database": "banking_savings_loop_agent_20261030_test",
+  "database_schema_changed": false,
+  "prior_application_containers_replaced": false,
+  "supplier_config_read": false,
+  "model_gateway_started": false,
+  "background_Worker_enabled": false,
+  "readiness": {
+    "/readyz": {
+      "status": 200,
+      "body": {
+        "code": "OK",
+        "message": "ready",
+        "request_id": "0dbf829a-f940-4f05-959a-ccdc85a362b8",
+        "trace_id": "0dbf829a-f940-4f05-959a-ccdc85a362b8",
+        "data": {
+          "dependencies": {
+            "execution_policy": "ready",
+            "postgres": "ready",
+            "redis": "ready",
+            "schema": "ready",
+            "storage": "ready"
+          }
+        }
+      }
+    },
+    "/product/readyz": {
+      "status": 200,
+      "body": {
+        "code": "OK",
+        "message": "ready",
+        "request_id": "fea7d0c9-5c37-48c0-a144-f3f39932412a",
+        "trace_id": "fea7d0c9-5c37-48c0-a144-f3f39932412a",
+        "data": {
+          "dependencies": {
+            "postgresql": "ready",
+            "redis": "ready",
+            "banking": "ready",
+            "background_worker": "disabled"
+          }
+        }
+      }
+    }
+  },
+  "preserved_fee_task_intent_rows_unchanged": true,
+  "initial_failure": "Redis private data network missing; only new containers connected to exact existing internal Redis network",
+  "initial_new_web_retained": "3bcaab1c18d5d20befcd23b129760d4be27610e700b82840e975f59bdb5cc118"
+}
