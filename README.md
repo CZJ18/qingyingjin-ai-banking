@@ -4,11 +4,17 @@ Vue 3 / TypeScript、Go Banking Service、Python FastAPI / LangGraph、自托管
 
 本仓库是参赛源码与部署参考。保留已有实现和上游 Apache-2.0 许可。代码仓库：https://github.com/CZJ18/qingyingjin-ai-banking。
 
+## 仓库与参赛上传范围
+
+本仓库对应报名页面的“源码与部署材料”：项目源码、README、部署配置示例、依赖锁文件、API契约、测试用例、合成样本及必要工程文档。
+
+技术文档、答辩PPT、安全自评报告在报名网站各自的栏位单独上传；演示录像、封面素材、讲稿和验收导出记录由操作者本地保管，不随本仓库及源码ZIP打包。代码仓库链接填写本仓库首页地址。
+
 ## 实际完成情况
 
 - 六类业务已有页面、后端接口和持久化：智能转账、账单分析、理财、卡片、订阅/代扣、生日跨场景。金融执行仍为模拟，不连接真实银行、发卡或商户资金。
 - 2026-10-30 历史验收完成六个只读自然语言用例、7次真实请求；这是历史批次，不等于所有新任务均获授权。
-- 最新账单用例已实际通过 Vue → Go → Python/LangGraph → 已发布 Coze Supervisor v0.0.10 / Billing v0.0.9 → 真实 DeepSeek → Go只读工具 → 隔离SQL → Vue。61笔九月合成账单，金额由Go计算；模型给出可选购物延期、复用/维修、每周复盘。详情见 [真实结果摘要](evidence/real-billing-v9-20261101.json)。
+- 最新账单用例已实际通过 Vue → Go → Python/LangGraph → 已发布 Coze Supervisor v0.0.10 / Billing v0.0.9 → 真实 DeepSeek → Go只读工具 → 隔离SQL → Vue。61笔九月合成账单，金额由Go计算；模型给出可选购物延期、复用/维修、每周复盘。完整验收记录由操作者在本地保存。
 - 先前失败及v0.0.8建议缺项保留；v0.0.9用2次请求复验，共1529token。同项目两轮合计4次、2956token；金额状态为预占/估算/reported，尚无正式供应商账单对账。
 - 未证明实际节省500元或完成7天复盘；任意问题、生产合规和真实银行执行均不能由本用例推导为通过。
 
@@ -18,7 +24,6 @@ Vue 3 / TypeScript、Go Banking Service、Python FastAPI / LangGraph、自托管
 2. [测试说明](TESTING.md)：默认非付费回归和真实验收边界。
 3. [代码索引](CODE-INDEX.md)：业务、模型和契约路径。
 4. [真实模型操作流程](deploy/banking/REAL-MODEL-RUNBOOK.md)：复用已有Policy、Approval、账本和精确执行确认，不另建付费通道。
-5. [参赛材料](competition/README.md)：技术文档、10分钟内答辩、安全自评及演示录像。
 
 ```powershell
 cd services/banking-service

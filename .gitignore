@@ -40,3 +40,16 @@ SOURCE-MANIFEST.json
 *.7z
 *.rar
 *.tar.gz
+
+# Separate submission uploads and local acceptance exports
+/competition/
+/evidence/
+/submission-materials/
+/REAL-AI-*-ACCEPTANCE-*.md
+/REAL-AI-ACCEPTANCE-*.md
+/docs/*安全自评报告.md
+*.pptx
+*.ppt
+*.docx
+*.pdf
+*.mp4
